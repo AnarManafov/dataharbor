@@ -1,10 +1,11 @@
 package controller
 
 import (
-	"app/request"
-	"app/response"
 	"os"
 	"os/user"
+
+	"github.com/AnarManafov/app/request"
+	"github.com/AnarManafov/app/response"
 
 	"github.com/gin-gonic/gin"
 )

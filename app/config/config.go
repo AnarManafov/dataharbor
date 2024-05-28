@@ -1,8 +1,8 @@
 package config
 
 import (
+	"github.com/AnarManafov/app/common"
 	"github.com/spf13/viper"
-	"app/common"
 )
 
 func Init() {
