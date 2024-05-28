@@ -27,6 +27,12 @@ cd app
 go mod init github.com/${YOUR_USERNAME}/app
 ```
 
+### Register missing dependencies
+
+```shell
+go get github.com/${YOUR_USERNAME}/app
+```
+
 ### Install Dependencies
 
 ```shell
