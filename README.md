@@ -30,13 +30,29 @@ go mod init github.com/${YOUR_USERNAME}/app
 ### Register missing dependencies
 
 ```shell
+cd app
 go get github.com/${YOUR_USERNAME}/app
+```
+
+### Add new module requirements and sums
+
+```shell
+cd app
+go mod tidy
 ```
 
 ### Install Dependencies
 
 ```shell
+cd app
 go mod download
+```
+
+### Build
+
+```shell
+cd app
+go build -o app .
 ```
 
 ## Development

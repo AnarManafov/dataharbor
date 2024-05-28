@@ -2,11 +2,12 @@ package middleware
 
 import (
 	"bytes"
-	"github.com/gin-gonic/gin"
 	"io"
-	"app/common"
 	"strings"
 	"time"
+
+	"github.com/AnarManafov/app/common"
+	"github.com/gin-gonic/gin"
 )
 
 type CustomResponseWriter struct {

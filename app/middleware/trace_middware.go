@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"app/util"
+	"github.com/AnarManafov/app/util"
 
 	"github.com/gin-gonic/gin"
 )

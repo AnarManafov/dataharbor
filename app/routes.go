@@ -1,8 +1,8 @@
 package main
 
 import (
-	"app/controller"
-	"app/middleware"
+	"github.com/AnarManafov/app/controller"
+	"github.com/AnarManafov/app/middleware"
 
 	"github.com/gin-gonic/gin"
 )

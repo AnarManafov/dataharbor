@@ -1,10 +1,11 @@
 package main
 
 import (
-	"app/common"
-	"app/config"
 	"fmt"
 	"strconv"
+
+	"github.com/AnarManafov/app/common"
+	"github.com/AnarManafov/app/config"
 
 	"github.com/gin-gonic/gin"
 )
