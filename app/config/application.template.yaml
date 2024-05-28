@@ -1,7 +1,7 @@
 server:
-  port: 6600
+  port: 5173
   debug: false
-  
+
 datasource:
   default:
     driver: "mysql"
@@ -39,4 +39,3 @@ logger:
     maxbackups: 2
     maxage: 27
     compress: true
-

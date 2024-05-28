@@ -49,7 +49,7 @@ func AccessLogger() gin.HandlerFunc {
 		}
 
 		bodystr := ""
-		// ingore file upload body, beacuse is too big
+		// ignore file upload body, because is too big
 		contentType := ctx.Request.Header.Get("Content-Type")
 		if !strings.Contains(contentType, "multipart/form-data") {
 			bodystr = string(body)
