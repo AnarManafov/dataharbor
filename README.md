@@ -55,6 +55,12 @@ cd app
 go build -o app .
 ```
 
+### Run
+
+```shell
+ go run .
+```
+
 ## Development
 
 ### Vue Tips
