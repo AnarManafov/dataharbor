@@ -2,6 +2,7 @@
 
 * [Frontend](./web/README.md)
 * [Backend](./app/README.md)
+* [xrootd](./doc/xrootd.md)
 
 ## Test locally
 
