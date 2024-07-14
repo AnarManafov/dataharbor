@@ -1,6 +1,6 @@
-Data Lake UI Release Notes
+# Data Lake UI Release Notes
 
-v0.1 (2024-07-14)
+## v0.1 (2024-07-14)
 
 - Initial version.
 - Working skeletons of a Frontend and a Backend.
