@@ -1,8 +1,15 @@
-# web
+# web (Frontend)
 
-## Project setup
+## Requirements
 
-Requares [Vite](https://vitejs.dev/guide/)
+* npm
+  * OSX
+
+    ```shell
+    brew install npm
+    ```
+
+* [Vite](https://vitejs.dev/guide/)
 
 ```shell
 npm install
@@ -12,18 +19,26 @@ npm install vue-axios
 npm install vue-router
 ```
 
+## Build/Run
+
 ### Compiles and hot-reloads for development
 
-```
+```shell
 npm run dev
 ```
 
 ### Compiles and minifies for production
 
-```
+```shell
 npm run build
 ```
 
-### Customize configuration
+### Run locally
+
+```shell
+ npm run preview
+```
+
+## Customize configuration
 
 See [Configuration Reference](https://cli.vuejs.org/config/).
