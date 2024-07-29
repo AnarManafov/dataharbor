@@ -1,5 +1,7 @@
 # web (Frontend)
 
+The frontend is build using [Vite](https://vitejs.dev/) and [Vue 3](https://vuejs.org/).
+
 ## Requirements
 
 * npm
