@@ -1,9 +1,6 @@
 package controller
 
 import (
-	"os"
-	"os/user"
-
 	"github.com/AnarManafov/app/request"
 	"github.com/AnarManafov/app/response"
 
@@ -12,13 +9,14 @@ import (
 
 func GetHomeDir(ctx *gin.Context) {
 	// Get the current user
-	u, err := user.Current()
-	if err != nil {
-		response.FailWithErr(ctx, response.SystemErr)
-		return
-	}
+	// u, err := user.Current()
+	// if err != nil {
+	// 	response.FailWithErr(ctx, response.SystemErr)
+	// 	return
+	// }
 
-	response.Success(ctx, u.HomeDir)
+	// response.Success(ctx, u.HomeDir)
+	response.Success(ctx, "/tmp")
 }
 
 func GetDirItems(ctx *gin.Context) {
@@ -36,7 +34,7 @@ func GetDirItems(ctx *gin.Context) {
 
 	var items []response.DirItemResp
 
-	files, err := os.ReadDir(dirPath)
+	files, err := ReadDir("localhost", dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, response.SystemErr)
 		return
@@ -44,9 +42,9 @@ func GetDirItems(ctx *gin.Context) {
 
 	for _, d := range files {
 		item := response.DirItemResp{
-			Name: d.Name(),
+			Name: d.name,
 		}
-		if d.IsDir() { // If you want to list both files and dirs, remove this check.
+		if d.isDir { // If you want to list both files and dirs, remove this check.
 			item.Type = "dir"
 		} else {
 			item.Type = "file"
@@ -54,10 +52,10 @@ func GetDirItems(ctx *gin.Context) {
 		items = append(items, item)
 	}
 
-	if err != nil {
-		response.FailWithErr(ctx, response.SystemErr)
-		return
-	}
+	// if err != nil {
+	// 	response.FailWithErr(ctx, response.SystemErr)
+	// 	return
+	// }
 
 	response.Success(ctx, items)
 }
