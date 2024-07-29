@@ -9,6 +9,13 @@
     brew install go
     ```
 
+* [SWIG](https://www.swig.org/)
+  * OSX
+
+    ```shell
+    brew install swig
+    ```
+
 ## Install Dependencies
 
 ```shell

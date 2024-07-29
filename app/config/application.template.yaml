@@ -7,7 +7,7 @@ datasource:
     driver: "mysql"
     host: "localhost"
     port: 3306
-    database: "seedgo"
+    database: "data_lake_ui_app"
     username: "root"
     password: "root"
     charset: "utf8"
@@ -16,11 +16,11 @@ datasource:
     driver: "postgres"
     host: "localhost"
     port: 5432
-    database: "seedgo"
+    database: "data_lake_ui_app"
     username: "root"
     password: "root"
     sslmode: "disable"
-    timezone: "Asia/Shanghai"
+    timezone: ""
 
 redis:
   host: "localhost:6379"
@@ -34,7 +34,7 @@ logger:
   file:
     level: "info"
     driver: "file"
-    filename: "./log/seedgo.log"
+    filename: "./log/data_lake_ui_app.log"
     maxsize: 10
     maxbackups: 2
     maxage: 27

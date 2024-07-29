@@ -68,7 +68,7 @@ const selectDir = (row) => {
     currentDir.value = currentDir.value + "/" + row.name
     listDir()
   } else {
-    ElMessageBox.alert('This is a mock a open a file', 'FileName: ' + row.name, {
+    ElMessageBox.alert('This is a mockup to open a file', 'FileName: ' + row.name, {
       // if you want to disable its autofocus
       // autofocus: false,
       confirmButtonText: 'OK',
