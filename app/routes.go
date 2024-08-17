@@ -17,5 +17,7 @@ func RegisterRoutes(r *gin.Engine) {
 
 	r.GET("home_dir", controller.GetHomeDir)
 
+	r.GET("host_name", controller.GetHostName)
+
 	r.POST("dir", controller.GetDirItems)
 }

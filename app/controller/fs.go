@@ -19,6 +19,10 @@ func GetHomeDir(ctx *gin.Context) {
 	response.Success(ctx, "/tmp")
 }
 
+func GetHostName(ctx *gin.Context) {
+	response.Success(ctx, "localhost")
+}
+
 func GetDirItems(ctx *gin.Context) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -42,13 +46,16 @@ func GetDirItems(ctx *gin.Context) {
 
 	for _, d := range files {
 		item := response.DirItemResp{
-			Name: d.name,
+			Name:     d.name,
+			DateTime: d.dt.Format("2006-01-02 15:04:05"),
+			Size:     d.size,
 		}
 		if d.isDir { // If you want to list both files and dirs, remove this check.
 			item.Type = "dir"
 		} else {
 			item.Type = "file"
 		}
+
 		items = append(items, item)
 	}
 

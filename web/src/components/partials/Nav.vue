@@ -1,0 +1,79 @@
+<template>
+    <nav class="navbar" role="navigation" aria-label="main navigation">
+        <div class="navbar-brand">
+            <a class="navbar-item" href="/">
+                <img src="https://media.geeksforgeeks.org/wp-content/uploads/20220121204016/gfglogo300x152-200x101.png">
+                <strong class="is-size-4">Data Lake UI</strong>
+            </a>
+            <!--Burger doesn't work like that, below this commented code is the workaround-->
+            <!------------->
+            <!--a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="true"
+                data-target="navbarBasicExample">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+            </a-->
+            <div class="navbar-burger burger"
+                onclick="document.querySelector('.navbar-menu').classList.toggle('is-active');">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <!------------->
+        </div>
+        <div id="navbar" class="navbar-menu">
+            <div class="navbar-start">
+                <router-link to="/" class="navbar-item">Home</router-link>
+                <router-link to="/documentation" class="navbar-item">Documentation</router-link>
+                <div class="navbar-item has-dropdown is-hoverable">
+                    <a class="navbar-link">
+                        More
+                    </a>
+                    <div class="navbar-dropdown">
+                        <router-link to="/about" class="navbar-item">
+                            About
+                        </router-link>
+                        <a class="navbar-item">
+                            Contact
+                        </a>
+                        <hr class="navbar-divider">
+                        <a class="navbar-item">
+                            Report an issue
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="navbar-end">
+                <div class="navbar-item">
+                    <div class="buttons">
+                        <router-link to="/browse_xrd" class="button is-dark is-outlined">
+                            Log In
+                        </router-link>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+</template>
+<script>
+export default {
+    name: 'Nav',
+};
+</script>
+<style lang="scss" scoped>
+nav {
+    margin-top: 25px;
+    margin-bottom: 30px;
+
+    a {
+        font-weight: bold;
+        color: #2c3e50;
+
+        &.router-link-exact-active {
+            color: #d88d00;
+        }
+    }
+}
+</style>
