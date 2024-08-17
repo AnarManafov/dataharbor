@@ -19,6 +19,8 @@ npm install pinia
 npm install axios
 npm install vue-axios
 npm install vue-router
+npm install --save-dev sass
+npm install bulma
 ```
 
 ## Build/Run

@@ -9,3 +9,8 @@ export const getHomeDirPath = () => {
 export const getItemsInDir = (path) => {
   return request.post("dir", { path });
 };
+
+// Get the current user's home dir
+export const getHostName = () => {
+    return request.get("host_name");
+  };

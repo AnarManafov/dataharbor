@@ -5,12 +5,15 @@ import (
 	"context"
 	"os/exec"
 	"path"
+	"strconv"
 	"strings"
 	"time"
 )
 
 type xrdDirEntry struct {
 	name  string
+	dt    time.Time
+	size  uint64
 	isDir bool
 }
 
@@ -44,11 +47,25 @@ func ReadDir(host string, dir string) (retVal []xrdDirEntry, err error) {
 	for scanner.Scan() {
 		columns := strings.Fields(scanner.Text())
 		var item xrdDirEntry
+		// File name
 		item.name = path.Base(columns[6])
+		// Is Dir
 		if columns[0][0] == 'd' {
 			item.isDir = true
 		} else {
 			item.isDir = false
+		}
+		// Date/Time
+		var tt time.Time
+		const layoutTime string = "2006-01-02 15:04:05"
+		tt, err := time.Parse(layoutTime, columns[4]+" "+columns[5])
+		if err == nil {
+			item.dt = tt
+		}
+		// Size
+		s, err := strconv.ParseUint(columns[3], 10, 64)
+		if err == nil {
+			item.size = s
 		}
 		retVal = append(retVal, item)
 	}
