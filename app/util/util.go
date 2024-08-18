@@ -3,8 +3,9 @@ package util
 import (
 	"errors"
 	"fmt"
-	"github.com/bwmarrin/snowflake"
 	"net"
+
+	"github.com/bwmarrin/snowflake"
 )
 
 var snowNode *snowflake.Node
