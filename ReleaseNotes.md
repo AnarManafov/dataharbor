@@ -1,6 +1,6 @@
 # Data Lake UI Release Notes
 
-## v0.3 NOT YET RELEASED
+## v0.3 (2024-08-18)
 
 - Revamped frontend UI (add new home view, nav bar, etc.)
 - Removed unused code.
