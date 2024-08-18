@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/AnarManafov/app/common"
 	"github.com/AnarManafov/app/request"
 	"github.com/AnarManafov/app/response"
 
@@ -16,11 +17,11 @@ func GetHomeDir(ctx *gin.Context) {
 	// }
 
 	// response.Success(ctx, u.HomeDir)
-	response.Success(ctx, "/tmp")
+	response.Success(ctx, common.XrdConfig.InitialDir)
 }
 
 func GetHostName(ctx *gin.Context) {
-	response.Success(ctx, "localhost")
+	response.Success(ctx, common.XrdConfig.Host)
 }
 
 func GetDirItems(ctx *gin.Context) {
@@ -38,7 +39,7 @@ func GetDirItems(ctx *gin.Context) {
 
 	var items []response.DirItemResp
 
-	files, err := ReadDir("localhost", dirPath)
+	files, err := ReadDir(common.XrdConfig.Host, common.XrdConfig.Port, dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, response.SystemErr)
 		return

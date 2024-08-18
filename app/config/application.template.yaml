@@ -2,6 +2,13 @@ server:
   port: 5173
   debug: false
 
+xrd:
+  host: "localhost"
+  port: 1094
+  initial_dir: "/tmp"
+  xrdfs_path: "/opt/homebrew/bin/xrdfs"
+  process_timeout: 5
+
 datasource:
   default:
     driver: "mysql"

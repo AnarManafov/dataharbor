@@ -11,8 +11,8 @@ func ParseRedisConf() {
 	if viper.IsSet("redis") {
 		rdb = redis.NewClient(&redis.Options{
 			Addr:     viper.GetString("redis.host"),
-			Password: viper.GetString("redis.password"), // 没有密码，默认值
-			DB:       viper.GetInt("redis.db"),          // 默认DB 0
+			Password: viper.GetString("redis.password"),
+			DB:       viper.GetInt("redis.db"),
 		})
 	}
 }

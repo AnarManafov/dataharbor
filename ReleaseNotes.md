@@ -1,5 +1,9 @@
 # Data Lake UI Release Notes
 
+## v0.4 NOT YET RELEASED
+
+- XRD settings moved to the backend configuration.
+
 ## v0.3 (2024-08-18)
 
 - Revamped frontend UI (add new home view, nav bar, etc.)

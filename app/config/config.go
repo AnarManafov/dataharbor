@@ -15,6 +15,7 @@ func Init() {
 
 	common.ParseDatabaseConfig()
 	common.ParseRedisConf()
+	common.ParseXrdConfig()
 }
 
 func loadConfig() {
