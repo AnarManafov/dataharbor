@@ -67,3 +67,33 @@ func GetDirItems(ctx *gin.Context) {
 
 	response.Success(ctx, items)
 }
+
+func GetFileStagedForDownload(ctx *gin.Context) {
+	var req request.DirItemsReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		respError := response.NewBusErr(response.SystemErr.Code, response.SystemErr.Err, response.SystemErr.Message+": "+err.Error())
+		response.FailWithErr(ctx, respError)
+		return
+	}
+
+	filePath := req.Path
+	if len(filePath) == 0 {
+		respError := response.NewBusErr(response.SystemErr.Code, response.SystemErr.Err, response.SystemErr.Message+": Empty file path for staging")
+		response.FailWithErr(ctx, respError)
+		return
+	}
+
+	// Stage the requested file:
+	// Ask XRD to copy the requested file to the Server's public location, so that it can be downloaded.
+	stagedFilePath, err := StageFile(common.XrdConfig.Host, common.XrdConfig.Port, filePath)
+	if err != nil {
+		respError := response.NewBusErr(response.SystemErr.Code, response.SystemErr.Err, response.SystemErr.Message+": "+err.Error())
+		response.FailWithErr(ctx, respError)
+		return
+	}
+
+	// Send the response the to the server with the public location of the requested file.
+	respondData := response.StageFileResp{Path: stagedFilePath}
+
+	response.Success(ctx, respondData)
+}

@@ -1,5 +1,13 @@
 # Backend
 
+The backend is written in Go and provides an interface to XROOTD-related operations.  
+At first the plan was to use XRD API directly. Unfortunately there is only XRD-client C++ API, which is difficult to support in Go. Sometime is it also unreliable even via a [SWIG wrapper](https://www.swig.org/Doc3.0/Go.html).  
+
+For now it was decided to use xrd-client command line calls to cover all XRD-related operations. All command line calls are covered with an async. timeout to prevent blocking of the entire app.  
+
+The backend app is running a lightweight, local WEB server and responds on requests send by the frontend (a Vue SPA).  
+The server port is configurable, see [the app's configuration](./config/application.template.yaml).
+
 ## Requirements
 
 * Go
@@ -7,13 +15,6 @@
 
     ```shell
     brew install go
-    ```
-
-* [SWIG](https://www.swig.org/)
-  * OSX
-
-    ```shell
-    brew install swig
     ```
 
 ## Install Dependencies
@@ -62,5 +63,3 @@ go mod tidy
 ```
 
 ## Links
-
-* [cppgo](https://pkg.go.dev/github.com/lsegal/cppgo)

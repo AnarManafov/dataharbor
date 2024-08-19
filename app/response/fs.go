@@ -6,3 +6,7 @@ type DirItemResp struct {
 	DateTime string `json:"date_time"`
 	Size     uint64 `json:"size"`
 }
+
+type StageFileResp struct {
+	Path string `json:"path"`
+}

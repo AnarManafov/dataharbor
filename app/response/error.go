@@ -6,7 +6,7 @@ type BusErr struct {
 	Err     error
 }
 
-func NewBusErr(code int, err error, message string) error {
+func NewBusErr(code int, err error, message string) BusErr {
 	return BusErr{
 		Code:    code,
 		Message: message,
@@ -27,6 +27,6 @@ func (busErr BusErr) Unwrap() error {
 
 var (
 	SystemErr          = BusErr{Code: 400, Message: "system error"}
-	UnAuthenticateErr  = BusErr{Code: 401, Message: "unauthentication "}
-	UnAuthorizationErr = BusErr{Code: 403, Message: "unauthorization"}
+	UnAuthenticateErr  = BusErr{Code: 401, Message: "unauthenticated "}
+	UnAuthorizationErr = BusErr{Code: 403, Message: "unauthorized"}
 )
