@@ -21,6 +21,8 @@ npm install vue-axios
 npm install vue-router
 npm install --save-dev sass
 npm install bulma
+npm install file-saver --save
+npm install @types/file-saver --save
 ```
 
 ## Build/Run
