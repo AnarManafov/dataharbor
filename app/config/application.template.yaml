@@ -6,8 +6,9 @@ xrd:
   host: "localhost"
   port: 1094
   initial_dir: "/tmp"
-  xrdfs_path: "/opt/homebrew/bin/xrdfs"
+  xrd_client_bin_path: "/opt/homebrew/bin/"
   process_timeout: 5
+  staging_path: "/tmp/delete_me"
 
 datasource:
   default:

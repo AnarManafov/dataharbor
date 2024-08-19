@@ -3,6 +3,7 @@
 ## v0.4 NOT YET RELEASED
 
 - XRD settings moved to the backend configuration.
+- Users are now able to download the selected file.
 
 ## v0.3 (2024-08-18)
 

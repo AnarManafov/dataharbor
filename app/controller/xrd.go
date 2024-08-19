@@ -5,6 +5,7 @@ import (
 
 	"bufio"
 	"context"
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -19,7 +20,7 @@ type xrdDirEntry struct {
 	isDir bool
 }
 
-func RunXrdfs(arg ...string) (string, error) {
+func RunXrdFs(arg ...string) (string, error) {
 	timeout := common.XrdConfig.ProcessTimeout
 
 	ctx := context.Background()
@@ -29,7 +30,7 @@ func RunXrdfs(arg ...string) (string, error) {
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(ctx, common.XrdConfig.XrdfsPath, arg...)
+	cmd := exec.CommandContext(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdfs"), arg...)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -38,10 +39,30 @@ func RunXrdfs(arg ...string) (string, error) {
 	return string(output), nil
 }
 
-// TODO: add error code
+func RunXrdCp(_xrd_addr string, _src string, _dest string) error {
+	timeout := common.XrdConfig.ProcessTimeout
+
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		defer cancel()
+	}
+
+	_src = "xroot://" + _xrd_addr + "/" + _src
+	common.Logger.Info("XRD: Staging " + _src + " to " + _dest)
+	cmd := exec.CommandContext(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdcp"), "--force", _src, _dest)
+
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func ReadDir(host string, port int, dir string) (retVal []xrdDirEntry, err error) {
 	srd_addr := host + ":" + strconv.Itoa(port)
-	output, err := RunXrdfs(srd_addr, "ls", "-l", dir)
+	output, err := RunXrdFs(srd_addr, "ls", "-l", dir)
 	if err != nil {
 		return nil, err
 	}
@@ -74,4 +95,24 @@ func ReadDir(host string, port int, dir string) (retVal []xrdDirEntry, err error
 	}
 
 	return retVal, nil
+}
+
+// TODO: The backend needs to have a background job to clean the staging area.
+// All files older than X hours should be deleted.
+
+func StageFile(_host string, _port int, _file string) (string, error) {
+	srd_addr := _host + ":" + strconv.Itoa(_port)
+	// Create a random subdirectory to allow concurrent download files with the same name.
+	tmpDir, err := os.MkdirTemp(common.XrdConfig.StagingPath, "stg_")
+	if err != nil {
+		return "", err
+	}
+	stagedFilePath := path.Join(tmpDir, path.Base(_file))
+	// Request XRD to copy the file from XRD to a local location
+	err = RunXrdCp(srd_addr, _file, stagedFilePath)
+	if err != nil {
+		return "", err
+	}
+
+	return stagedFilePath, nil
 }

@@ -6,9 +6,7 @@
                     <el-breadcrumb separator="/">
                         <el-breadcrumb-item>{{ xrdHostName }}</el-breadcrumb-item>
                         <template v-for="(i, k) in currentDir.split('/')" :key="k">
-                            <el-breadcrumb-item @click="changeDir(k)" v-if="i.length > 1">{{
-                                i
-                            }}</el-breadcrumb-item>
+                            <el-breadcrumb-item @click="changeDir(k)" v-if="i.length > 0">{{ i }}</el-breadcrumb-item>
                         </template>
                     </el-breadcrumb>
                 </div>
@@ -27,8 +25,12 @@
 </template>
 
 <script lang="ts" setup>
-import { getHostName, getHomeDirPath, getItemsInDir } from '@/api/api';
+import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } from '@/api/api';
 import { onMounted, ref } from 'vue';
+import { saveAs } from 'file-saver';
+import axios from 'axios';
+// FIXME: if this import is used, then ElMessageBox don't show up.
+//import { ElMessageBox, ElMessage } from 'element-plus';
 
 const tableRowClassName = ({
     row,
@@ -56,7 +58,7 @@ onMounted(() => {
 
 const tableData = ref([])
 
-const changeDir = (index) => {
+const changeDir = (index: number) => {
     console.log("changeDir index: " + index);
 
     currentDir.value = currentDir.value.split("/").filter((k, i) => {
@@ -68,22 +70,40 @@ const changeDir = (index) => {
     listDir()
 }
 
-const selectDir = (row) => {
+const selectDir = (row: { type: string; name: string; }) => {
     if (row.type == 'dir') {
-        currentDir.value = currentDir.value + "/" + row.name
-        listDir()
+        currentDir.value = currentDir.value + "/" + row.name;
+        listDir();
     } else {
-        ElMessageBox.alert('This is a mockup to download a file', 'FileName: ' + row.name, {
+        const srcFileToDownload = currentDir.value + "/" + row.name
+        ElMessageBox.confirm('Do you want to download the file?', srcFileToDownload, {
             // if you want to disable its autofocus
             // autofocus: false,
-            confirmButtonText: 'OK',
-            callback: (action: Action) => {
-                ElMessage({
-                    type: 'info',
-                    message: `action: ${action}`,
-                })
-            },
-        })
+            confirmButtonText: 'Download',
+            cancelButtonText: 'Cancel',
+        }).then(() => {
+            ElMessage({
+                type: 'success',
+                message: 'Preparing to download: ' + srcFileToDownload,
+            })
+
+            // Requesting to stage the file
+            var destFileToDownload = "";
+
+            getFileStagedForDownload(srcFileToDownload).then(resp => {
+                destFileToDownload = resp.data.data
+
+                // Force download a file 
+                axios.get(destFileToDownload, { responseType: 'blob' })
+                    .then(response => {
+                        saveAs(response.data, row.name);
+                    }).catch((response) => {
+                        console.error("Could not Download the requested file from the backend.", response);
+                    });
+            })
+        }).catch(() => {
+            console.log("Download is canceled by the user.");
+        });
     }
 }
 
@@ -94,10 +114,12 @@ const listDir = () => {
         tableData.value = resp.data.data
     })
 }
+
 const getXrdHostName = () => {
     getHostName().then(resp => { xrdHostName.value = resp.data.data })
 }
 </script>
+
 
 <style>
 .el-table .warning-row {
