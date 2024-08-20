@@ -10,8 +10,8 @@ The server port is configurable, see [the app's configuration](./config/applicat
 
 ## Requirements
 
-* Go
-  * OSX
+* Go  
+  **OSX**
 
     ```shell
     brew install go
