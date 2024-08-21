@@ -8,9 +8,15 @@ For now it was decided to use xrd-client command line calls to cover all XRD-rel
 The backend app is running a lightweight, local WEB server and responds on requests send by the frontend (a Vue SPA).  
 The server port is configurable, see [the app's configuration](./config/application.template.yaml).
 
+## Features
+
+- List files using the selected XROOTD server.
+- Can stage a requested file for download. It copies the file to a WEB server's public location, into a staged temporary directory, for further download.
+- Implements a sanitation job to periodically check and clean staged temporary files.
+
 ## Requirements
 
-* Go  
+- Go  
   **OSX**
 
     ```shell
