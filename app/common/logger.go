@@ -25,7 +25,7 @@ func InitLogger() {
 
 	// parse loggerList
 	var cList []zapcore.Core
-	for loggerName, _ := range loggerList {
+	for loggerName := range loggerList {
 		c, err := parseLogger(loggerName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "parse logger %s failed, err: %s", loggerName, err)
