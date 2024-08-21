@@ -60,8 +60,8 @@ func RunXrdCp(_xrd_addr string, _src string, _dest string) error {
 	return nil
 }
 
-func ReadDir(host string, port int, dir string) (retVal []xrdDirEntry, err error) {
-	srd_addr := host + ":" + strconv.Itoa(port)
+func ReadDir(host string, port uint, dir string) (retVal []xrdDirEntry, err error) {
+	srd_addr := host + ":" + strconv.FormatUint(uint64(port), 10)
 	output, err := RunXrdFs(srd_addr, "ls", "-l", dir)
 	if err != nil {
 		return nil, err
@@ -100,10 +100,10 @@ func ReadDir(host string, port int, dir string) (retVal []xrdDirEntry, err error
 // TODO: The backend needs to have a background job to clean the staging area.
 // All files older than X hours should be deleted.
 
-func StageFile(_host string, _port int, _file string) (string, error) {
-	srd_addr := _host + ":" + strconv.Itoa(_port)
+func StageFile(_host string, _port uint, _file string) (string, error) {
+	srd_addr := _host + ":" + strconv.FormatUint(uint64(_port), 10)
 	// Create a random subdirectory to allow concurrent download files with the same name.
-	tmpDir, err := os.MkdirTemp(common.XrdConfig.StagingPath, "stg_")
+	tmpDir, err := os.MkdirTemp(common.XrdConfig.StagingPath, common.XrdConfig.StagingTmpDirPrefix)
 	if err != nil {
 		return "", err
 	}
