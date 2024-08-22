@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@vmaster
+      - uses: actions/checkout@master
       - name: Set up Go
         uses: actions/setup-node@master
       - name: Install Dependencies
