@@ -7,6 +7,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app
     steps:
       - uses: actions/checkout@master
       - name: Set up Go
@@ -14,7 +17,6 @@ jobs:
         with:
           go-version: '1.22'
       - name: Build
-        working-directory: ./app
         run: go build -v ./...
 
 # - name: Test
