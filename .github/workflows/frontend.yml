@@ -1,3 +1,6 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
 name: Frontend
 on:
   push:
@@ -9,13 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
-      - name: Set up Go
-        uses: actions/setup-go@master
-        with:
-          go-version: '1.22'
+      - name: Set up Node
+        uses: actions/setup-node@master
+      - name: Install Dependencies
+        working-directory: ./web
+        run: npm install
       - name: Build
-        working-directory: ./app
-        run: go build -v ./...
-
-# - name: Test
-#   run: go test -v ./...
+        working-directory: ./web
+        run: npm run build
