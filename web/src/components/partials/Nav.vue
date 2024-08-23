@@ -1,7 +1,7 @@
 <template>
-    <nav class="navbar" role="navigation" aria-label="main navigation">
+    <nav class="navbar has-shadow" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
-            <a class="navbar-item" href="/">
+            <a class="navbar-item is-size-5 has-text-weight-bold" href="/">
                 <img src="https://media.geeksforgeeks.org/wp-content/uploads/20220121204016/gfglogo300x152-200x101.png">
                 <strong class="is-size-4">Data Lake UI</strong>
             </a>
@@ -76,14 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 <style lang="scss" scoped>
 nav {
-    margin-top: 25px;
-    margin-bottom: 30px;
+    // margin-top: 10px;
+    // margin-bottom: 10px;
 
     a {
-        font-weight: bold;
         color: #2c3e50;
+        text-decoration: none;
 
         &.router-link-exact-active {
+            font-weight: bold;
             color: #d88d00;
         }
     }
