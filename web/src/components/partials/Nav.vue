@@ -5,23 +5,14 @@
                 <img src="https://media.geeksforgeeks.org/wp-content/uploads/20220121204016/gfglogo300x152-200x101.png">
                 <strong class="is-size-4">Data Lake UI</strong>
             </a>
-            <!--Burger doesn't work like that, below this commented code is the workaround-->
-            <!------------->
-            <!--a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="true"
+            <a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="true"
                 data-target="navbarBasicExample">
                 <span aria-hidden="true"></span>
                 <span aria-hidden="true"></span>
                 <span aria-hidden="true"></span>
-            </a-->
-            <div class="navbar-burger burger"
-                onclick="document.querySelector('.navbar-menu').classList.toggle('is-active');">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-            <!------------->
+            </a>
         </div>
-        <div id="navbar" class="navbar-menu">
+        <div id="navbarBasicExample" class="navbar-menu">
             <div class="navbar-start">
                 <router-link to="/" class="navbar-item">Home</router-link>
                 <router-link to="/documentation" class="navbar-item">Documentation</router-link>
@@ -61,6 +52,27 @@
 export default {
     name: 'Nav',
 };
+document.addEventListener('DOMContentLoaded', () => {
+
+    // Get all "navbar-burger" elements
+    const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+
+    // Add a click event on each of them
+    $navbarBurgers.forEach(el => {
+        el.addEventListener('click', () => {
+
+            // Get the target from the "data-target" attribute
+            const target = el.dataset.target;
+            const $target = document.getElementById(target);
+
+            // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+            el.classList.toggle('is-active');
+            $target.classList.toggle('is-active');
+
+        });
+    });
+
+});
 </script>
 <style lang="scss" scoped>
 nav {
