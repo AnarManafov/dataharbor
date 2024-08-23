@@ -1,5 +1,6 @@
 <template>
-    <nav class="navbar has-shadow" role="navigation" aria-label="main navigation">
+    <!--FIXME: is-transparent doesn't work. Find out why. -->
+    <nav class="navbar is-transparent" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item is-size-5 has-text-weight-bold" href="/">
                 <img src="https://media.geeksforgeeks.org/wp-content/uploads/20220121204016/gfglogo300x152-200x101.png">
