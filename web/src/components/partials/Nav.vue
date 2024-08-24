@@ -85,6 +85,7 @@ nav {
         text-decoration: none;
 
         &.router-link-exact-active {
+            background-color: transparent;
             font-weight: bold;
             color: #d88d00;
         }

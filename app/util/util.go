@@ -24,7 +24,7 @@ func init() {
 	fmt.Printf("localIp: %s, nodeId: %d \n", localIp, id)
 	snowNode, err = snowflake.NewNode(int64(id))
 	if err != nil {
-		fmt.Printf("init snowflake failed: %s \n", localIp, err)
+		fmt.Printf("init snowflake (localIp %s) failed: %s \n", localIp, err)
 	}
 }
 
