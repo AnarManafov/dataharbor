@@ -17,11 +17,14 @@ jobs:
       run:
         working-directory: ./app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@master
+      - uses: actions/setup-go@master
         with:
-          go-version: stable
+          with:
+          go-version-file: "./app/go.mod"
+          cache-dependency-path: "./app/go.sum"
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.60
+          working-directory: "./app/"
