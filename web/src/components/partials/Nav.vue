@@ -2,9 +2,9 @@
     <!--FIXME: is-transparent doesn't work. Find out why. -->
     <nav class="navbar is-transparent" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
-            <a class="navbar-item is-size-5 has-text-weight-bold" href="/">
-                <img src="https://media.geeksforgeeks.org/wp-content/uploads/20220121204016/gfglogo300x152-200x101.png">
-                <strong class="is-size-4">Data Lake UI</strong>
+            <a class="navbar-item is-size-4 has-text-weight-bold" href="/">
+                <img src="../../views/img/brand.png">
+                <!--strong class="is-size-4">Data Lake UI</strong-->
             </a>
             <a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="true"
                 data-target="navbarBasicExample">
@@ -89,5 +89,17 @@ nav {
             color: #d88d00;
         }
     }
+}
+
+.navbar-item:not(navbar-brand):hover,
+.navbar-link:hover {
+    background-color: transparent;
+    text-decoration: underline;
+    font-weight: bold;
+}
+
+.navbar-brand {
+    font-weight: normal;
+    text-transform: uppercase;
 }
 </style>
