@@ -24,13 +24,13 @@
     </div>
 </template>
 
+
+
 <script lang="ts" setup>
 import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } from '@/api/api';
 import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
-// FIXME: if this import is used, then ElMessageBox don't show up.
-//import { ElMessageBox, ElMessage } from 'element-plus';
 
 const tableRowClassName = ({
     row,
@@ -41,7 +41,6 @@ const tableRowClassName = ({
     } else {
         return 'success-row'
     }
-    return ''
 }
 
 const currentDir = ref("")
@@ -76,12 +75,16 @@ const selectDir = (row: { type: string; name: string; }) => {
         listDir();
     } else {
         const srcFileToDownload = currentDir.value + "/" + row.name
+        // @ts-ignore: TS2304: cannot find name ' require'
+        // The auto import is used
         ElMessageBox.confirm('Do you want to download the file?', srcFileToDownload, {
             // if you want to disable its autofocus
             // autofocus: false,
             confirmButtonText: 'Download',
             cancelButtonText: 'Cancel',
         }).then(() => {
+            // @ts-ignore: TS2304: cannot find name ' require'
+            // The auto import is used
             ElMessage({
                 type: 'success',
                 message: 'Preparing to download: ' + srcFileToDownload,
