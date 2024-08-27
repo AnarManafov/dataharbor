@@ -12,10 +12,14 @@
                     </el-breadcrumb>
                 </div>
             </template>
-            <el-table @row-dblclick="selectDir" :data="tableData" :row-class-name="tableRowClassName"
+            <el-table :data="tableData" :row-class-name="tableRowClassName"
                 style="width: 100%;height: 800px; overflow-y: auto;"
                 :default-sort="{ prop: 'name', order: 'ascending' }">
-                <el-table-column prop="name" label="Name" sortable width="400" />
+                <el-table-column prop="name" label="Name" sortable width="400">
+                    <template #default="scope">
+                        <span class="clickable" @click="selectDir(scope.row)">{{ scope.row.name }}</span>
+                    </template>
+                </el-table-column>
                 <el-table-column prop="size" label="Size" sortable width="150" />
                 <el-table-column prop="date_time" label="Date" sortable width="200" />
                 <el-table-column prop="type" label="Type" sortable width="80" />
@@ -136,5 +140,14 @@ const getXrdHostName = () => {
 .table-wrapper {
     width: 0;
     flex: 1 1 auto;
+}
+
+.clickable {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.clickable:hover {
+    text-decoration: underline;
 }
 </style>
