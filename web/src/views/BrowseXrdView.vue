@@ -4,10 +4,11 @@
             <template #header>
                 <div class="card-header">
                     <el-breadcrumb separator="/">
-                        <el-breadcrumb-item>{{ xrdHostName }}</el-breadcrumb-item>
+                        <el-breadcrumb-item>{{ xrdHostName }}:</el-breadcrumb-item>
                         <template v-for="(item, index) in currentDir.split('/')" :key="index">
-                            <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">{{ item
-                                }}</el-breadcrumb-item>
+                            <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
+                                <span class="clickable">{{ item }}</span>
+                            </el-breadcrumb-item>
                         </template>
                     </el-breadcrumb>
                 </div>
