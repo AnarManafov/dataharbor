@@ -5,8 +5,9 @@
                 <div class="card-header">
                     <el-breadcrumb separator="/">
                         <el-breadcrumb-item>{{ xrdHostName }}</el-breadcrumb-item>
-                        <template v-for="(i, k) in currentDir.split('/')" :key="k">
-                            <el-breadcrumb-item @click="changeDir(k)" v-if="i.length > 0">{{ i }}</el-breadcrumb-item>
+                        <template v-for="(item, index) in currentDir.split('/')" :key="index">
+                            <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">{{ item
+                                }}</el-breadcrumb-item>
                         </template>
                     </el-breadcrumb>
                 </div>
@@ -23,7 +24,6 @@
         </el-card>
     </div>
 </template>
-
 
 
 <script lang="ts" setup>
