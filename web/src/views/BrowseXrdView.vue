@@ -29,7 +29,7 @@
                         <el-sub-menu index="2">
                             <template #title>
                                 <el-icon>
-                                    <setting />
+                                    <Setting />
                                 </el-icon>Settings
                             </template>
                             <el-menu-item-group>
@@ -55,7 +55,11 @@
                             <el-col :span="12" class="toolbar-left-content">
                                 <div>
                                     <el-breadcrumb separator="/">
-                                        <el-breadcrumb-item>{{ xrdHostName }}:</el-breadcrumb-item>
+                                        <el-breadcrumb-item style="text-transform:uppercase;"><el-icon :size="16"
+                                                style="margin-right: 10px">
+                                                <Connection />
+                                            </el-icon>{{ xrdHostName
+                                            }}:</el-breadcrumb-item>
                                         <template v-for="(item, index) in currentDir.split('/')" :key="index">
                                             <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
                                                 <a href="#">{{ item }}</a>
@@ -116,7 +120,7 @@ import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } 
 import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
-import { Folder, Document, Menu as IconMenu, Setting } from '@element-plus/icons-vue'
+import { Folder, Document, Menu as IconMenu, Setting, Connection } from '@element-plus/icons-vue'
 
 const currentDir = ref("")
 const xrdHostName = ref("")
@@ -287,7 +291,7 @@ const getXrdHostName = () => {
 }
 
 .el-breadcrumb {
-    font-size: 18px;
+    font-size: 16px;
 }
 
 i.el-icon-folder {
