@@ -91,16 +91,4 @@ nav {
         }
     }
 }
-
-.navbar-item:not(navbar-brand):hover,
-.navbar-link:hover {
-    background-color: transparent;
-    text-decoration: underline;
-    font-weight: bold;
-}
-
-.navbar-brand {
-    font-weight: normal;
-    text-transform: uppercase;
-}
 </style>
