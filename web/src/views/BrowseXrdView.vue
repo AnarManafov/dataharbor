@@ -1,33 +1,96 @@
 <template>
-    <div>
-        <el-card style="max-width: 1000px">
-            <template #header>
-                <div class="card-header">
-                    <el-breadcrumb separator="/">
-                        <el-breadcrumb-item>{{ xrdHostName }}:</el-breadcrumb-item>
-                        <template v-for="(item, index) in currentDir.split('/')" :key="index">
-                            <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
-                                <span class="clickable">{{ item }}</span>
-                            </el-breadcrumb-item>
-                        </template>
-                    </el-breadcrumb>
+    <el-container class="layout-file-tree-container" style="height: 500px">
+        <el-container>
+            <div>
+                <el-divider />
+            </div>
+            <el-header>
+                <div class="toolbar">
+                    <el-row class="full-size-row" justify="space-between">
+                        <el-col :span="12" class="toolbar-left-content">
+                            <div>
+                                <el-breadcrumb separator="/">
+                                    <el-breadcrumb-item>{{ xrdHostName }}:</el-breadcrumb-item>
+                                    <template v-for="(item, index) in currentDir.split('/')" :key="index">
+                                        <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
+                                            <span class="clickable">{{ item }}</span>
+                                        </el-breadcrumb-item>
+                                    </template>
+                                </el-breadcrumb>
+                            </div>
+                        </el-col>
+                        <el-col :span="12" class="toolbar-right-content">
+                            <div>
+                                <span>Second Column Items Placeholder</span>
+                            </div>
+                        </el-col>
+                    </el-row>
                 </div>
-            </template>
-            <el-table :data="tableData" :row-class-name="tableRowClassName"
-                style="width: 100%;height: 800px; overflow-y: auto;"
-                :default-sort="{ prop: 'name', order: 'ascending' }">
-                <el-table-column prop="name" label="Name" sortable width="400">
-                    <template #default="scope">
-                        <span class="clickable" @click="selectDir(scope.row)">{{ scope.row.name }}</span>
-                    </template>
-                </el-table-column>
-                <el-table-column prop="size" label="Size" sortable width="150" />
-                <el-table-column prop="date_time" label="Date" sortable width="200" />
-                <el-table-column prop="type" label="Type" sortable width="80" />
-            </el-table>
-            <template #footer></template>
-        </el-card>
-    </div>
+            </el-header>
+            <el-container>
+                <el-aside width="200px">
+                    <el-scrollbar>
+                        <el-menu :default-openeds="['2']">
+                            <el-sub-menu index="1">
+                                <template #title>
+                                    <el-icon>
+                                        <IconMenu />
+                                    </el-icon>Navigator One
+                                </template>
+                                <el-menu-item-group>
+                                    <template #title>Group 1</template>
+                                    <el-menu-item index="1-1">Option 1</el-menu-item>
+                                    <el-menu-item index="1-2">Option 2</el-menu-item>
+                                </el-menu-item-group>
+                                <el-menu-item-group title="Group 2">
+                                    <el-menu-item index="1-3">Option 3</el-menu-item>
+                                </el-menu-item-group>
+                                <el-sub-menu index="1-4">
+                                    <template #title>Option4</template>
+                                    <el-menu-item index="1-4-1">Option 4-1</el-menu-item>
+                                </el-sub-menu>
+                            </el-sub-menu>
+                            <el-sub-menu index="2">
+                                <template #title>
+                                    <el-icon>
+                                        <setting />
+                                    </el-icon>Settings
+                                </template>
+                                <el-menu-item-group>
+                                    <template #title>Group 1</template>
+                                    <el-menu-item index="2-1">Option 1</el-menu-item>
+                                    <el-menu-item index="2-2">Option 2</el-menu-item>
+                                </el-menu-item-group>
+                                <el-menu-item-group title="Group 2">
+                                    <el-menu-item index="2-3">Option 3</el-menu-item>
+                                </el-menu-item-group>
+                                <el-sub-menu index="2-4">
+                                    <template #title>Option 4</template>
+                                    <el-menu-item index="2-4-1">Option 4-1</el-menu-item>
+                                </el-sub-menu>
+                            </el-sub-menu>
+                        </el-menu>
+                    </el-scrollbar>
+                </el-aside>
+
+                <el-main>
+                    <el-scrollbar>
+                        <el-table :data="tableData" :row-class-name="tableRowClassName"
+                            :default-sort="{ prop: 'name', order: 'ascending' }" border>
+                            <el-table-column prop="name" label="Name" sortable>
+                                <template #default="scope">
+                                    <span class="clickable" @click="selectDir(scope.row)">{{ scope.row.name }}</span>
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="size" label="Size" sortable width="150" />
+                            <el-table-column prop="date_time" label="Date" sortable width="200" />
+                            <el-table-column prop="type" label="Type" sortable width="80" />
+                        </el-table>
+                    </el-scrollbar>
+                </el-main>
+            </el-container>
+        </el-container>
+    </el-container>
 </template>
 
 
@@ -36,6 +99,7 @@ import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } 
 import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
+import { Menu as IconMenu, Setting } from '@element-plus/icons-vue'
 
 const tableRowClassName = ({
     row,
@@ -138,10 +202,6 @@ const getXrdHostName = () => {
     --el-table-tr-bg-color: var(--el-color-success-light-9);
 }
 
-.table-wrapper {
-    width: 0;
-    flex: 1 1 auto;
-}
 
 .clickable {
     cursor: pointer;
@@ -150,5 +210,72 @@ const getXrdHostName = () => {
 
 .clickable:hover {
     text-decoration: underline;
+}
+
+.el-row {
+    margin-bottom: 20px;
+}
+
+.el-row:last-child {
+    margin-bottom: 0;
+}
+
+.el-col {
+    border-radius: 4px;
+}
+
+.grid-content {
+    border-radius: 4px;
+    min-height: 36px;
+}
+
+.layout-file-tree-container .el-header {
+    position: sticky;
+    /* background-color: var(--el-color-primary-light-7);*/
+    color: var(--el-text-color-primary);
+    text-align: center;
+}
+
+.layout-file-tree-container .el-aside {
+    color: var(--el-text-color-primary);
+    /*background: var(--el-color-primary-light-8);*/
+}
+
+.layout-file-tree-container .el-menu {
+    border-right: none;
+}
+
+.layout-file-tree-container .el-main {
+    padding: 0;
+}
+
+.layout-file-tree-container .toolbar {
+    display: flex;
+    height: 100%;
+    /* align-items: center;
+    justify-content: center;
+     
+    right: 20px;*/
+}
+
+.full-size-row {
+    width: 100%;
+    height: 100%;
+}
+
+.toolbar-right-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    height: 100%;
+}
+
+.toolbar-left-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    height: 100%;
 }
 </style>

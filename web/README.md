@@ -12,18 +12,6 @@ The frontend is build using [Vite](https://vitejs.dev/) and [Vue 3](https://vuej
     ```
 
 * [Vite](https://vitejs.dev/guide/)
-* Used Dependencies
-
-```shell
-npm install pinia
-npm install axios
-npm install vue-axios
-npm install vue-router
-npm install --save-dev sass
-npm install bulma
-npm install file-saver --save
-npm install @types/file-saver --save
-```
 
 ## Build/Run
 
