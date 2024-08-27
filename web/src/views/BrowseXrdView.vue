@@ -86,6 +86,7 @@
                                                 <Document />
                                             </el-icon>
                                             <span class="clickable" style="margin-left: 10px"
+                                                :style="{ fontWeight: scope.row.type === 'dir' ? 'bold' : 'normal' }"
                                                 @click="selectDir(scope.row)">{{ scope.row.name
                                                 }}</span>
                                         </div>
