@@ -2,6 +2,7 @@
 
 ## v0.4 NOT YET RELEASED
 
+- Refactored the Browse Files view.
 - XRD settings moved to the backend configuration.
 - Users are now able to download the selected file.
 - Added sanitation job to periodically check and clean staged temporary files.
