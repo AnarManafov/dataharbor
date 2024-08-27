@@ -75,17 +75,31 @@
                 <el-container>
                     <el-main>
                         <el-scrollbar>
-                            <el-table :data="tableData" :row-class-name="tableRowClassName"
-                                :default-sort="{ prop: 'name', order: 'ascending' }" border>
+                            <el-table :data="tableData" :default-sort="{ prop: 'name', order: 'ascending' }" border>
                                 <el-table-column prop="name" label="Name" sortable>
                                     <template #default="scope">
-                                        <span class="clickable" @click="selectDir(scope.row)">{{ scope.row.name
-                                            }}</span>
+                                        <div style="display: flex; align-items: center">
+                                            <el-icon :size="20" color="#409EFF" v-if="scope.row.type === 'dir'">
+                                                <Folder />
+                                            </el-icon>
+                                            <el-icon :size="20" color="#67C23A" v-else>
+                                                <Document />
+                                            </el-icon>
+                                            <span class="clickable" style="margin-left: 10px"
+                                                @click="selectDir(scope.row)">{{ scope.row.name
+                                                }}</span>
+                                        </div>
                                     </template>
                                 </el-table-column>
                                 <el-table-column prop="size" label="Size" sortable width="150" />
                                 <el-table-column prop="date_time" label="Date" sortable width="200" />
-                                <el-table-column prop="type" label="Type" sortable width="80" />
+                                <el-table-column prop="type" label="Type" sortable width="80">
+                                    <template #default="scope">
+                                        <el-tag :type="scope.row.type === 'dir' ? 'primary' : 'success'"
+                                            disable-transitions>{{
+                                                scope.row.type }}</el-tag>
+                                    </template>
+                                </el-table-column>
                             </el-table>
                         </el-scrollbar>
                     </el-main>
@@ -101,18 +115,7 @@ import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } 
 import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
-import { Menu as IconMenu, Setting } from '@element-plus/icons-vue'
-
-const tableRowClassName = ({
-    row,
-    rowIndex,
-}) => {
-    if (row.type === 'dir') {
-        return 'warning-row'
-    } else {
-        return 'success-row'
-    }
-}
+import { Folder, Document, Menu as IconMenu, Setting } from '@element-plus/icons-vue'
 
 const currentDir = ref("")
 const xrdHostName = ref("")
@@ -284,5 +287,9 @@ const getXrdHostName = () => {
 
 .el-breadcrumb {
     font-size: 18px;
+}
+
+i.el-icon-folder {
+    color: blue
 }
 </style>

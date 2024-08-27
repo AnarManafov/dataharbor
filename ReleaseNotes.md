@@ -6,6 +6,7 @@
 - XRD settings moved to the backend configuration.
 - Users are now able to download the selected file.
 - Added sanitation job to periodically check and clean staged temporary files.
+- Show corresponding icons for files and folder in the Browser.
 
 ## v0.3 (2024-08-18)
 
