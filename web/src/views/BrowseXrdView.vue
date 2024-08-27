@@ -1,93 +1,95 @@
 <template>
-    <el-container class="layout-file-tree-container" style="height: 500px">
+    <div>
+        <el-divider />
+    </div>
+    <el-container class="layout-file-tree-container">
         <el-container>
-            <div>
-                <el-divider />
-            </div>
-            <el-header>
-                <div class="toolbar">
-                    <el-row class="full-size-row" justify="space-between">
-                        <el-col :span="12" class="toolbar-left-content">
-                            <div>
-                                <el-breadcrumb separator="/">
-                                    <el-breadcrumb-item>{{ xrdHostName }}:</el-breadcrumb-item>
-                                    <template v-for="(item, index) in currentDir.split('/')" :key="index">
-                                        <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
-                                            <span class="clickable">{{ item }}</span>
-                                        </el-breadcrumb-item>
-                                    </template>
-                                </el-breadcrumb>
-                            </div>
-                        </el-col>
-                        <el-col :span="12" class="toolbar-right-content">
-                            <div>
-                                <span>Second Column Items Placeholder</span>
-                            </div>
-                        </el-col>
-                    </el-row>
-                </div>
-            </el-header>
+            <el-aside width="200px">
+                <el-scrollbar>
+                    <el-menu :default-openeds="['2']" default-active="2">
+                        <el-sub-menu index="1">
+                            <template #title>
+                                <el-icon>
+                                    <IconMenu />
+                                </el-icon>Navigator One
+                            </template>
+                            <el-menu-item-group>
+                                <template #title>Group 1</template>
+                                <el-menu-item index="1-1">Option 1</el-menu-item>
+                                <el-menu-item index="1-2">Option 2</el-menu-item>
+                            </el-menu-item-group>
+                            <el-menu-item-group title="Group 2">
+                                <el-menu-item index="1-3">Option 3</el-menu-item>
+                            </el-menu-item-group>
+                            <el-sub-menu index="1-4">
+                                <template #title>Option4</template>
+                                <el-menu-item index="1-4-1">Option 4-1</el-menu-item>
+                            </el-sub-menu>
+                        </el-sub-menu>
+                        <el-sub-menu index="2">
+                            <template #title>
+                                <el-icon>
+                                    <setting />
+                                </el-icon>Settings
+                            </template>
+                            <el-menu-item-group>
+                                <template #title>Group 1</template>
+                                <el-menu-item index="2-1">Option 1</el-menu-item>
+                                <el-menu-item index="2-2">Option 2</el-menu-item>
+                            </el-menu-item-group>
+                            <el-menu-item-group title="Group 2">
+                                <el-menu-item index="2-3">Option 3</el-menu-item>
+                            </el-menu-item-group>
+                            <el-sub-menu index="2-4">
+                                <template #title>Option 4</template>
+                                <el-menu-item index="2-4-1">Option 4-1</el-menu-item>
+                            </el-sub-menu>
+                        </el-sub-menu>
+                    </el-menu>
+                </el-scrollbar>
+            </el-aside>
             <el-container>
-                <el-aside width="200px">
-                    <el-scrollbar>
-                        <el-menu :default-openeds="['2']">
-                            <el-sub-menu index="1">
-                                <template #title>
-                                    <el-icon>
-                                        <IconMenu />
-                                    </el-icon>Navigator One
-                                </template>
-                                <el-menu-item-group>
-                                    <template #title>Group 1</template>
-                                    <el-menu-item index="1-1">Option 1</el-menu-item>
-                                    <el-menu-item index="1-2">Option 2</el-menu-item>
-                                </el-menu-item-group>
-                                <el-menu-item-group title="Group 2">
-                                    <el-menu-item index="1-3">Option 3</el-menu-item>
-                                </el-menu-item-group>
-                                <el-sub-menu index="1-4">
-                                    <template #title>Option4</template>
-                                    <el-menu-item index="1-4-1">Option 4-1</el-menu-item>
-                                </el-sub-menu>
-                            </el-sub-menu>
-                            <el-sub-menu index="2">
-                                <template #title>
-                                    <el-icon>
-                                        <setting />
-                                    </el-icon>Settings
-                                </template>
-                                <el-menu-item-group>
-                                    <template #title>Group 1</template>
-                                    <el-menu-item index="2-1">Option 1</el-menu-item>
-                                    <el-menu-item index="2-2">Option 2</el-menu-item>
-                                </el-menu-item-group>
-                                <el-menu-item-group title="Group 2">
-                                    <el-menu-item index="2-3">Option 3</el-menu-item>
-                                </el-menu-item-group>
-                                <el-sub-menu index="2-4">
-                                    <template #title>Option 4</template>
-                                    <el-menu-item index="2-4-1">Option 4-1</el-menu-item>
-                                </el-sub-menu>
-                            </el-sub-menu>
-                        </el-menu>
-                    </el-scrollbar>
-                </el-aside>
-
-                <el-main>
-                    <el-scrollbar>
-                        <el-table :data="tableData" :row-class-name="tableRowClassName"
-                            :default-sort="{ prop: 'name', order: 'ascending' }" border>
-                            <el-table-column prop="name" label="Name" sortable>
-                                <template #default="scope">
-                                    <span class="clickable" @click="selectDir(scope.row)">{{ scope.row.name }}</span>
-                                </template>
-                            </el-table-column>
-                            <el-table-column prop="size" label="Size" sortable width="150" />
-                            <el-table-column prop="date_time" label="Date" sortable width="200" />
-                            <el-table-column prop="type" label="Type" sortable width="80" />
-                        </el-table>
-                    </el-scrollbar>
-                </el-main>
+                <el-header>
+                    <div class="toolbar">
+                        <el-row class="full-size-row" justify="space-between">
+                            <el-col :span="12" class="toolbar-left-content">
+                                <div>
+                                    <el-breadcrumb separator="/">
+                                        <el-breadcrumb-item>{{ xrdHostName }}:</el-breadcrumb-item>
+                                        <template v-for="(item, index) in currentDir.split('/')" :key="index">
+                                            <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
+                                                <a href="#">{{ item }}</a>
+                                            </el-breadcrumb-item>
+                                        </template>
+                                    </el-breadcrumb>
+                                </div>
+                            </el-col>
+                            <el-col :span="12" class="toolbar-right-content">
+                                <div>
+                                    <span>Second Column Items Placeholder</span>
+                                </div>
+                            </el-col>
+                        </el-row>
+                    </div>
+                </el-header>
+                <el-container>
+                    <el-main>
+                        <el-scrollbar>
+                            <el-table :data="tableData" :row-class-name="tableRowClassName"
+                                :default-sort="{ prop: 'name', order: 'ascending' }" border>
+                                <el-table-column prop="name" label="Name" sortable>
+                                    <template #default="scope">
+                                        <span class="clickable" @click="selectDir(scope.row)">{{ scope.row.name
+                                            }}</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="size" label="Size" sortable width="150" />
+                                <el-table-column prop="date_time" label="Date" sortable width="200" />
+                                <el-table-column prop="type" label="Type" sortable width="80" />
+                            </el-table>
+                        </el-scrollbar>
+                    </el-main>
+                </el-container>
             </el-container>
         </el-container>
     </el-container>
@@ -246,7 +248,8 @@ const getXrdHostName = () => {
 }
 
 .layout-file-tree-container .el-main {
-    padding: 0;
+    padding-right: 20px;
+    padding-bottom: 20px;
 }
 
 .layout-file-tree-container .toolbar {
@@ -277,5 +280,9 @@ const getXrdHostName = () => {
     align-items: flex-start;
     justify-content: center;
     height: 100%;
+}
+
+.el-breadcrumb {
+    font-size: 18px;
 }
 </style>

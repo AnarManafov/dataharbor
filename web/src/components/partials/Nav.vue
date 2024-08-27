@@ -1,7 +1,7 @@
 <template>
     <!--FIXME: is-transparent doesn't work. Find out why. -->
     <nav class="navbar is-transparent" role="navigation" aria-label="main navigation">
-        <div class="navbar-brand">
+        <div class="navbar-brand no-hover">
             <a class="navbar-item is-size-4 has-text-weight-bold" href="/">
                 <img src="../../views/img/brand.png">
                 <!--strong class="is-size-4">Data Lake UI</strong-->
@@ -15,7 +15,7 @@
         </div>
         <div id="navbarBasicExample" class="navbar-menu">
             <div class="navbar-start">
-                <router-link to="/" class="navbar-item">Home</router-link>
+                <router-link to="/browse_xrd" class="navbar-item">Browse files and folders</router-link>
                 <router-link to="/documentation" class="navbar-item">Documentation</router-link>
                 <div class="navbar-item has-dropdown is-hoverable">
                     <a class="navbar-link">
@@ -40,7 +40,7 @@
             <div class="navbar-end">
                 <div class="navbar-item">
                     <div class="buttons">
-                        <router-link to="/browse_xrd" class="button is-dark is-outlined">
+                        <router-link to="/login" class="button is-dark is-outlined">
                             Log In
                         </router-link>
                     </div>
@@ -90,5 +90,12 @@ nav {
             color: #d88d00;
         }
     }
+}
+
+.no-hover .navbar-item:hover {
+    background-color: transparent;
+    /* Prevents background color change on hover */
+    cursor: default;
+    /* Changes cursor to default arrow */
 }
 </style>
