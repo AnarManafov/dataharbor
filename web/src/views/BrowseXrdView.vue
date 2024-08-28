@@ -77,8 +77,9 @@
 
                             </el-col>
                             <el-col :span="12" class="toolbar-right-content">
-                                <div>
-                                    <span>Second Column Items Placeholder</span>
+                                <div style="font-size: 12px;">
+                                    Server Host: <span style="font-weight: bold;">{{ xrdHostName
+                                        }}</span>
                                 </div>
                             </el-col>
                         </el-row>
