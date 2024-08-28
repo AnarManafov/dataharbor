@@ -55,15 +55,19 @@
                             <el-col :span="12" class="toolbar-left-content">
 
                                 <div>
-                                    <el-icon :size="18" style="margin-right: 5px; margin-top: 3px">
-                                        <Connection />
+                                    <el-icon @click="currentDir = initialPath; listDir()" :size="18"
+                                        style="margin-right: 5px; margin-top: 3px">
+                                        <HomeFilled />
                                     </el-icon>
                                 </div>
                                 <div>
                                     <el-breadcrumb separator="/">
-                                        <el-breadcrumb-item style="text-transform:uppercase;">{{ xrdHostName
-                                            }}:</el-breadcrumb-item>
-                                        <template v-for="(item, index) in currentDir.split('/')" :key="index">
+                                        <el-breadcrumb-item @click="currentDir = initialPath; listDir()"><a
+                                                href="#">Initial
+                                                Directory</a></el-breadcrumb-item>
+                                        <template
+                                            v-for="(item, index) in currentDir.replace(initialPath, '').split('/')"
+                                            :key="index">
                                             <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
                                                 <a href="#">{{ item }}</a>
                                             </el-breadcrumb-item>
@@ -124,14 +128,16 @@ import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } 
 import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
-import { Folder, Document, Menu as IconMenu, Setting, Connection } from '@element-plus/icons-vue'
+import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
 
+const initialPath = ref("")
 const currentDir = ref("")
 const xrdHostName = ref("")
 onMounted(() => {
     getHomeDirPath().then(resp => {
         let homeDir = resp.data.data
         currentDir.value = homeDir
+        initialPath.value = homeDir
 
         listDir()
         getXrdHostName()
@@ -141,6 +147,10 @@ onMounted(() => {
 const tableData = ref([])
 
 const changeDir = (index: number) => {
+    // Add initial path, as it's subtracted when populating the data in breadcrumb.
+    let initialIndex = initialPath.value.split("/").length - 1;
+    index += initialIndex;
+
     console.log("changeDir index: " + index);
 
     currentDir.value = currentDir.value.split("/").filter((k, i) => {
@@ -192,6 +202,7 @@ const selectDir = (row: { type: string; name: string; }) => {
         });
     }
 }
+
 
 const listDir = () => {
     console.log(currentDir.value);
