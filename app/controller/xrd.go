@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"regexp"
+
 	"github.com/AnarManafov/app/common"
 
 	"bufio"
@@ -69,7 +71,15 @@ func ReadDir(host string, port uint, dir string) (retVal []xrdDirEntry, err erro
 
 	scanner := bufio.NewScanner(strings.NewReader(string(output)))
 	for scanner.Scan() {
-		columns := strings.Fields(scanner.Text())
+		// Split the input on substrings:
+		// Input format:
+		// "drwxr-xr-x username staff   224 2024-02-14 12:14:47 /Users/Virtual Machines.localized"
+		//
+		pattern := `\s+`
+		regex := regexp.MustCompile(pattern)
+		// The input is split on 7 substrings
+		columns := regex.Split(scanner.Text(), 7)
+
 		var item xrdDirEntry
 		// File name
 		item.name = path.Base(columns[6])

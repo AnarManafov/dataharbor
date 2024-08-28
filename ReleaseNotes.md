@@ -2,11 +2,17 @@
 
 ## v0.4 NOT YET RELEASED
 
+### Frontend
+
 - Refactored the Browse Files view.
 - XRD settings moved to the backend configuration.
 - Users are now able to download the selected file.
-- Added sanitation job to periodically check and clean staged temporary files.
 - Show corresponding icons for files and folder in the Browser.
+
+### Backend
+
+- Fixed: pull file names with with white spaces.
+- Added: sanitation job to periodically check and clean staged temporary files.
 
 ## v0.3 (2024-08-18)
 
