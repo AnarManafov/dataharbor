@@ -130,15 +130,17 @@ import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
+import { useStorage } from '@vueuse/core'
 
-const initialPath = ref("")
-const currentDir = ref("")
+const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
+const currentDir = useStorage('currentDirectory', '', sessionStorage)
 const xrdHostName = ref("")
 onMounted(() => {
     getHomeDirPath().then(resp => {
         let homeDir = resp.data.data
-        currentDir.value = homeDir
-        initialPath.value = homeDir
+        // Use new data only if there no value in the storage
+        if (!currentDir.value) currentDir.value = homeDir
+        if (!initialPath.value) initialPath.value = homeDir
 
         listDir()
         getXrdHostName()

@@ -4,15 +4,16 @@
 
 ### Frontend
 
-- Refactored the Browse Files view.
-- XRD settings moved to the backend configuration.
-- Users are now able to download the selected file.
-- Show corresponding icons for files and folder in the Browser.
+- Modified: Refactored the Browse Files view.
+- Added: Users are now able to download the selected file.
+- Added: Show corresponding icons for files and folder in the File Browser.
+- Added: Use a session storage to save the state of the File Browser.
 
 ### Backend
 
 - Fixed: pull file names with with white spaces.
 - Added: sanitation job to periodically check and clean staged temporary files.
+- Added: XRD settings moved to the backend configuration.
 
 ## v0.3 (2024-08-18)
 

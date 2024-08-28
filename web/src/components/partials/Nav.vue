@@ -32,6 +32,9 @@
                         <a class="navbar-item">
                             Report an issue
                         </a>
+                        <div class="navbar-item">
+                            Version: {{ appVersion }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -50,8 +53,15 @@
     </nav>
 </template>
 <script>
+import { version } from '../../../package.json';
+
 export default {
     name: 'Nav',
+    data() {
+        return {
+            appVersion: version
+        };
+    }
 };
 document.addEventListener('DOMContentLoaded', () => {
 
