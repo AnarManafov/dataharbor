@@ -51,14 +51,17 @@
             <el-container>
                 <el-header>
                     <div class="toolbar">
-                        <el-row class="full-size-row" justify="space-between">
+                        <el-row class="full-size-row">
                             <el-col :span="12" class="toolbar-left-content">
+
+                                <div>
+                                    <el-icon :size="18" style="margin-right: 5px; margin-top: 3px">
+                                        <Connection />
+                                    </el-icon>
+                                </div>
                                 <div>
                                     <el-breadcrumb separator="/">
-                                        <el-breadcrumb-item style="text-transform:uppercase;"><el-icon :size="16"
-                                                style="margin-right: 10px">
-                                                <Connection />
-                                            </el-icon>{{ xrdHostName
+                                        <el-breadcrumb-item style="text-transform:uppercase;">{{ xrdHostName
                                             }}:</el-breadcrumb-item>
                                         <template v-for="(item, index) in currentDir.split('/')" :key="index">
                                             <el-breadcrumb-item @click="changeDir(index)" v-if="item.length > 0">
@@ -67,6 +70,7 @@
                                         </template>
                                     </el-breadcrumb>
                                 </div>
+
                             </el-col>
                             <el-col :span="12" class="toolbar-right-content">
                                 <div>
@@ -276,17 +280,17 @@ const getXrdHostName = () => {
 
 .toolbar-right-content {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
+    flex-direction: row;
+    align-items: center;
+    justify-content: end;
     height: 100%;
 }
 
 .toolbar-left-content {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
+    flex-direction: row;
+    align-items: center;
+    justify-content: start;
     height: 100%;
 }
 
