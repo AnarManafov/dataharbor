@@ -8,6 +8,7 @@
 - Added: Users are now able to download the selected file.
 - Added: Show corresponding icons for files and folder in the File Browser.
 - Added: Use a session storage to save the state of the File Browser.
+- Added: Containerization of the frontend with an nginx server.
 
 ### Backend
 
