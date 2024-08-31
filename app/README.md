@@ -23,25 +23,62 @@ The server port is configurable, see [the app's configuration](./config/applicat
     brew install go
     ```
 
-## Install Dependencies
+## Build the project
+
+### Install Dependencies
 
 ```shell
 cd app
 go mod download
 ```
 
-## Build
+### Build
 
 ```shell
 cd app
 go build -o app .
 ```
 
-## Run
+### Run
 
 ```shell
  go run .
 ```
+
+Run with the app's config file
+
+```shell
+go run . --config=<the_config_file_name>
+```
+
+or just start an executable.
+
+## Containerization
+
+The backend is not that big - just one executable and one configuration file, for now.  
+It might be an overkill to containerize it. But just in case it is needed, a [Podman Container file](./Containerfile) is in the app directory and below are some instructions.
+
+### Build a Podman container
+
+```shell
+podman build -t data_lake_ui_frontend:0.0.4 .
+```
+
+,where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
+
+### Run a Podman container
+
+```shell
+podman run --network=host data_lake_ui_backend:0.0.4
+```
+
+### Known issues
+
+#### An xrootd client bin directory
+
+An xrootd client bin directory needs to be exposed to the container.
+
+This link helps with some Podman on OSX issues: <https://github.com/ansible/vscode-ansible/wiki/macos>
 
 ## Dev Tips
 

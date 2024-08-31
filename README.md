@@ -15,7 +15,7 @@ It consists of the following main parts:
 
 ## Containerization
 
-The project provides Two Containers (One for Frontend, One for Backend). The backend can be treated as a microservice.
+The project can provide Two Containers ([One for Frontend](./web/README.md#containerization), [One for Backend](./app/README.md#containerization)). The backend can be treated as a microservice.  The backend is relatively compact, therefore container is not really needed, as it can be deployed as an app. But splitting frontend and backend deployment is still advisable, see below.
 
 * **Isolation**:
 Each service runs in its own container, which means they are isolated from each other. This can make debugging easier and improve security.

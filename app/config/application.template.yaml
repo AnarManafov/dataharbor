@@ -1,5 +1,5 @@
 server:
-  port: 5173
+  port: 22000
   debug: false
 
 xrd:
