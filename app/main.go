@@ -28,7 +28,7 @@ func main() {
 	ticker, done := core.NewSanitationScheduler()
 	go core.SanitationJob(ticker, done)
 
-	err := r.Run("0.0.0.0:" + port)
+	err := r.Run(":" + port)
 	if err != nil {
 		common.Logger.Fatal(err)
 	}
