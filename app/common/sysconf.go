@@ -10,7 +10,7 @@ type ServerConfigType struct {
 var ServerConfig ServerConfigType
 
 func ParseSystemConfig() {
-	viper.SetDefault("server.port", 10016)
+	viper.SetDefault("server.port", 22000)
 	viper.SetDefault("server.debug", true)
 
 	ServerConfig.Port = viper.GetInt("server.port")

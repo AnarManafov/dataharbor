@@ -1,6 +1,5 @@
 # A podman container
-# build: podman build -t data_lake_ui .
-# run: podman run -p 8080:8080 data_lake_ui
+#
 # Use the official Node.js image as the base image
 FROM node:latest as build-stage
 

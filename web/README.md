@@ -46,6 +46,27 @@ npx npm-check-updates -u
 npm install
 ```
 
+## Containerization
+
+The frontend is containerized, described by the [Podman Container file](./Containerfile).  
+The container includes nginx, therefore once started can be used out of the box.
+
+### Build a Podman container
+
+```shell
+podman build -t data_lake_ui_backend:0.0.4 .
+```
+
+, where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
+
+### Run a Podman container
+
+```shell
+podman run -p 8080:8080 data_lake_ui_frontend:0.0.4
+```
+
+The nginx of the container will be serving on port 8080, which can be changed if needed, of course.
+
 ## Customize configuration
 
 See [Configuration Reference](https://cli.vuejs.org/config/).

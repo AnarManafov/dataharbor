@@ -23,12 +23,12 @@ func main() {
 	RegisterRoutes(r)
 
 	port := strconv.Itoa(common.ServerConfig.Port)
-	fmt.Printf("start server at port: %s\n", port)
+	fmt.Printf("Starting server on port: %s\n", port)
 
 	ticker, done := core.NewSanitationScheduler()
 	go core.SanitationJob(ticker, done)
 
-	err := r.Run(":" + port)
+	err := r.Run("0.0.0.0:" + port)
 	if err != nil {
 		common.Logger.Fatal(err)
 	}

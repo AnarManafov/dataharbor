@@ -1,0 +1,23 @@
+# A podman container
+#
+# Use the official Node.js image as the base image
+FROM golang:latest as build-stage
+
+WORKDIR /app
+
+# XRD Staging directory
+ENV XRD_STAGING_DIR=/tmp/delete_me
+# Create Staging dir
+RUN mkdir -p $XRD_STAGING_DIR
+
+# copy project files and folders to the current working directory (i.e. 'app' folder)
+COPY ./ .
+
+# Install dependencies
+RUN go mod download
+
+# build app for production
+RUN go build -o /data_lake_ui_backend
+
+#EXPOSE 22000
+CMD [ "/data_lake_ui_backend" ]
