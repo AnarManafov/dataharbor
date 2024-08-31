@@ -12,7 +12,7 @@ POST /dir
 
 | Attribute                | Type     | Required | Description                         |
 |--------------------------|----------|----------|-------------------------------------|
-| `path`    `              | string   | Yes      | Full path to the directory to list. |
+| `path`                   | string   | Yes      | Full path to the directory to list. |
 
 ### Response
 
@@ -22,12 +22,12 @@ If successful, returns
 - message: `success`,  
 - data: is an array of the following attributes:
 
-| Attribute                | Type      | Description                   |
-|--------------------------|-----------|-------------------------------|
-| `name`                   | string    | File name.                    |
-| `type`                   | string    | Can be one of: "dir", "files" |
-| `date_time`              | string    | Date time of the file.        |
-| `size`                   | integer   | File size in bytes.           |
+| Attribute                | Type      | Description                    |
+|--------------------------|-----------|--------------------------------|
+| `name`                   | string    | File name.                     |
+| `type`                   | string    | Can be one of ("dir", "files") |
+| `date_time`              | string    | Date time of the file.         |
+| `size`                   | integer   | File size in bytes.            |
 
 ### Example request
 
