@@ -8,15 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetHomeDir(ctx *gin.Context) {
-	// Get the current user
-	// u, err := user.Current()
-	// if err != nil {
-	// 	response.FailWithErr(ctx, response.SystemErr)
-	// 	return
-	// }
-
-	// response.Success(ctx, u.HomeDir)
+func GetInitialDir(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.InitialDir)
 }
 

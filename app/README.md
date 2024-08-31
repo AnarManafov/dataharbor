@@ -80,6 +80,13 @@ An xrootd client bin directory needs to be exposed to the container.
 
 This link helps with some Podman on OSX issues: <https://github.com/ansible/vscode-ansible/wiki/macos>
 
+## API
+
+### Files and Directories
+
+- [Initial directory](./doc/api/initial_dir.md) : `GET /initial_dir`
+- [List a directory](./doc/api/dir.md): `POST /dir`
+
 ## Dev Tips
 
 ### Initialize Go
@@ -104,5 +111,3 @@ go get github.com/${YOUR_USERNAME}/app
 cd app
 go mod tidy
 ```
-
-## Links

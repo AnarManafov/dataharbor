@@ -15,11 +15,11 @@ func RegisterRoutes(r *gin.Engine) {
 
 	r.GET("/health", controller.Health)
 
-	r.GET("home_dir", controller.GetHomeDir)
+	r.GET("/initial_dir", controller.GetInitialDir)
 
-	r.GET("host_name", controller.GetHostName)
+	r.GET("/host_name", controller.GetHostName)
 
-	r.POST("dir", controller.GetDirItems)
+	r.POST("/dir", controller.GetDirItems)
 
-	r.POST("stage_file", controller.GetFileStagedForDownload)
+	r.POST("/stage_file", controller.GetFileStagedForDownload)
 }

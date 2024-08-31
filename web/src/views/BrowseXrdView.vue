@@ -125,7 +125,7 @@
 
 
 <script lang="ts" setup>
-import { getHostName, getHomeDirPath, getItemsInDir, getFileStagedForDownload } from '@/api/api';
+import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload } from '@/api/api';
 import { onMounted, ref } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
@@ -136,7 +136,7 @@ const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
 const currentDir = useStorage('currentDirectory', '', sessionStorage)
 const xrdHostName = ref("")
 onMounted(() => {
-    getHomeDirPath().then(resp => {
+    getInitialDirPath().then(resp => {
         let homeDir = resp.data.data
         // Use new data only if there no value in the storage
         if (!currentDir.value) currentDir.value = homeDir
