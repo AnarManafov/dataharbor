@@ -18,11 +18,7 @@ If successful, returns
 
 - code: `200`,
 - message `success`,  
-and the following response attributes:
-
-| Attribute                | Type     | Description           |
-|--------------------------|----------|-----------------------|
-| `data`              | string | The initial directory of xrootd on the server. |
+- data: is a `string` value, representing an initial directory of the xrootd server.
 
 ### Example request
 

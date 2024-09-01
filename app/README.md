@@ -23,23 +23,23 @@ The server port is configurable, see [the app's configuration](./config/applicat
     brew install go
     ```
 
-## Build the project
+### Build the project
 
-### Install Dependencies
+#### Install Dependencies
 
 ```shell
 cd app
 go mod download
 ```
 
-### Build
+#### Build
 
 ```shell
 cd app
 go build -o app .
 ```
 
-### Run
+#### Run
 
 ```shell
  go run .
@@ -52,6 +52,19 @@ go run . --config=<the_config_file_name>
 ```
 
 or just start an executable.
+
+## API
+
+### Files and Directories
+
+- [Initial directory](./doc/api/initial_dir.md) : `GET /initial_dir`
+- [List a directory](./doc/api/dir.md): `POST /dir`
+- [Stage a file. Prepare for download.](./doc/api/stage_file.md): `POST /stage_file`
+
+### General Details
+
+- [Host Info](./doc/api/host_name.md): `GET /host_name`
+- [Service's health](./doc/api/health.md): `GET /health`
 
 ## Containerization
 
@@ -79,13 +92,6 @@ podman run --network=host data_lake_ui_backend:0.0.4
 An xrootd client bin directory needs to be exposed to the container.
 
 This link helps with some Podman on OSX issues: <https://github.com/ansible/vscode-ansible/wiki/macos>
-
-## API
-
-### Files and Directories
-
-- [Initial directory](./doc/api/initial_dir.md) : `GET /initial_dir`
-- [List a directory](./doc/api/dir.md): `POST /dir`
 
 ## Dev Tips
 
