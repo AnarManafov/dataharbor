@@ -9,13 +9,15 @@
 - Added: Show corresponding icons for files and folder in the File Browser.
 - Added: Use a session storage to save the state of the File Browser.
 - Added: Containerization of the frontend with an nginx server.
+- Added: Periodically check the status of the Backend. (GH-7)
+- Added: Clean the table and highlight the home icon in red if backed appears offline. (GH-7)
 
 ### Backend
 
 - Fixed: pull file names with with white spaces.
 - Added: sanitation job to periodically check and clean staged temporary files.
 - Added: XRD settings moved to the backend configuration.
-- Added: detailed error response.
+- Added: detailed error response. (GH-5)
 - Added: REST API documentation.
 
 ## v0.3 (2024-08-18)
