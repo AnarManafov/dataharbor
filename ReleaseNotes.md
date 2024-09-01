@@ -15,6 +15,8 @@
 - Fixed: pull file names with with white spaces.
 - Added: sanitation job to periodically check and clean staged temporary files.
 - Added: XRD settings moved to the backend configuration.
+- Added: detailed error response.
+- Added: REST API documentation.
 
 ## v0.3 (2024-08-18)
 
