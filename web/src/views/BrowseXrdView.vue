@@ -55,10 +55,14 @@
                             <el-col :span="12" class="toolbar-left-content">
 
                                 <div>
-                                    <el-icon @click="currentDir = initialPath; listDir()" :size="18"
-                                        style="margin-right: 5px; margin-top: 3px">
-                                        <HomeFilled />
-                                    </el-icon>
+                                    <el-tooltip class="box-item" effect="dark" :content="getServiceStatusTooltip()"
+                                        placement="bottom-start">
+                                        <el-icon :style="{ color: getServiceStatusColor() }"
+                                            @click="currentDir = initialPath; listDir()" :size="18"
+                                            style="margin-right: 5px; margin-top: 3px">
+                                            <HomeFilled />
+                                        </el-icon>
+                                    </el-tooltip>
                                 </div>
                                 <div>
                                     <el-breadcrumb separator="/">
@@ -78,7 +82,7 @@
                             </el-col>
                             <el-col :span="12" class="toolbar-right-content">
                                 <div style="font-size: 12px;">
-                                    Server Host: <span style="font-weight: bold;">{{ xrdHostName
+                                    Data Server Host: <span style="font-weight: bold;">{{ xrdHostName
                                         }}</span>
                                 </div>
                             </el-col>
@@ -125,17 +129,67 @@
 
 
 <script lang="ts" setup>
-import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload } from '@/api/api';
-import { onMounted, ref } from 'vue';
+import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth } from '@/api/api';
+import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
 import { useStorage } from '@vueuse/core'
 
+
 const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
 const currentDir = useStorage('currentDirectory', '', sessionStorage)
 const xrdHostName = ref("")
+const isBackendOnline = ref(false);
+
+let interval: number | undefined;
+
+watch(isBackendOnline, (newValue, oldValue) => {
+    if (!newValue) {
+        ElMessage.error('Backend service is offline.')
+        tableData.value = [];
+    }
+    else {
+        ElMessage({
+            message: 'Backend service is online.',
+            type: 'success',
+        })
+        listDir()
+    }
+});
+
+const fetchBackendServiceStatus = (): void => {
+    getBackendHealth().then(resp => {
+        isBackendOnline.value = (resp.data.data == 'ok') ? true : false;
+    }).catch(() => {
+        isBackendOnline.value = false
+    });
+};
+
+// Return the color based on the backend service status
+const getServiceStatusColor = () => {
+    if (isBackendOnline.value) {
+        return '#67C23A' // online - green
+    } else {
+        return '#C23A3A' // offline - red
+    }
+}
+
+// Return the tooltip text based on the backend service status
+const getServiceStatusTooltip = () => {
+    if (isBackendOnline.value) {
+        return 'Backend service is ONLINE' // online
+    } else {
+        return 'Backend service is OFFLINE' // offline
+    }
+}
+
 onMounted(() => {
+    // Send a health check every 5 seconds
+    interval = window.setInterval(fetchBackendServiceStatus, 5000);
+    // Make the first call immediately
+    fetchBackendServiceStatus()
+
     getInitialDirPath().then(resp => {
         let homeDir = resp.data.data
         // Use new data only if there no value in the storage
@@ -146,6 +200,12 @@ onMounted(() => {
         getXrdHostName()
     })
 })
+
+onBeforeUnmount(() => {
+    if (interval) {
+        clearInterval(interval);
+    }
+});
 
 const tableData = ref([])
 
