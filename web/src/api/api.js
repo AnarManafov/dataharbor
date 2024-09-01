@@ -19,3 +19,8 @@ export const getHostName = () => {
 export const getFileStagedForDownload = (path) => {
     return request.post("stage_file", { path });
 };
+
+// Check health of the backend service
+export const getBackendHealth = () => {
+    return request.get("health");
+};
