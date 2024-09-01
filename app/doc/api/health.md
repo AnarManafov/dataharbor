@@ -19,7 +19,7 @@ If successful, returns
 - code: `200`,
 - message: `success`,  
 - data: is a `string` value, representing the health status of the service:
-  - `ok` - the service is alive. Any other value indicates a problem on the service. TODO: document other possible values too.
+  - `ok` - the service is alive. Any other response indicates a problem on the service.
 
 ### Example request
 

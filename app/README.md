@@ -14,45 +14,6 @@ The server port is configurable, see [the app's configuration](./config/applicat
 - Can stage a requested file for download. It copies the file to a WEB server's public location, into a staged temporary directory, for further download.
 - Implements a sanitation job to periodically check and clean staged temporary files.
 
-## Requirements
-
-- Go  
-  **OSX**
-
-    ```shell
-    brew install go
-    ```
-
-### Build the project
-
-#### Install Dependencies
-
-```shell
-cd app
-go mod download
-```
-
-#### Build
-
-```shell
-cd app
-go build -o app .
-```
-
-#### Run
-
-```shell
- go run .
-```
-
-Run with the app's config file
-
-```shell
-go run . --config=<the_config_file_name>
-```
-
-or just start an executable.
-
 ## API
 
 ### Files and Directories
@@ -65,6 +26,45 @@ or just start an executable.
 
 - [Host Info](./doc/api/host_name.md): `GET /host_name`
 - [Service's health](./doc/api/health.md): `GET /health`
+
+## Requirements
+
+- [Go](https://go.dev/)
+  - OSX
+
+    ```shell
+    brew install go
+    ```
+
+### Build the project
+
+- Install Dependencies
+
+  ```shell
+  cd app
+  go mod download
+  ```
+
+- Build
+
+  ```shell
+  cd app
+  go build -o app .
+  ```
+
+- Run
+
+  ```shell
+   go run .
+  ```
+
+  Run with the app's config file
+
+  ```shell
+  go run . --config=<the_config_file_name>
+  ```
+
+  or just start an executable.
 
 ## Containerization
 

@@ -25,6 +25,16 @@ func (busErr BusErr) Unwrap() error {
 	return busErr.Err
 }
 
+func (busErr BusErr) Append(message string) BusErr {
+	busErr.Message += ": " + message
+	return busErr
+}
+
+func (busErr BusErr) AppendErrMsg(err error) BusErr {
+	busErr.Message += ": " + err.Error()
+	return busErr
+}
+
 var (
 	SystemErr          = BusErr{Code: 400, Message: "system error"}
 	UnAuthenticateErr  = BusErr{Code: 401, Message: "unauthenticated "}

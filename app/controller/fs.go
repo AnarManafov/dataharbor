@@ -19,13 +19,13 @@ func GetHostName(ctx *gin.Context) {
 func GetDirItems(ctx *gin.Context) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		response.FailWithErr(ctx, response.SystemErr)
+		response.FailWithErr(ctx, response.SystemErr.AppendErrMsg(err))
 		return
 	}
 
 	dirPath := req.Path
 	if len(dirPath) == 0 {
-		response.FailWithErr(ctx, response.SystemErr)
+		response.FailWithErr(ctx, response.SystemErr.Append("Empty directory path to list."))
 		return
 	}
 
@@ -33,7 +33,7 @@ func GetDirItems(ctx *gin.Context) {
 
 	files, err := ReadDir(common.XrdConfig.Host, common.XrdConfig.Port, dirPath)
 	if err != nil {
-		response.FailWithErr(ctx, response.SystemErr)
+		response.FailWithErr(ctx, response.SystemErr.AppendErrMsg(err))
 		return
 	}
 
@@ -52,26 +52,19 @@ func GetDirItems(ctx *gin.Context) {
 		items = append(items, item)
 	}
 
-	// if err != nil {
-	// 	response.FailWithErr(ctx, response.SystemErr)
-	// 	return
-	// }
-
 	response.Success(ctx, items)
 }
 
 func GetFileStagedForDownload(ctx *gin.Context) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		respError := response.NewBusErr(response.SystemErr.Code, response.SystemErr.Err, response.SystemErr.Message+": "+err.Error())
-		response.FailWithErr(ctx, respError)
+		response.FailWithErr(ctx, response.SystemErr.AppendErrMsg(err))
 		return
 	}
 
 	filePath := req.Path
 	if len(filePath) == 0 {
-		respError := response.NewBusErr(response.SystemErr.Code, response.SystemErr.Err, response.SystemErr.Message+": Empty file path for staging")
-		response.FailWithErr(ctx, respError)
+		response.FailWithErr(ctx, response.SystemErr.Append("Empty file path for staging"))
 		return
 	}
 
@@ -79,8 +72,7 @@ func GetFileStagedForDownload(ctx *gin.Context) {
 	// Ask XRD to copy the requested file to the Server's public location, so that it can be downloaded.
 	stagedFilePath, err := StageFile(common.XrdConfig.Host, common.XrdConfig.Port, filePath)
 	if err != nil {
-		respError := response.NewBusErr(response.SystemErr.Code, response.SystemErr.Err, response.SystemErr.Message+": "+err.Error())
-		response.FailWithErr(ctx, respError)
+		response.FailWithErr(ctx, response.SystemErr.AppendErrMsg(err))
 		return
 	}
 
