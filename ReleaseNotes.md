@@ -11,6 +11,7 @@
 - Added: Containerization of the frontend with an nginx server.
 - Added: Periodically check the status of the Backend. (GH-7)
 - Added: Clean the table and highlight the home icon in red if backed appears offline. (GH-7)
+- Added: Error handling of protocol errors. (GH-6)
 
 ### Backend
 

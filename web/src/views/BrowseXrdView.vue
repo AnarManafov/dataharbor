@@ -159,11 +159,13 @@ watch(isBackendOnline, (newValue, oldValue) => {
 });
 
 const fetchBackendServiceStatus = (): void => {
-    getBackendHealth().then(resp => {
-        isBackendOnline.value = (resp.data.data == 'ok') ? true : false;
-    }).catch(() => {
-        isBackendOnline.value = false
-    });
+    getBackendHealth()
+        .then(resp => {
+            isBackendOnline.value = (resp.data.data == 'ok') ? true : false;
+        })
+        .catch(() => {
+            isBackendOnline.value = false
+        });
 };
 
 // Return the color based on the backend service status
@@ -185,20 +187,29 @@ const getServiceStatusTooltip = () => {
 }
 
 onMounted(() => {
-    // Send a health check every 5 seconds
-    interval = window.setInterval(fetchBackendServiceStatus, 5000);
+    // Send a health check every 30 seconds
+    interval = window.setInterval(fetchBackendServiceStatus, 30000);
     // Make the first call immediately
     fetchBackendServiceStatus()
 
-    getInitialDirPath().then(resp => {
-        let homeDir = resp.data.data
-        // Use new data only if there no value in the storage
-        if (!currentDir.value) currentDir.value = homeDir
-        if (!initialPath.value) initialPath.value = homeDir
+    getInitialDirPath()
+        .then(resp => {
+            let homeDir = resp.data.data
+            // Use new data only if there no value in the storage
+            if (!currentDir.value) currentDir.value = homeDir
+            if (!initialPath.value) initialPath.value = homeDir
 
-        listDir()
-        getXrdHostName()
-    })
+            listDir()
+            getXrdHostName()
+        })
+        .catch((error) => {
+            if (error) {
+                ElMessage.error(error.message)
+                console.log(error);
+                // Force check the backend health
+                fetchBackendServiceStatus()
+            }
+        })
 })
 
 onBeforeUnmount(() => {
@@ -238,31 +249,43 @@ const selectDir = (row: { type: string; name: string; }) => {
             // autofocus: false,
             confirmButtonText: 'Download',
             cancelButtonText: 'Cancel',
-        }).then(() => {
-            // @ts-ignore: TS2304: cannot find name ' require'
-            // The auto import is used
-            ElMessage({
-                type: 'success',
-                message: 'Preparing to download: ' + srcFileToDownload,
+        })
+            .then(() => {
+                // @ts-ignore: TS2304: cannot find name ' require'
+                // The auto import is used
+                ElMessage({
+                    type: 'success',
+                    message: 'Preparing to download: ' + srcFileToDownload,
+                })
+
+                // Requesting to stage the file
+                var destFileToDownload = "";
+
+                getFileStagedForDownload(srcFileToDownload)
+                    .then(resp => {
+                        destFileToDownload = resp.data.data
+
+                        // Force download a file 
+                        axios.get(destFileToDownload, { responseType: 'blob' })
+                            .then(response => {
+                                saveAs(response.data, row.name);
+                            })
+                            .catch((response) => {
+                                console.error("Could not Download the requested file from the backend.", response);
+                            });
+                    })
+                    .catch((error) => {
+                        if (error) {
+                            ElMessage.error(error.message)
+                            console.log(error);
+                            // Force check the backend health
+                            fetchBackendServiceStatus()
+                        }
+                    })
             })
-
-            // Requesting to stage the file
-            var destFileToDownload = "";
-
-            getFileStagedForDownload(srcFileToDownload).then(resp => {
-                destFileToDownload = resp.data.data
-
-                // Force download a file 
-                axios.get(destFileToDownload, { responseType: 'blob' })
-                    .then(response => {
-                        saveAs(response.data, row.name);
-                    }).catch((response) => {
-                        console.error("Could not Download the requested file from the backend.", response);
-                    });
-            })
-        }).catch(() => {
-            console.log("Download is canceled by the user.");
-        });
+            .catch(() => {
+                console.log("Download is canceled by the user.");
+            });
     }
 }
 
@@ -270,13 +293,39 @@ const selectDir = (row: { type: string; name: string; }) => {
 const listDir = () => {
     console.log(currentDir.value);
 
-    getItemsInDir(currentDir.value).then(resp => {
-        tableData.value = resp.data.data
-    })
+    getItemsInDir(currentDir.value)
+        .then(resp => {
+            if (resp.data.data != null) {
+                tableData.value = resp.data.data
+            }
+            else {
+                ElMessage.error("Could not get a list of files for this directory.")
+                console.log("Could not get a list of files for this directory.");
+                ElMessage.error(resp.data.msg)
+                console.log(resp.data.msg);
+            }
+        })
+        .catch((error) => {
+            if (error) {
+                ElMessage.error(error.message)
+                console.log(error);
+                // Force check the backend health
+                fetchBackendServiceStatus()
+            }
+        })
 }
 
 const getXrdHostName = () => {
-    getHostName().then(resp => { xrdHostName.value = resp.data.data })
+    getHostName()
+        .then(resp => { xrdHostName.value = resp.data.data })
+        .catch((error) => {
+            if (error) {
+                ElMessage.error(error.message)
+                console.log(error);
+                // Force check the backend health
+                fetchBackendServiceStatus()
+            }
+        })
 }
 </script>
 
