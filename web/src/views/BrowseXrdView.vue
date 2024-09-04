@@ -55,9 +55,9 @@
                             <el-col :span="12" class="toolbar-left-content">
 
                                 <div>
-                                    <el-tooltip class="box-item" effect="dark" :content="getServiceStatusTooltip()"
+                                    <el-tooltip class="box-item" effect="dark" :content="serviceStatusTooltip"
                                         placement="bottom-start">
-                                        <el-icon :style="{ color: getServiceStatusColor() }"
+                                        <el-icon :style="{ color: serviceStatusColor }"
                                             @click="currentDir = initialPath; listDir()" :size="18"
                                             style="margin-right: 5px; margin-top: 3px">
                                             <HomeFilled />
@@ -130,17 +130,23 @@
 
 <script lang="ts" setup>
 import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth } from '@/api/api';
-import { onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
 import { useStorage } from '@vueuse/core'
 
+const { appContext } = getCurrentInstance();
+const app_colors = appContext.config.globalProperties.$app_colors;
 
 const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
 const currentDir = useStorage('currentDirectory', '', sessionStorage)
 const xrdHostName = ref("")
 const isBackendOnline = ref(false);
+// the color of the service status
+const serviceStatusColor = ref(app_colors.offline);
+// The tooltip text based on the backend service status
+const serviceStatusTooltip = ref('Backend service is OFFLINE')
 
 let interval: number | undefined;
 
@@ -148,6 +154,8 @@ watch(isBackendOnline, (newValue, oldValue) => {
     if (!newValue) {
         ElMessage.error('Backend service is offline.')
         tableData.value = [];
+        serviceStatusColor.value = app_colors.offline
+        serviceStatusTooltip.value = 'Backend service is OFFLINE'
     }
     else {
         ElMessage({
@@ -155,6 +163,8 @@ watch(isBackendOnline, (newValue, oldValue) => {
             type: 'success',
         })
         listDir()
+        serviceStatusColor.value = app_colors.online
+        serviceStatusTooltip.value = 'Backend service is ONLINE'
     }
 });
 
@@ -167,24 +177,6 @@ const fetchBackendServiceStatus = (): void => {
             isBackendOnline.value = false
         });
 };
-
-// Return the color based on the backend service status
-const getServiceStatusColor = () => {
-    if (isBackendOnline.value) {
-        return '#67C23A' // online - green
-    } else {
-        return '#C23A3A' // offline - red
-    }
-}
-
-// Return the tooltip text based on the backend service status
-const getServiceStatusTooltip = () => {
-    if (isBackendOnline.value) {
-        return 'Backend service is ONLINE' // online
-    } else {
-        return 'Backend service is OFFLINE' // offline
-    }
-}
 
 onMounted(() => {
     // Send a health check every 30 seconds
@@ -292,6 +284,12 @@ const selectDir = (row: { type: string; name: string; }) => {
 
 const listDir = () => {
     console.log(currentDir.value);
+
+    if (!isBackendOnline.value) {
+        fetchBackendServiceStatus()
+        // No need to do anything if the backend is still offline
+        if (!isBackendOnline.value) return;
+    }
 
     getItemsInDir(currentDir.value)
         .then(resp => {

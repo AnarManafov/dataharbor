@@ -18,8 +18,8 @@ const router = createRouter({
             component: () => import('../views/AboutView.vue')
         },
         {
-            path: '/browse_xrd',
-            name: 'browse_xrd',
+            path: '/browse_files',
+            name: 'browse_files',
             component: () => import('../views/BrowseXrdView.vue')
         },
         {
