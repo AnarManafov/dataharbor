@@ -111,9 +111,17 @@ cd app
 go get github.com/${YOUR_USERNAME}/app
 ```
 
-### Add new module requirements and sums
+### Update/Add dependencies and sums
 
 ```shell
 cd app
+go get -u ./...
 go mod tidy
+```
+
+### Update requared Go version
+
+```shell
+cd app
+go mod edit -go=1.23
 ```
