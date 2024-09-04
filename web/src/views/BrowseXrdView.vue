@@ -109,7 +109,11 @@
                                         </div>
                                     </template>
                                 </el-table-column>
-                                <el-table-column prop="size" label="Size" sortable width="150" />
+                                <el-table-column prop="size" label="Size" sortable width="150">
+                                    <template #default="scope">
+                                        {{ filters.prettyBytes(scope.row.size) }}
+                                    </template>
+                                </el-table-column>
                                 <el-table-column prop="date_time" label="Date" sortable width="200" />
                                 <el-table-column prop="type" label="Type" sortable width="80">
                                     <template #default="scope">
@@ -138,6 +142,7 @@ import { useStorage } from '@vueuse/core'
 
 const { appContext } = getCurrentInstance();
 const app_colors = appContext.config.globalProperties.$app_colors;
+const filters = appContext.config.globalProperties.$filters;
 
 const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
 const currentDir = useStorage('currentDirectory', '', sessionStorage)

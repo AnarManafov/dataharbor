@@ -12,6 +12,7 @@
 - Added: Periodically check the status of the Backend. (GH-7)
 - Added: Clean the table and highlight the home icon in red if backed appears offline. (GH-7)
 - Added: Error handling of protocol errors. (GH-6)
+- Added: A filter tp convert file size to a human readable format with kBytes, MB, GB, etc.
 
 ### Backend
 
