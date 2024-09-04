@@ -10,9 +10,9 @@ POST /stage_file
 
 ### Parameters
 
-| Attribute                | Type     | Required | Description                       |
-|--------------------------|----------|----------|-----------------------------------|
-| `path`                   | string   | Yes      | A full path to the file to stage. |
+| Attribute | Type   | Required | Description                       |
+| --------- | ------ | -------- | --------------------------------- |
+| `path`    | string | Yes      | A full path to the file to stage. |
 
 ### Response
 
@@ -22,9 +22,9 @@ If successful, returns
 - message: `success`,  
 - data: is an array of the following attributes:
 
-| Attribute                | Type      | Description                           |
-|--------------------------|-----------|---------------------------------------|
-| `path`                   | string    | A full file path to the staged files. |
+| Attribute | Type   | Description                           |
+| --------- | ------ | ------------------------------------- |
+| `path`    | string | A full file path to the staged files. |
 
 ### Example request
 
