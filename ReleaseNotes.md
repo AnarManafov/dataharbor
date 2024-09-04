@@ -20,6 +20,7 @@
 - Added: XRD settings moved to the backend configuration.
 - Added: detailed error response. (GH-5)
 - Added: REST API documentation.
+- Added: use js plugins in order to improve the code.
 
 ## v0.3 (2024-08-18)
 
