@@ -107,9 +107,6 @@ func ReadDir(host string, port uint, dir string) (retVal []xrdDirEntry, err erro
 	return retVal, nil
 }
 
-// TODO: The backend needs to have a background job to clean the staging area.
-// All files older than X hours should be deleted.
-
 func StageFile(_host string, _port uint, _file string) (string, error) {
 	srd_addr := _host + ":" + strconv.FormatUint(uint64(_port), 10)
 	// Create a random subdirectory to allow concurrent download files with the same name.

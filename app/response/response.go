@@ -27,5 +27,5 @@ func ValidateFail(ctx *gin.Context, data map[string][]string) {
 }
 
 func FailWithErr(ctx *gin.Context, err BusErr) {
-	Response(ctx, http.StatusOK, err.Code, nil, err.Message)
+	Response(ctx, http.StatusOK, err.code, nil, err.message)
 }

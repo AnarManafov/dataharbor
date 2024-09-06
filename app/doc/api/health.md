@@ -1,34 +1,42 @@
 # Health API
 
-Status details of the backend service.
+## Health of the backend service
 
-## Method title
+This API provides information about the status of the backend service.
+
+### Method
 
 ```plaintext
-POST /health
+GET /health
 ```
 
 ### Parameters
 
-No parameters.
+This API does not require any parameters.
 
 ### Response
 
-If successful, returns
+If the request is successful, the API will return a JSON response with the following fields:
 
-- code: `200`,
-- message: `success`,  
-- data: is a `string` value, representing the health status of the service:
-  - `ok` - the service is alive. Any other response indicates a problem on the service.
+- `code`: The HTTP status code, which will be `200` for a successful request.
+- `message`: A message indicating the success of the request, which will be `success`.
+- `data`: A string value representing the health status of the service. The value will be `ok` if the service is alive. Any other value indicates a problem with the service.
 
-### Example request
+## Example
+
+### Example Request
 
 ```shell
 curl --url "http://localhost:22000/health"
 ```
 
-### Example response
+### Example Response
 
 ```json
-{"code":200,"data":"ok","msg":"success"}
+{
+    "code": 200,
+    "data": "ok",
+    "message": "success"
+}
 ```
+

@@ -1,8 +1,10 @@
 # Initial directory API
 
-Get the initial directory of the current xrootd server.
+## Initial Directory
 
-## Method title
+This endpoint retrieves the initial directory of the current xrootd server.
+
+### Method
 
 ```plaintext
 GET /initial_dir
@@ -10,24 +12,40 @@ GET /initial_dir
 
 ### Parameters
 
-No parameters are required.
+No parameters are required for this endpoint.
 
 ### Response
 
-If successful, returns
+If the request is successful, the API will return a response with the following structure:
 
-- code: `200`,
-- message `success`,  
-- data: is a `string` value, representing an initial directory of the xrootd server.
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": "/tmp/"
+}
+```
 
-### Example request
+The response includes the following fields:
+
+- `code`: The HTTP status code of the response (200 for success).
+- `message`: A message indicating the status of the request.
+- `data`: The initial directory of the xrootd server, represented as a string value.
+
+### Example
+
+#### Example Request
 
 ```shell
 curl --url "http://localhost:22000/initial_dir"
 ```
 
-### Example response
+#### Example Response
 
 ```json
-{"code":200,"data":"/tmp/","msg":"success"}
+{
+    "code": 200,
+    "data": "/tmp/",
+    "message": "success"
+}
 ```
