@@ -11,19 +11,24 @@ import (
 	"time"
 )
 
+// IsOlderThanXHours checks if the given time is older than X hours.
+// It returns true if the time is older than X hours, otherwise false.
 func IsOlderThanXHours(_t time.Time, _x uint) bool {
 	return time.Since(_t) > (time.Duration(_x) * time.Hour)
 }
 
-func NewSanitationScheduler() (ticker *time.Ticker, done chan bool) {
+// NewSanitationScheduler creates a new sanitation scheduler.
+// It returns a ticker that runs the sanitation job every X minutes and a done channel.
+func NewSanitationScheduler() (*time.Ticker, chan bool) {
 	// Start the sanitation job
 	common.Logger.Info("Creating a sanitation check job...")
 	// The job runs every X minutes
-	ticker = time.NewTicker(time.Duration(common.XrdConfig.SanitationJobInterval) * time.Minute)
-	done = make(chan bool)
+	ticker := time.NewTicker(time.Duration(common.XrdConfig.SanitationJobInterval) * time.Minute)
+	done := make(chan bool)
 	return ticker, done
 }
 
+// CleanStagingDir cleans the staging directory by removing directories that are older than 2 hours.
 func CleanStagingDir() {
 	files, err := os.ReadDir(common.XrdConfig.StagingPath)
 	if err != nil {
@@ -47,6 +52,9 @@ func CleanStagingDir() {
 	}
 }
 
+// SanitationJob runs the sanitation job at regular intervals.
+// It cleans the staging directory by removing directories that are older than 2 hours.
+// The job starts immediately and continues running until the done channel receives a signal.
 func SanitationJob(ticker *time.Ticker, done chan bool) {
 	// Since the Tick is not called immediately, we force the clean at the start
 	CleanStagingDir()

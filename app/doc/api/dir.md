@@ -1,8 +1,10 @@
 # List directory API
 
-Get files and folder from the given directory.
+## Get Files and Folders from a Directory
 
-## Method title
+This API endpoint allows you to retrieve a list of files and folders from a given directory.
+
+### Method
 
 ```plaintext
 POST /dir
@@ -10,32 +12,28 @@ POST /dir
 
 ### Parameters
 
-| Attribute                | Type     | Required | Description                         |
-|--------------------------|----------|----------|-------------------------------------|
-| `path`                   | string   | Yes      | Full path to the directory to list. |
+| Attribute | Type   | Required | Description                             |
+| --------- | ------ | -------- | --------------------------------------- |
+| `path`    | string | Yes      | The full path to the directory to list. |
 
 ### Response
 
-If successful, returns
+If the request is successful, the API will return a response with the following attributes:
 
-- code: `200`,
-- message: `success`,  
-- data: is an array of the following attributes:
+| Attribute   | Type    | Description                             |
+| ----------- | ------- | --------------------------------------- |
+| `name`      | string  | The name of the file or folder.         |
+| `type`      | string  | The type of the item ("dir" or "file"). |
+| `date_time` | string  | The date and time of the item.          |
+| `size`      | integer | The size of the file in bytes.          |
 
-| Attribute                | Type      | Description                    |
-|--------------------------|-----------|--------------------------------|
-| `name`                   | string    | File name.                     |
-| `type`                   | string    | Can be one of ("dir", "files") |
-| `date_time`              | string    | Date time of the file.         |
-| `size`                   | integer   | File size in bytes.            |
-
-### Example request
+### Example Request
 
 ```shell
 curl -X POST -d '{"path":"/tmp/"}' http://localhost:22000/dir
 ```
 
-### Example response
+### Example Response
 
 ```json
 {
@@ -69,3 +67,4 @@ curl -X POST -d '{"path":"/tmp/"}' http://localhost:22000/dir
     "msg": "success"
 }
 ```
+

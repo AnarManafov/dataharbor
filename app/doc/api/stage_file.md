@@ -1,8 +1,10 @@
 # Stage file API
 
-Stage a file to server's public location to make it download ready.
+## Stage File API
 
-## Method title
+This API allows you to stage a file to the server's public location, making it ready for download.
+
+### Method
 
 ```plaintext
 POST /stage_file
@@ -10,29 +12,25 @@ POST /stage_file
 
 ### Parameters
 
-| Attribute | Type   | Required | Description                       |
-| --------- | ------ | -------- | --------------------------------- |
-| `path`    | string | Yes      | A full path to the file to stage. |
+| Attribute | Type   | Required | Description                         |
+| --------- | ------ | -------- | ----------------------------------- |
+| `path`    | string | Yes      | The full path to the file to stage. |
 
 ### Response
 
-If successful, returns
+If the request is successful, the API will return a response with the following attributes:
 
-- code: `200`,
-- message: `success`,  
-- data: is an array of the following attributes:
+| Attribute | Type   | Description                            |
+| --------- | ------ | -------------------------------------- |
+| `path`    | string | The full file path to the staged file. |
 
-| Attribute | Type   | Description                           |
-| --------- | ------ | ------------------------------------- |
-| `path`    | string | A full file path to the staged files. |
-
-### Example request
+### Example Request
 
 ```shell
 curl -X POST -d '{"path":"/tmp/file_to_stage"}' http://localhost:22000/stage_file
 ```
 
-### Example response
+### Example Response
 
 ```json
 {
@@ -42,4 +40,4 @@ curl -X POST -d '{"path":"/tmp/file_to_stage"}' http://localhost:22000/stage_fil
     },
     "msg": "success"
 }
-```
+

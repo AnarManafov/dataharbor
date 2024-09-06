@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TraceMiddware() gin.HandlerFunc {
+func TraceMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		tid := ctx.GetHeader("X-Tid")
 		if len(tid) == 0 {

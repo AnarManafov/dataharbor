@@ -8,18 +8,16 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine) {
+	// Apply middlewares
 	r.Use(middleware.RecoveryMiddleware(),
-		middleware.TraceMiddware(),
+		middleware.TraceMiddleware(),
 		middleware.AccessLogger(),
 		middleware.CORSMiddleware())
 
+	// Define routes
 	r.GET("/health", controller.Health)
-
 	r.GET("/initial_dir", controller.GetInitialDir)
-
 	r.GET("/host_name", controller.GetHostName)
-
 	r.POST("/dir", controller.GetDirItems)
-
 	r.POST("/stage_file", controller.GetFileStagedForDownload)
 }

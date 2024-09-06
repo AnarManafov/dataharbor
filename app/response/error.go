@@ -1,42 +1,51 @@
 package response
 
+// BusErr represents a business error.
 type BusErr struct {
-	Code    int
-	Message string
-	Err     error
+	code    int
+	message string
+	err     error
 }
 
+// NewBusErr creates a new BusErr instance.
 func NewBusErr(code int, err error, message string) BusErr {
 	return BusErr{
-		Code:    code,
-		Message: message,
-		Err:     err,
+		code:    code,
+		message: message,
+		err:     err,
 	}
 }
 
-func (busErr BusErr) Error() string {
-	if busErr.Err == nil {
-		return busErr.Message
+// Error returns the error message.
+func (busErr *BusErr) Error() string {
+	if busErr.err == nil {
+		return busErr.message
 	}
-	return busErr.Err.Error()
+	return busErr.err.Error()
 }
 
-func (busErr BusErr) Unwrap() error {
-	return busErr.Err
+// Unwrap returns the underlying error.
+func (busErr *BusErr) Unwrap() error {
+	return busErr.err
 }
 
-func (busErr BusErr) Append(message string) BusErr {
-	busErr.Message += ": " + message
+// Append appends a message to the error message.
+func (busErr *BusErr) Append(message string) *BusErr {
+	busErr.message += ": " + message
 	return busErr
 }
 
-func (busErr BusErr) AppendErrMsg(err error) BusErr {
-	busErr.Message += ": " + err.Error()
+// AppendErrMsg appends an error message to the error message.
+func (busErr *BusErr) AppendErrMsg(err error) *BusErr {
+	busErr.message += ": " + err.Error()
 	return busErr
 }
 
-var (
-	SystemErr          = BusErr{Code: 400, Message: "system error"}
-	UnAuthenticateErr  = BusErr{Code: 401, Message: "unauthenticated "}
-	UnAuthorizationErr = BusErr{Code: 403, Message: "unauthorized"}
-)
+// SystemErr represents a system error.
+var SystemErr = &BusErr{code: 400, message: "system error"}
+
+// UnAuthenticateErr represents an unauthenticated error.
+var UnAuthenticateErr = &BusErr{code: 401, message: "unauthenticated"}
+
+// UnAuthorizationErr represents an unauthorized error.
+var UnAuthorizationErr = &BusErr{code: 403, message: "unauthorized"}
