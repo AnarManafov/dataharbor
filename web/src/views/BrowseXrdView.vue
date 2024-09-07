@@ -58,7 +58,7 @@
                                     <el-tooltip class='box-item' effect='dark' :content='serviceStatusTooltip'
                                         placement='bottom-start'>
                                         <el-icon :style='{ color: serviceStatusColor }'
-                                            @click='currentDir = initialPath; listDir()' :size='18'
+                                            @click='() => { currentDir = initialPath; listDir() }' :size='18'
                                             style='margin-right: 5px; margin-top: 3px'>
                                             <HomeFilled />
                                         </el-icon>
@@ -66,13 +66,13 @@
                                 </div>
                                 <div>
                                     <el-breadcrumb separator='/'>
-                                        <el-breadcrumb-item @click='currentDir = initialPath; listDir()'><a
+                                        <el-breadcrumb-item @click='() => { currentDir = initialPath; listDir() }'><a
                                                 href='#'>Initial
                                                 Directory</a></el-breadcrumb-item>
                                         <template
                                             v-for="(item, index) in currentDir.replace(initialPath, '').split('/')"
                                             :key='index'>
-                                            <el-breadcrumb-item @click='changeDir(index)' v-if='item.length > 0'>
+                                            <el-breadcrumb-item @click='() => changeDir(index)' v-if='item.length > 0'>
                                                 <a href='#'>{{ item }}</a>
                                             </el-breadcrumb-item>
                                         </template>
@@ -104,7 +104,7 @@
                                             </el-icon>
                                             <span class='clickable' style='margin-left: 10px'
                                                 :style='{ fontWeight: scope.row.type === "dir" ? "bold" : "normal" }'
-                                                @click='selectDir(scope.row)'>{{ scope.row.name
+                                                @click='() => selectDir(scope.row)'>{{ scope.row.name
                                                 }}</span>
                                         </div>
                                     </template>
