@@ -1,14 +1,14 @@
 <template>
-    <div class="home">
-        <section class="hero is-dark">
-            <div class="hero-body">
-                <div class="container">
-                    <h1 class="title">Welcome to Data Lake UI</h1>
-                    <h2 class="subtitle">
+    <div class='home'>
+        <section class='hero is-dark'>
+            <div class='hero-body'>
+                <div class='container'>
+                    <h1 class='title'>Welcome to Data Lake UI</h1>
+                    <h2 class='subtitle'>
                         Browsing GSI Lustre made easy
                     </h2>
-                    <!--div class="button-block">
-              <button class="button is-xl is-dark">
+                    <!--div class='button-block'>
+              <button class='button is-xl is-dark'>
                 Log In to Access GSI Lustre
               </button>
             </div-->

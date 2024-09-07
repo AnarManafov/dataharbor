@@ -1,17 +1,17 @@
 <template>
-    <div class="about">
-        <div class="hero is-primary">
-            <div class="hero-body">
-                <div class="container">
-                    <h1 class="title is-size-1">About Data Lake UI</h1>
+    <div class='about'>
+        <div class='hero is-primary'>
+            <div class='hero-body'>
+                <div class='container'>
+                    <h1 class='title is-size-1'>About Data Lake UI</h1>
                 </div>
             </div>
         </div>
-        <div class="container">
-            <p class="org-description is-size-4">
+        <div class='container'>
+            <p class='org-description is-size-4'>
                 bla-blah
             </p>
-            <p class="org-description is-size-4">
+            <p class='org-description is-size-4'>
                 blah-blah
             </p>
         </div>
