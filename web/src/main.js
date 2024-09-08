@@ -19,6 +19,14 @@ app.use(VueAxios, axios);
 // Using predefine color constants of this app
 app.use(colorPlugin);
 
+app.config.errorHandler = (err, vm, info) => {
+    console.error('Error:', err);
+    console.error('Vue component:', vm);
+    console.error('Additional info:', info);
+
+    ElMessage.error(err.message);
+};
+
 // Make a human ridable representation of bytes.
 // Alternatively a package pretty-bytes can be used.
 // It's home: https://github.com/sindresorhus/pretty-bytes
