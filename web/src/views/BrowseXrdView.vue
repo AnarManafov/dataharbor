@@ -6,7 +6,7 @@
         <el-container>
             <el-aside width='200px'>
                 <el-scrollbar>
-                    <el-menu :default-openeds="['2']" default-active='2'>
+                    <el-menu :default-opened="['2']" default-active='2'>
                         <el-sub-menu index='1'>
                             <template #title>
                                 <el-icon>
@@ -163,8 +163,7 @@ const serviceStatusColor = computed(() => {
 })
 
 let interval: number | undefined;
-
-watch(isBackendOnline, (newValue, oldValue) => {
+watch(isBackendOnline, (newValue) => {
     if (!newValue) {
         ElMessage.error('Backend service is offline.')
         tableData.value = [];
@@ -236,10 +235,8 @@ const changeDir = (index: number) => {
     index += initialIndex;
 
     console.log("changeDir index: " + index);
-
-    currentDirectory.value = currentDirectory.value.split("/").filter((k, i) => {
+    currentDirectory.value = currentDirectory.value.split("/").filter((_, i) => {
         console.log(i);
-
         return i <= index
     }).join('/')
 
