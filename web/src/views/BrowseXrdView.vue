@@ -58,7 +58,7 @@
                                     <el-tooltip class='box-item' effect='dark' :content='serviceStatusTooltip'
                                         placement='bottom-start'>
                                         <el-icon :style='{ color: serviceStatusColor }'
-                                            @click='() => { currentDir = initialPath; listDir() }' :size='18'
+                                            @click='() => { currentDirectory = initialPath; listDir() }' :size='18'
                                             style='margin-right: 5px; margin-top: 3px'>
                                             <HomeFilled />
                                         </el-icon>
@@ -66,11 +66,12 @@
                                 </div>
                                 <div>
                                     <el-breadcrumb separator='/'>
-                                        <el-breadcrumb-item @click='() => { currentDir = initialPath; listDir() }'><a
+                                        <el-breadcrumb-item
+                                            @click='() => { currentDirectory = initialPath; listDir() }'><a
                                                 href='#'>Initial
                                                 Directory</a></el-breadcrumb-item>
                                         <template
-                                            v-for="(item, index) in currentDir.replace(initialPath, '').split('/')"
+                                            v-for="(item, index) in currentDirectory.replace(initialPath, '').split('/')"
                                             :key='index'>
                                             <el-breadcrumb-item @click='() => changeDir(index)' v-if='item.length > 0'>
                                                 <a href='#'>{{ item }}</a>
@@ -92,7 +93,7 @@
                 <el-container>
                     <el-main>
                         <el-scrollbar>
-                            <el-table :data='tableData' :default-sort='{ prop: "name", order: "ascending" }' border>
+                            <el-table :data='filteredData' :default-sort='{ prop: "name", order: "ascending" }' border>
                                 <el-table-column prop='name' label='Name' sortable>
                                     <template #default='scope'>
                                         <div style='display: flex; align-items: center'>
@@ -134,7 +135,7 @@
 
 <script lang="ts" setup>
 import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth } from '@/api/api';
-import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance } from 'vue';
+import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
@@ -145,13 +146,21 @@ const app_colors = appContext.config.globalProperties.$app_colors;
 const filters = appContext.config.globalProperties.$filters;
 
 const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
-const currentDir = useStorage('currentDirectory', '', sessionStorage)
 const xrdHostName = ref("")
 const isBackendOnline = ref(false);
-// the color of the service status
-const serviceStatusColor = ref(app_colors.offline);
+
+// The current directory path. A ref property
+const currentDirectory = useStorage('currentDirectory', '', sessionStorage)
+
+// computed ref
 // The tooltip text based on the backend service status
-const serviceStatusTooltip = ref('Backend service is OFFLINE')
+const serviceStatusTooltip = computed(() => {
+    return isBackendOnline.value ? 'Backend service is ONLINE' : 'Backend service is OFFLINE'
+})
+//// the color of the service status
+const serviceStatusColor = computed(() => {
+    return isBackendOnline.value ? app_colors.online : app_colors.offline
+})
 
 let interval: number | undefined;
 
@@ -159,8 +168,6 @@ watch(isBackendOnline, (newValue, oldValue) => {
     if (!newValue) {
         ElMessage.error('Backend service is offline.')
         tableData.value = [];
-        serviceStatusColor.value = app_colors.offline
-        serviceStatusTooltip.value = 'Backend service is OFFLINE'
     }
     else {
         ElMessage({
@@ -168,8 +175,6 @@ watch(isBackendOnline, (newValue, oldValue) => {
             type: 'success',
         })
         listDir()
-        serviceStatusColor.value = app_colors.online
-        serviceStatusTooltip.value = 'Backend service is ONLINE'
     }
 });
 
@@ -193,7 +198,7 @@ onMounted(() => {
         .then(resp => {
             let homeDir = resp.data.data
             // Use new data only if there no value in the storage
-            if (!currentDir.value) currentDir.value = homeDir
+            if (!currentDirectory.value) currentDirectory.value = homeDir
             if (!initialPath.value) initialPath.value = homeDir
 
             listDir()
@@ -215,7 +220,15 @@ onBeforeUnmount(() => {
     }
 });
 
+// Origin table data received from backend API
 const tableData = ref([])
+// Computed property of the table data.
+// A filter or other modifiers can be added to change the data representation for the user
+const filteredData = computed(() => {
+    return tableData.value/*.filter(item => 
+        item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      );*/
+});
 
 const changeDir = (index: number) => {
     // Add initial path, as it's subtracted when populating the data in breadcrumb.
@@ -224,7 +237,7 @@ const changeDir = (index: number) => {
 
     console.log("changeDir index: " + index);
 
-    currentDir.value = currentDir.value.split("/").filter((k, i) => {
+    currentDirectory.value = currentDirectory.value.split("/").filter((k, i) => {
         console.log(i);
 
         return i <= index
@@ -235,10 +248,10 @@ const changeDir = (index: number) => {
 
 const selectDir = (row: { type: string; name: string; }) => {
     if (row.type == 'dir') {
-        currentDir.value = currentDir.value + "/" + row.name;
+        currentDirectory.value = currentDirectory.value + "/" + row.name;
         listDir();
     } else {
-        const srcFileToDownload = currentDir.value + "/" + row.name
+        const srcFileToDownload = currentDirectory.value + "/" + row.name
         // @ts-ignore: TS2304: cannot find name ' require'
         // The auto import is used
         ElMessageBox.confirm('Do you want to download the file?', srcFileToDownload, {
@@ -288,7 +301,7 @@ const selectDir = (row: { type: string; name: string; }) => {
 
 
 const listDir = () => {
-    console.log(currentDir.value);
+    console.log(currentDirectory.value);
 
     if (!isBackendOnline.value) {
         fetchBackendServiceStatus()
@@ -296,7 +309,7 @@ const listDir = () => {
         if (!isBackendOnline.value) return;
     }
 
-    getItemsInDir(currentDir.value)
+    getItemsInDir(currentDirectory.value)
         .then(resp => {
             if (resp.data.data != null) {
                 tableData.value = resp.data.data
