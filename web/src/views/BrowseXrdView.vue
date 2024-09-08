@@ -58,7 +58,7 @@
                                     <el-tooltip class='box-item' effect='dark' :content='serviceStatusTooltip'
                                         placement='bottom-start'>
                                         <el-icon :style='{ color: serviceStatusColor }'
-                                            @click='() => { currentDirectory = initialPath; listDir() }' :size='18'
+                                            @click='() => { changeDirToInitialPath() }' :size='18'
                                             style='margin-right: 5px; margin-top: 3px'>
                                             <HomeFilled />
                                         </el-icon>
@@ -66,8 +66,7 @@
                                 </div>
                                 <div>
                                     <el-breadcrumb separator='/'>
-                                        <el-breadcrumb-item
-                                            @click='() => { currentDirectory = initialPath; listDir() }'><a
+                                        <el-breadcrumb-item @click='() => { changeDirToInitialPath() }'><a
                                                 href='#'>Initial
                                                 Directory</a></el-breadcrumb-item>
                                         <template
@@ -140,6 +139,7 @@ import { saveAs } from 'file-saver';
 import axios from 'axios';
 import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
 import { useStorage } from '@vueuse/core'
+import { displayErrorMessage, joinPaths } from '@/utils/utils';
 
 const { appContext } = getCurrentInstance();
 const app_colors = appContext.config.globalProperties.$app_colors;
@@ -173,7 +173,13 @@ watch(isBackendOnline, (newValue) => {
             message: 'Backend service is online.',
             type: 'success',
         })
-        listDir()
+        try {
+            listDir()
+        }
+        catch (error) {
+            ElMessage.error(error.message)
+            console.error(error);
+        }
     }
 });
 
@@ -200,13 +206,16 @@ onMounted(() => {
             if (!currentDirectory.value) currentDirectory.value = homeDir
             if (!initialPath.value) initialPath.value = homeDir
 
-            listDir()
+            try {
+                listDir()
+            } catch (error) {
+                displayErrorMessage(error)
+            }
             getXrdHostName()
         })
         .catch((error) => {
             if (error) {
-                ElMessage.error(error.message)
-                console.log(error);
+                displayErrorMessage(error)
                 // Force check the backend health
                 fetchBackendServiceStatus()
             }
@@ -229,26 +238,55 @@ const filteredData = computed(() => {
       );*/
 });
 
-const changeDir = (index: number) => {
+// Change the current directory to the initial path and list the directory
+const changeDirToInitialPath = async () => {
+    currentDirectory.value = initialPath.value;
+    try {
+        await listDir()
+    } catch (error) {
+        displayErrorMessage(error)
+    }
+}
+
+const changeDir = async (index: number) => {
     // Add initial path, as it's subtracted when populating the data in breadcrumb.
     let initialIndex = initialPath.value.split("/").length - 1;
     index += initialIndex;
 
-    console.log("changeDir index: " + index);
+    console.log('changeDir index: %d', index);
+    // Cache the current directory value before changing it
+    let oldCurrentDirectory = currentDirectory.value;
+    // Change the current directory value
     currentDirectory.value = currentDirectory.value.split("/").filter((_, i) => {
         console.log(i);
         return i <= index
     }).join('/')
 
-    listDir()
+    try {
+        await listDir()
+    } catch (error) {
+        // Revert the current directory value if the directory change fails
+        currentDirectory.value = oldCurrentDirectory;
+        displayErrorMessage(error)
+    }
 }
 
-const selectDir = (row: { type: string; name: string; }) => {
+const selectDir = async (row: { type: string; name: string; }) => {
     if (row.type == 'dir') {
-        currentDirectory.value = currentDirectory.value + "/" + row.name;
-        listDir();
+        // Cache the current directory value before changing it
+        let oldCurrentDirectory = currentDirectory.value;
+        // Change the current directory value
+        currentDirectory.value = joinPaths(currentDirectory.value, row.name);
+        console.log('selectDir: %s', currentDirectory.value);
+        try {
+            await listDir();
+        } catch (error) {
+            // Revert the current directory value if the directory change fails
+            currentDirectory.value = oldCurrentDirectory;
+            displayErrorMessage(error)
+        }
     } else {
-        const srcFileToDownload = currentDirectory.value + "/" + row.name
+        const srcFileToDownload = joinPaths(currentDirectory.value, row.name);
         // @ts-ignore: TS2304: cannot find name ' require'
         // The auto import is used
         ElMessageBox.confirm('Do you want to download the file?', srcFileToDownload, {
@@ -278,13 +316,12 @@ const selectDir = (row: { type: string; name: string; }) => {
                                 saveAs(response.data, row.name);
                             })
                             .catch((response) => {
-                                console.error("Could not Download the requested file from the backend.", response);
+                                displayErrorMessage(new Error(`Could not Download the requested file: ${srcFileToDownload}<br>${response}`))
                             });
                     })
                     .catch((error) => {
                         if (error) {
-                            ElMessage.error(error.message)
-                            console.log(error);
+                            displayErrorMessage(error)
                             // Force check the backend health
                             fetchBackendServiceStatus()
                         }
@@ -297,44 +334,37 @@ const selectDir = (row: { type: string; name: string; }) => {
 }
 
 
-const listDir = () => {
-    console.log(currentDirectory.value);
+const listDir = async () => {
+    console.log("Listing dir: " + currentDirectory.value);
 
     if (!isBackendOnline.value) {
-        fetchBackendServiceStatus()
+        await fetchBackendServiceStatus();
         // No need to do anything if the backend is still offline
         if (!isBackendOnline.value) return;
     }
 
-    getItemsInDir(currentDirectory.value)
-        .then(resp => {
-            if (resp.data.data != null) {
-                tableData.value = resp.data.data
-            }
-            else {
-                ElMessage.error("Could not get a list of files for this directory.")
-                console.log("Could not get a list of files for this directory.");
-                ElMessage.error(resp.data.msg)
-                console.log(resp.data.msg);
-            }
-        })
-        .catch((error) => {
-            if (error) {
-                ElMessage.error(error.message)
-                console.log(error);
-                // Force check the backend health
-                fetchBackendServiceStatus()
-            }
-        })
-}
+    try {
+        const resp = await getItemsInDir(currentDirectory.value);
+        if (resp.data.data != null) {
+            tableData.value = resp.data.data;
+        } else {
+            // Return an error
+            throw new Error(`Empty data returned, backend reports: ${resp.data.msg}`);
+        }
+    } catch (error) {
+        // Check the backend health
+        await fetchBackendServiceStatus();
+        // Return an error
+        throw new Error(`Error received from the backend while listing: ${currentDirectory.value}<br>${error.message}`);
+    }
+};
 
 const getXrdHostName = () => {
     getHostName()
         .then(resp => { xrdHostName.value = resp.data.data })
         .catch((error) => {
             if (error) {
-                ElMessage.error(error.message)
-                console.log(error);
+                displayErrorMessage(new Error(`Error: ${error.message}<br>Please check the backend service status.`))
                 // Force check the backend health
                 fetchBackendServiceStatus()
             }
@@ -343,7 +373,7 @@ const getXrdHostName = () => {
 </script>
 
 
-<style>
+<style scoped>
 .el-table .warning-row {
     --el-table-tr-bg-color: var(--el-color-warning-light-9);
 }
