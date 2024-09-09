@@ -37,12 +37,17 @@ func (busErr *BusErr) Append(message string) *BusErr {
 
 // AppendErrMsg appends an error message to the error message.
 func (busErr *BusErr) AppendErrMsg(err error) *BusErr {
-	busErr.message += ": " + err.Error()
+	busErr.message = busErr.message + ": " + err.Error()
 	return busErr
 }
 
 // SystemErr represents a system error.
-var SystemErr = &BusErr{code: 400, message: "system error"}
+var SystemErr = func(err error) *BusErr {
+	return &BusErr{
+		code:    400,
+		message: "system error: " + err.Error(),
+	}
+}
 
 // UnAuthenticateErr represents an unauthenticated error.
 var UnAuthenticateErr = &BusErr{code: 401, message: "unauthenticated"}

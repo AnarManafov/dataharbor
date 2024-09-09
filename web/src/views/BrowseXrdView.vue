@@ -145,7 +145,7 @@ const { appContext } = getCurrentInstance();
 const app_colors = appContext.config.globalProperties.$app_colors;
 const filters = appContext.config.globalProperties.$filters;
 
-const initialPath = useStorage('initialDirectoryPath', '', sessionStorage)
+const initialPath = ref("");
 const xrdHostName = ref("")
 const isBackendOnline = ref(false);
 
@@ -163,7 +163,7 @@ const serviceStatusColor = computed(() => {
 })
 
 let interval: number | undefined;
-watch(isBackendOnline, (newValue) => {
+watch(isBackendOnline, async (newValue) => {
     if (!newValue) {
         displayErrorMessage(new Error('Backend service is offline.'))
         // Clear the table data
@@ -175,7 +175,7 @@ watch(isBackendOnline, (newValue) => {
             type: 'success',
         })
         try {
-            listDir()
+            await listDir()
         }
         catch (error) {
             displayErrorMessage(error)
@@ -204,7 +204,7 @@ onMounted(() => {
             let homeDir = resp.data.data
             // Use new data only if there no value in the storage
             if (!currentDirectory.value) currentDirectory.value = homeDir
-            if (!initialPath.value) initialPath.value = homeDir
+            initialPath.value = homeDir
 
             getXrdHostName()
         })
@@ -235,6 +235,7 @@ const filteredData = computed(() => {
 
 // Change the current directory to the initial path and list the directory
 const changeDirToInitialPath = async () => {
+    console.log('User forced to change the directory to the initial path: %s', initialPath.value);
     currentDirectory.value = initialPath.value;
     try {
         await listDir()
@@ -344,8 +345,11 @@ const listDir = async () => {
         if (resp.data.data != null) {
             tableData.value = resp.data.data;
         } else {
-            // Empty the table data if the response is null
+            // Empty the table data if the response is null and no errors
             tableData.value = [];
+            if (resp.data.code != 200 && resp.data.msg != "") {
+                throw new Error(resp.data.msg);
+            }
         }
     } catch (error) {
         // Check the backend health

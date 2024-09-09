@@ -1,5 +1,5 @@
 {
-    "name": "data_lake_ui",
+    "name": "data_lake_ui_frontend",
     "version": "0.4.0",
     "private": true,
     "type": "module",

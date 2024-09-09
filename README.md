@@ -26,8 +26,35 @@ You can update or redeploy one service without affecting the other. This is part
 * **Best Practices**:  
 This approach aligns with the microservices architecture, which is a widely adopted best practice in modern application development.
 
-## Test locally
+## How to run locally
 
-* Build and Start the frontend in a [preview mode](./web/README.md#run-locally).
-* Then build and run [the backend app](./app/README.md#install-dependencies).
-* Open a WEB Browser on `http://localhost:4173/`
+This setup ensures that both the Vue 3 frontend and Go backend are running simultaneously in development mode, making development more efficient.
+
+### Start Development Servers
+
+To start both the frontend and backend servers in development mode (with a hot-reload support), run:
+
+```shell
+npm run dev
+```
+
+This will start the Vue frontend server and the Go backend server concurrently.  
+The frontend will be running on [Local](http://localhost:5173/) (or on the port specified by Vite).
+
+### Configuration
+
+If you need to provide an optional configuration file path to the Go backend, set the `CONFIG_FILE_PATH` environment variable before running the npm run dev command:
+
+```shell
+CONFIG_FILE_PATH=/path/to/config.yaml npm run dev
+```
+
+### Build the Project
+
+To build both the frontend and backend, run:
+
+```shell
+npm run dev
+```
+
+This will build the Vue frontend using Vite and compile the Go backend.
