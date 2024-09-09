@@ -13,6 +13,7 @@
 - Added: Clean the table and highlight the home icon in red if backed appears offline. (GH-7)
 - Added: Error handling of protocol errors. (GH-6)
 - Added: A filter tp convert file size to a human readable format with kBytes, MB, GB, etc.
+- Added: A runtime config file support.
 - Fixed: If the user can't enter the directory, it should not be added to the current path. (GH-14)
 
 ### Backend

@@ -1,9 +1,11 @@
 import axios from "axios";
+import { getConfig } from '../config';
+
+const config = getConfig();
 
 const instance = axios.create({
-    // baseURL: import.meta.env.VITE_BASE_URL,
-    baseURL: "http://localhost:22000/",
-    timeout: 5000,
+    baseURL: config.apiBaseUrl,
+    timeout: config.apiTimeout,
 });
 
 instance.interceptors.request.use(
