@@ -3,9 +3,9 @@ package controller
 import (
 	"errors"
 
-	"github.com/AnarManafov/app/common"
-	"github.com/AnarManafov/app/request"
-	"github.com/AnarManafov/app/response"
+	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/AnarManafov/data_lake_ui/app/request"
+	"github.com/AnarManafov/data_lake_ui/app/response"
 
 	"github.com/gin-gonic/gin"
 )

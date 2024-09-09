@@ -1,4 +1,4 @@
-module github.com/AnarManafov/app
+module github.com/AnarManafov/data_lake_ui/app
 
 go 1.23
 

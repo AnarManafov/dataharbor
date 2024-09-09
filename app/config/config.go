@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/AnarManafov/app/common"
+	"github.com/AnarManafov/data_lake_ui/app/common"
 	"github.com/spf13/viper"
 )
 

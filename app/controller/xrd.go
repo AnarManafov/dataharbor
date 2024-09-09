@@ -3,7 +3,7 @@ package controller
 import (
 	"regexp"
 
-	"github.com/AnarManafov/app/common"
+	"github.com/AnarManafov/data_lake_ui/app/common"
 
 	"bufio"
 	"context"

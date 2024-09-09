@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/AnarManafov/app/common"
-	"github.com/AnarManafov/app/config"
-	"github.com/AnarManafov/app/core"
+	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/AnarManafov/data_lake_ui/app/config"
+	"github.com/AnarManafov/data_lake_ui/app/core"
 
 	"github.com/gin-gonic/gin"
 )
