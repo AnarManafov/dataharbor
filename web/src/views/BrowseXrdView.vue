@@ -165,7 +165,8 @@ const serviceStatusColor = computed(() => {
 let interval: number | undefined;
 watch(isBackendOnline, (newValue) => {
     if (!newValue) {
-        ElMessage.error('Backend service is offline.')
+        displayErrorMessage(new Error('Backend service is offline.'))
+        // Clear the table data
         tableData.value = [];
     }
     else {
@@ -177,8 +178,7 @@ watch(isBackendOnline, (newValue) => {
             listDir()
         }
         catch (error) {
-            ElMessage.error(error.message)
-            console.error(error);
+            displayErrorMessage(error)
         }
     }
 });
@@ -206,11 +206,6 @@ onMounted(() => {
             if (!currentDirectory.value) currentDirectory.value = homeDir
             if (!initialPath.value) initialPath.value = homeDir
 
-            try {
-                listDir()
-            } catch (error) {
-                displayErrorMessage(error)
-            }
             getXrdHostName()
         })
         .catch((error) => {
@@ -272,6 +267,7 @@ const changeDir = async (index: number) => {
 }
 
 const selectDir = async (row: { type: string; name: string; }) => {
+    console.log('selectDir row element: %s', row.name);
     if (row.type == 'dir') {
         // Cache the current directory value before changing it
         let oldCurrentDirectory = currentDirectory.value;
@@ -348,8 +344,8 @@ const listDir = async () => {
         if (resp.data.data != null) {
             tableData.value = resp.data.data;
         } else {
-            // Return an error
-            throw new Error(`Empty data returned, backend reports: ${resp.data.msg}`);
+            // Empty the table data if the response is null
+            tableData.value = [];
         }
     } catch (error) {
         // Check the backend health
