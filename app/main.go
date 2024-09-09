@@ -7,6 +7,7 @@ import (
 	"github.com/AnarManafov/data_lake_ui/app/common"
 	"github.com/AnarManafov/data_lake_ui/app/config"
 	"github.com/AnarManafov/data_lake_ui/app/core"
+	"github.com/AnarManafov/data_lake_ui/app/route"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,7 +21,7 @@ func main() {
 	}
 
 	r := gin.New()
-	RegisterRoutes(r)
+	route.RegisterRoutes(r)
 
 	port := strconv.Itoa(common.ServerConfig.Port)
 	fmt.Printf("Starting server on port: %s\n", port)

@@ -30,7 +30,7 @@ export default {
 <style lang="scss" scoped>
 .hero {
     text-align: center;
-    background-image: url("./img/norway-4970080_1280.jpg");
+    background-image: url("../assets/norway-4970080_1280.jpg");
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

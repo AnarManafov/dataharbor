@@ -1,4 +1,4 @@
-package main
+package route
 
 import (
 	"github.com/AnarManafov/data_lake_ui/app/controller"

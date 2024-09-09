@@ -5,7 +5,7 @@ import { createPinia } from "pinia";
 
 import App from "./App.vue";
 import router from "./router";
-import colorPlugin from './plugin/colorPlugin';
+import colorPlugin from './plugins/colorPlugin';
 import axios from "axios";
 import VueAxios from "vue-axios";
 import { setConfig } from './config/config';
