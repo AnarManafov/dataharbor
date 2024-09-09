@@ -18,9 +18,9 @@ It consists of the following main parts:
 The project follows Semantic Versioning for versioning.  
 Each release is tagged according to the following rules:
 
-* **Backend Versions**: Use standard version tags (e.g., `v1.0.0`) to ensure compatibility with Go tools.
-* **Frontend Versions**: Use a prefix (e.g., `frontend-v1.0.0`) to distinguish frontend versions.
-* **Global Versions**: Use a prefix (e.g., `global-v1.0.0`) to distinguish global versions.
+* **Backend Versions**: Use standard version tags `app/vX.Y.Z` (e.g., `app/v1.0.0`) to ensure compatibility with Go tools.
+* **Frontend Versions**: Use a prefix `web/vX.Y.Z` (e.g., `web/v1.0.0`) to distinguish frontend versions.
+* **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to distinguish global versions.
 
 ## How to run locally
 
