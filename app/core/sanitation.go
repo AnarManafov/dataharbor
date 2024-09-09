@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/AnarManafov/app/common"
+	"github.com/AnarManafov/data_lake_ui/app/common"
 
 	"os"
 	"time"

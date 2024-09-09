@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/AnarManafov/app/controller"
-	"github.com/AnarManafov/app/middleware"
+	"github.com/AnarManafov/data_lake_ui/app/controller"
+	"github.com/AnarManafov/data_lake_ui/app/middleware"
 
 	"github.com/gin-gonic/gin"
 )

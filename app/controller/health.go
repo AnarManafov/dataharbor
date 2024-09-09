@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/AnarManafov/app/response"
+	"github.com/AnarManafov/data_lake_ui/app/response"
 
 	"github.com/gin-gonic/gin"
 )

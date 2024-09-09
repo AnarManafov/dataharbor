@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/AnarManafov/app/util"
+	"github.com/AnarManafov/data_lake_ui/app/util"
 
 	"github.com/gin-gonic/gin"
 )
