@@ -18,14 +18,14 @@ The server port is configurable, see [the app's configuration](./config/applicat
 
 ### Files and Directories
 
-- [Initial directory](./doc/api/initial_dir.md) : `GET /initial_dir`
-- [List a directory](./doc/api/dir.md): `POST /dir`
-- [Stage a file. Prepare for download.](./doc/api/stage_file.md): `POST /stage_file`
+- [Initial directory](./docs/api/initial_dir.md) : `GET /initial_dir`
+- [List a directory](./docs/api/dir.md): `POST /dir`
+- [Stage a file. Prepare for download.](./docs/api/stage_file.md): `POST /stage_file`
 
 ### General Details
 
-- [Host Info](./doc/api/host_name.md): `GET /host_name`
-- [Service's health](./doc/api/health.md): `GET /health`
+- [Host Info](./docs/api/host_name.md): `GET /host_name`
+- [Service's health](./docs/api/health.md): `GET /health`
 
 ## Requirements
 
