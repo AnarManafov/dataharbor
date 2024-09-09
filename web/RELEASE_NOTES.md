@@ -1,6 +1,6 @@
 # Frontend Release Notes
 
-## [0.4.0] - NOT YET RELEASED
+## [0.4.0] - 2024-09-09
 
 - Modified: Refactored the Browse Files view.
 - Added: Users are now able to download the selected file.

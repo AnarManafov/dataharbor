@@ -1,6 +1,6 @@
 # Backend Release Notes
 
-## [0.4.0] - NOT YET RELEASED
+## [0.4.0] - 2024-09-09
 
 - Fixed: pull file names with with white spaces.
 - Added: sanitation job to periodically check and clean staged temporary files.

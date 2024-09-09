@@ -2,8 +2,8 @@
 
 ## [0.4.0] - NOT YET RELEASED
 
-- [Frontend v0.4.0 release notes](./web/RELEASE_NOTES.md#040---not-yet-released)
-- [Backend v0.4.0 release notes](./app/RELEASE_NOTES.md#040---not-yet-released)
+- [Frontend v0.4.0 release notes](./web/RELEASE_NOTES.md#040---2024-09-09)
+- [Backend v0.4.0 release notes](./app/RELEASE_NOTES.md#040---2024-09-09)
 
 ## [0.3.0] - 2024-08-18
 
