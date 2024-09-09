@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"errors"
+
 	"github.com/AnarManafov/app/common"
 	"github.com/AnarManafov/app/request"
 	"github.com/AnarManafov/app/response"
@@ -19,13 +21,13 @@ func GetHostName(ctx *gin.Context) {
 func GetDirItems(ctx *gin.Context) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		response.FailWithErr(ctx, *response.SystemErr.AppendErrMsg(err))
+		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
 
 	dirPath := req.Path
 	if len(dirPath) == 0 {
-		response.FailWithErr(ctx, *response.SystemErr.Append("Empty directory path to list."))
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("empty directory path to list")))
 		return
 	}
 
@@ -33,7 +35,7 @@ func GetDirItems(ctx *gin.Context) {
 
 	files, err := ReadDir(common.XrdConfig.Host, common.XrdConfig.Port, dirPath)
 	if err != nil {
-		response.FailWithErr(ctx, *response.SystemErr.AppendErrMsg(err))
+		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
 
@@ -58,13 +60,13 @@ func GetDirItems(ctx *gin.Context) {
 func GetFileStagedForDownload(ctx *gin.Context) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		response.FailWithErr(ctx, *response.SystemErr.AppendErrMsg(err))
+		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
 
 	filePath := req.Path
 	if len(filePath) == 0 {
-		response.FailWithErr(ctx, *response.SystemErr.Append("Empty file path for staging"))
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("empty file path for staging")))
 		return
 	}
 
@@ -72,7 +74,7 @@ func GetFileStagedForDownload(ctx *gin.Context) {
 	// Ask XRD to copy the requested file to the Server's public location, so that it can be downloaded.
 	stagedFilePath, err := StageFile(common.XrdConfig.Host, common.XrdConfig.Port, filePath)
 	if err != nil {
-		response.FailWithErr(ctx, *response.SystemErr.AppendErrMsg(err))
+		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
 

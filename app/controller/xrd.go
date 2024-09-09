@@ -23,6 +23,7 @@ type xrdDirEntry struct {
 }
 
 func RunXrdFs(arg ...string) (string, error) {
+	common.Logger.Info("RunXrdFs: ", arg)
 	timeout := common.XrdConfig.ProcessTimeout
 
 	ctx := context.Background()
