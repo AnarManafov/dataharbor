@@ -18,9 +18,10 @@ const router = createRouter({
             component: () => import('../views/AboutView.vue')
         },
         {
-            path: '/browse_files',
-            name: 'browse_files',
-            component: () => import('../views/BrowseXrdView.vue')
+            path: '/browse/:path*',
+            name: 'browse',
+            component: () => import('../views/BrowseXrdView.vue'),
+            props: route => ({ path: Array.isArray(route.params.path) ? route.params.path.join('/') : route.params.path })
         },
         {
             path: '/documentation',

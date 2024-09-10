@@ -14,7 +14,7 @@ export function displayMultilineErrorMessage(error) {
         ElMessage({
             message: line,
             type: 'error',
-            duration: 30000,
+            duration: 15000,
             showClose: true,
         });
     });
