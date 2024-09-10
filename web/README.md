@@ -73,6 +73,7 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 
 ## Links
 
+* [Vue SFC Playground](https://play.vuejs.org/)
 * [Vite](https://vitejs.dev)
 * [Install Vue](https://cli.vuejs.org/guide/installation.html)
 * [Create new Project](https://cli.vuejs.org/guide/creating-a-project.html)
