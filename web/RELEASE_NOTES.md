@@ -1,5 +1,10 @@
 # Frontend Release Notes
 
+## [0.5.0] - NOT YET RELEASED
+
+- Added: Enhanced route handling to prevent redundant navigation and ensure proper directory loading.
+- Added: Users are now able to navigate in the File Browser via the WEB browser URL bar and navigation buttons.
+
 ## [0.4.0] - 2024-09-09
 
 - Modified: Refactored the Browse Files view.
