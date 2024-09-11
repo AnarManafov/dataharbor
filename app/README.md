@@ -35,6 +35,7 @@ The server port is configurable, see [the app's configuration](./config/applicat
     ```shell
     brew install go
     ```
+- [an xrootd client](../docs/xrootd.md)
 
 ### Build the project
 

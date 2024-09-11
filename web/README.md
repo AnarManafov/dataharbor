@@ -1,4 +1,4 @@
-# web (Frontend)
+# Frontend
 
 The frontend is built using [Vite](https://vitejs.dev/) and [Vue 3](https://vuejs.org/).
 
@@ -10,8 +10,6 @@ The frontend is built using [Vite](https://vitejs.dev/) and [Vue 3](https://vuej
     ```shell
     brew install npm
     ```
-
-* [Vite](https://vitejs.dev/guide/)
 
 ## Build/Run
 

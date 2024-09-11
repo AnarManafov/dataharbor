@@ -5,7 +5,6 @@ It consists of the following main parts:
 
 * [Frontend](./web/README.md)
 * [Backend](./app/README.md)
-  * [xrootd](./doc/xrootd.md)
 
 ## Features
 
@@ -19,27 +18,35 @@ The project follows Semantic Versioning for versioning.
 Each release is tagged according to the following rules:
 
 * **Backend Versions**: Use standard version tags `app/vX.Y.Z` (e.g., `app/v1.0.0`) to ensure compatibility with Go tools.
-* **Frontend Versions**: Use a prefix `web/vX.Y.Z` (e.g., `web/v1.0.0`) to distinguish frontend versions.
+* **Frontend Versions**: Use a prefix `web/vX.Y.Z` (e.g., `web/v1.0.0`) to distinguish Frontend versions.
 * **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to distinguish global versions.
 
 ## How to run locally
 
-This setup ensures that both the Vue 3 frontend and Go backend are running simultaneously in development mode, making development more efficient.
+This setup ensures that both the Vue 3 Frontend and Go Backend are running simultaneously in development mode, making development more efficient.
+
+### Install dependencies
+
+```shell
+npm install
+```
+
+Since the project defines npm workspaces, this command can be run from the root folder of the project or from the Frontend subdirectory `./web`.
 
 ### Start Development Servers
 
-To start both the frontend and backend servers in development mode (with a hot-reload support), run:
+To start both the Frontend and Backend servers in development mode (with a hot-reload support), run:
 
 ```shell
 npm run dev
 ```
 
-This will start the Vue frontend server and the Go backend server concurrently.  
-The frontend will be running on [Local](http://localhost:5173/) (or on the port specified by Vite).
+This will start the Vue Frontend server and the Go Backend server concurrently.  
+The Frontend will be running on [localhost:5173](http://localhost:5173/) (or on the port specified by Vite).
 
 ### Configuration
 
-If you need to provide an optional configuration file path to the Go backend, set the `CONFIG_FILE_PATH` environment variable before running the npm run dev command:
+If you need to provide an optional configuration file path to the Go Backend, set the `CONFIG_FILE_PATH` environment variable before running the npm run dev command:
 
 ```shell
 CONFIG_FILE_PATH=/path/to/config.yaml npm run dev
@@ -47,22 +54,22 @@ CONFIG_FILE_PATH=/path/to/config.yaml npm run dev
 
 ### Build the Project
 
-To build both the frontend and backend, run:
+To build both the Frontend and Backend, run:
 
 ```shell
-npm run dev
+npm run build
 ```
 
-This will build the Vue frontend using Vite and compile the Go backend.
+This will build the Vue Frontend using Vite and compile the Go Backend.
 
 ## Containerization
 
-The project can provide Two Containers ([One for Frontend](./web/README.md#containerization), [One for Backend](./app/README.md#containerization)). The backend can be treated as a microservice.  The backend is relatively compact, therefore container is not really needed, as it can be deployed as an app. But splitting frontend and backend deployment is still advisable, see below.
+The project can provide Two Containers ([One for Frontend](./web/README.md#containerization), [One for Backend](./app/README.md#containerization)). The Backend can be treated as a microservice.  The Backend is relatively compact, therefore container is not really needed, as it can be deployed as an app. But splitting Frontend and Backend deployment is still advisable, see below.
 
 * **Isolation**:
 Each service runs in its own container, which means they are isolated from each other. This can make debugging easier and improve security.
 * **Scalability**:  
-You can scale the frontend and backend independently based on their respective loads. For example, if your backend needs more resources, you can scale it up without affecting the frontend.
+You can scale the Frontend and Backend independently based on their respective loads. For example, if your Backend needs more resources, you can scale it up without affecting the Frontend.
 * **Flexibility**:  
 You can update or redeploy one service without affecting the other. This is particularly useful for continuous deployment and integration.
 * **Best Practices**:  
