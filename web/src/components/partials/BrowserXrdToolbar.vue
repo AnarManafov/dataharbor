@@ -27,6 +27,9 @@
                 <div style='font-size: 12px;'>
                     Data Server Host: <span style='font-weight: bold;'>{{ xrdHostName }}</span>
                 </div>
+                <div style='font-size: 12px;'>
+                    Initial Path: <span style='font-weight: bold;'>{{ initialPath }}</span>
+                </div>
             </el-col>
         </el-row>
     </div>
@@ -65,18 +68,18 @@ const changeDir = (index: number) => {
     height: 100%;
 }
 
-.toolbar-right-content {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: end;
-    height: 100%;
-}
-
 .toolbar-left-content {
     display: flex;
     flex-direction: row;
     align-items: center;
+    justify-content: start;
+    height: 100%;
+}
+
+.toolbar-right-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     justify-content: start;
     height: 100%;
 }
