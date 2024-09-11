@@ -1,5 +1,6 @@
 <template>
     <div class='toolbar'>
+        <!-- First Row -->
         <el-row class='full-size-row'>
             <el-col :span='12' class='toolbar-left-content'>
                 <div>
@@ -32,6 +33,19 @@
                 </div>
             </el-col>
         </el-row>
+        <!-- Second Row -->
+        <el-row class='full-size-row second-row'>
+            <el-col :span='24' class='toolbar-left-content'>
+                <div>
+                    Folders: <span style='font-weight: bold;'>{{ folderCount }}</span>
+                </div>
+                <div>
+                    Files: <span style='font-weight: bold;'>{{ fileCount }} </span> (cumulative file size: <span
+                        style='font-weight: bold;'>{{ totalFileSize
+                        }}</span>)
+                </div>
+            </el-col>
+        </el-row>
     </div>
 </template>
 
@@ -43,7 +57,10 @@ const props = defineProps({
     serviceStatusColor: String,
     xrdHostName: String,
     currentDirectory: String,
-    initialPath: String
+    initialPath: String,
+    folderCount: Number,
+    fileCount: Number,
+    totalFileSize: String
 });
 
 const emit = defineEmits(['changeDirToInitialPath', 'changeDir']);
@@ -59,13 +76,11 @@ const changeDir = (index: number) => {
 
 <style scoped>
 .toolbar {
-    display: flex;
-    height: 100%;
+    padding: 10px;
 }
 
 .full-size-row {
     width: 100%;
-    height: 100%;
 }
 
 .toolbar-left-content {
@@ -73,7 +88,7 @@ const changeDir = (index: number) => {
     flex-direction: row;
     align-items: center;
     justify-content: start;
-    height: 100%;
+    /* height: 100%;*/
 }
 
 .toolbar-right-content {
@@ -88,20 +103,16 @@ const changeDir = (index: number) => {
     font-size: 16px;
 }
 
-.el-row {
-    margin-bottom: 20px;
+.second-row {
+    font-size: 12px;
+    /* Adjust this value to move the second row up or down */
+    margin-top: 10px;
 }
 
-.el-row:last-child {
-    margin-bottom: 0;
-}
-
-.el-col {
-    border-radius: 4px;
-}
-
-.grid-content {
-    border-radius: 4px;
-    min-height: 36px;
+.second-row .toolbar-left-content>div {
+    /* Adjust this value to control the spacing between folder and file counts */
+    margin-bottom: 5px;
+    /* Add space between folder and file counters */
+    margin-right: 10px;
 }
 </style>

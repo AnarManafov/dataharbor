@@ -13,6 +13,7 @@
                 <el-header>
                     <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
                         :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
+                        :folderCount="folderCount" :fileCount="fileCount" :totalFileSize="totalFileSize"
                         @changeDirToInitialPath="changeDirToInitialPath" @changeDir="changeDir" />
                 </el-header>
                 <el-container>
@@ -69,6 +70,33 @@ const serviceStatusTooltip = computed(() => {
 const serviceStatusColor = computed(() => {
     return isBackendOnline.value ? app_colors.online : app_colors.offline
 })
+
+// Origin table data received from backend API
+const tableData = ref([])
+// Computed property of the table data.
+// A filter or other modifiers can be added to change the data representation for the user
+const filteredData = computed(() => {
+    return tableData.value/*.filter(item => 
+        item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      );*/
+});
+
+// Computed properties to count folders and files
+const folderCount = computed(() => {
+    return filteredData.value.filter(item => item.type === 'dir').length;
+});
+
+const fileCount = computed(() => {
+    return filteredData.value.filter(item => item.type !== 'dir').length;
+});
+
+// Computed property to calculate the total size of the files
+const totalFileSize = computed(() => {
+    const totalSize = filteredData.value
+        .filter(item => item.type !== 'dir')
+        .reduce((acc, item) => acc + item.size, 0);
+    return filters.prettyBytes(totalSize);
+});
 
 
 let interval: number | undefined;
@@ -144,16 +172,6 @@ onMounted(() => {
     // Make the first call immediately
     fetchBackendServiceStatus()
 })
-
-// Origin table data received from backend API
-const tableData = ref([])
-// Computed property of the table data.
-// A filter or other modifiers can be added to change the data representation for the user
-const filteredData = computed(() => {
-    return tableData.value/*.filter(item => 
-        item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      );*/
-});
 
 /**
  * Function to change the current directory to the initial path.
