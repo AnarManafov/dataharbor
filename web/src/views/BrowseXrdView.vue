@@ -27,7 +27,6 @@
     </el-container>
 </template>
 
-
 <script lang="ts" setup>
 import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
