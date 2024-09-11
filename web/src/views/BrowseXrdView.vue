@@ -6,122 +6,19 @@
         <el-container>
             <el-aside width='200px'>
                 <el-scrollbar>
-                    <el-menu :default-opened="['2']" default-active='2'>
-                        <el-sub-menu index='1'>
-                            <template #title>
-                                <el-icon>
-                                    <IconMenu />
-                                </el-icon>Navigator One
-                            </template>
-                            <el-menu-item-group>
-                                <template #title>Group 1</template>
-                                <el-menu-item index='1-1'>Option 1</el-menu-item>
-                                <el-menu-item index='1-2'>Option 2</el-menu-item>
-                            </el-menu-item-group>
-                            <el-menu-item-group title='Group 2'>
-                                <el-menu-item index='1-3'>Option 3</el-menu-item>
-                            </el-menu-item-group>
-                            <el-sub-menu index='1-4'>
-                                <template #title>Option4</template>
-                                <el-menu-item index='1-4-1'>Option 4-1</el-menu-item>
-                            </el-sub-menu>
-                        </el-sub-menu>
-                        <el-sub-menu index='2'>
-                            <template #title>
-                                <el-icon>
-                                    <Setting />
-                                </el-icon>Settings
-                            </template>
-                            <el-menu-item-group>
-                                <template #title>Group 1</template>
-                                <el-menu-item index='2-1'>Option 1</el-menu-item>
-                                <el-menu-item index='2-2'>Option 2</el-menu-item>
-                            </el-menu-item-group>
-                            <el-menu-item-group title='Group 2'>
-                                <el-menu-item index='2-3'>Option 3</el-menu-item>
-                            </el-menu-item-group>
-                            <el-sub-menu index='2-4'>
-                                <template #title>Option 4</template>
-                                <el-menu-item index='2-4-1'>Option 4-1</el-menu-item>
-                            </el-sub-menu>
-                        </el-sub-menu>
-                    </el-menu>
+                    <SidebarMenu />
                 </el-scrollbar>
             </el-aside>
             <el-container>
                 <el-header>
-                    <div class='toolbar'>
-                        <el-row class='full-size-row'>
-                            <el-col :span='12' class='toolbar-left-content'>
-
-                                <div>
-                                    <el-tooltip class='box-item' effect='dark' :content='serviceStatusTooltip'
-                                        placement='bottom-start'>
-                                        <el-icon :style='{ color: serviceStatusColor }'
-                                            @click='() => { changeDirToInitialPath() }' :size='18'
-                                            style='margin-right: 5px; margin-top: 3px'>
-                                            <HomeFilled />
-                                        </el-icon>
-                                    </el-tooltip>
-                                </div>
-                                <div>
-                                    <el-breadcrumb separator='/'>
-                                        <el-breadcrumb-item @click='() => { changeDirToInitialPath() }'><a>Initial
-                                                Directory</a></el-breadcrumb-item>
-                                        <template
-                                            v-for="(item, index) in currentDirectory.replace(initialPath, '').split('/')"
-                                            :key='index'>
-                                            <el-breadcrumb-item @click='() => changeDir(index)' v-if='item.length > 0'>
-                                                <a>{{ item }}</a>
-                                            </el-breadcrumb-item>
-                                        </template>
-                                    </el-breadcrumb>
-                                </div>
-
-                            </el-col>
-                            <el-col :span='12' class='toolbar-right-content'>
-                                <div style='font-size: 12px;'>
-                                    Data Server Host: <span style='font-weight: bold;'>{{ xrdHostName
-                                        }}</span>
-                                </div>
-                            </el-col>
-                        </el-row>
-                    </div>
+                    <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
+                        :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
+                        @changeDirToInitialPath="changeDirToInitialPath" @changeDir="changeDir" />
                 </el-header>
                 <el-container>
                     <el-main>
                         <el-scrollbar>
-                            <el-table :data='filteredData' :default-sort='{ prop: "name", order: "ascending" }' border>
-                                <el-table-column prop='name' label='Name' sortable>
-                                    <template #default='scope'>
-                                        <div style='display: flex; align-items: center'>
-                                            <el-icon :size='20' color='#409EFF' v-if='scope.row.type === "dir"'>
-                                                <Folder />
-                                            </el-icon>
-                                            <el-icon :size='20' color='#67C23A' v-else>
-                                                <Document />
-                                            </el-icon>
-                                            <span class='clickable' style='margin-left: 10px'
-                                                :style='{ fontWeight: scope.row.type === "dir" ? "bold" : "normal" }'
-                                                @click='() => selectDir(scope.row)'>{{ scope.row.name
-                                                }}</span>
-                                        </div>
-                                    </template>
-                                </el-table-column>
-                                <el-table-column prop='size' label='Size' sortable width='150'>
-                                    <template #default='scope'>
-                                        {{ filters.prettyBytes(scope.row.size) }}
-                                    </template>
-                                </el-table-column>
-                                <el-table-column prop='date_time' label='Date' sortable width='200' />
-                                <el-table-column prop='type' label='Type' sortable width='80'>
-                                    <template #default='scope'>
-                                        <el-tag :type='scope.row.type === "dir" ? "primary" : "success"'
-                                            disable-transitions>{{
-                                                scope.row.type }}</el-tag>
-                                    </template>
-                                </el-table-column>
-                            </el-table>
+                            <FileTable :filteredData="filteredData" :filters="filters" @selectDir="selectDir" />
                         </el-scrollbar>
                     </el-main>
                 </el-container>
@@ -134,12 +31,14 @@
 <script lang="ts" setup>
 import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
-import { useRouter, useRoute, onBeforeRouteUpdate } from 'vue-router';
+import { useRouter, onBeforeRouteUpdate } from 'vue-router';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
-import { Folder, Document, Menu as IconMenu, Setting, HomeFilled } from '@element-plus/icons-vue'
 import { useStorage } from '@vueuse/core'
 import { displayErrorMessage, joinPaths } from '@/utils/utils';
+import Toolbar from '../components/partials/BrowserXrdToolbar.vue';
+import SidebarMenu from '../components/partials/BrowserXrdSidebarMenu.vue';
+import FileTable from '../components/partials/BrowserXrdFileTable.vue';
 
 // Define props
 const props = defineProps({
@@ -151,7 +50,6 @@ const props = defineProps({
 });
 
 const router = useRouter();
-const route = useRoute();
 const { appContext } = getCurrentInstance();
 const app_colors = appContext.config.globalProperties.$app_colors;
 const filters = appContext.config.globalProperties.$filters;
@@ -481,46 +379,10 @@ onBeforeUnmount(() => {
         clearInterval(interval);
     }
 });
-
 </script>
 
 
 <style scoped>
-.el-table .warning-row {
-    --el-table-tr-bg-color: var(--el-color-warning-light-9);
-}
-
-.el-table .success-row {
-    --el-table-tr-bg-color: var(--el-color-success-light-9);
-}
-
-
-.clickable {
-    cursor: pointer;
-    text-decoration: none;
-}
-
-.clickable:hover {
-    text-decoration: underline;
-}
-
-.el-row {
-    margin-bottom: 20px;
-}
-
-.el-row:last-child {
-    margin-bottom: 0;
-}
-
-.el-col {
-    border-radius: 4px;
-}
-
-.grid-content {
-    border-radius: 4px;
-    min-height: 36px;
-}
-
 .layout-file-tree-container .el-header {
     position: sticky;
     /* background-color: var(--el-color-primary-light-7);*/
@@ -533,50 +395,8 @@ onBeforeUnmount(() => {
     /*background: var(--el-color-primary-light-8);*/
 }
 
-.layout-file-tree-container .el-menu {
-    border-right: none;
-}
-
 .layout-file-tree-container .el-main {
     padding-right: 20px;
     padding-bottom: 20px;
-}
-
-.layout-file-tree-container .toolbar {
-    display: flex;
-    height: 100%;
-    /* align-items: center;
-    justify-content: center;
-     
-    right: 20px;*/
-}
-
-.full-size-row {
-    width: 100%;
-    height: 100%;
-}
-
-.toolbar-right-content {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: end;
-    height: 100%;
-}
-
-.toolbar-left-content {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: start;
-    height: 100%;
-}
-
-.el-breadcrumb {
-    font-size: 16px;
-}
-
-i.el-icon-folder {
-    color: blue
 }
 </style>
