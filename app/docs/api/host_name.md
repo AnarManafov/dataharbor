@@ -1,20 +1,20 @@
 # Server's Host API
 
-## Host name
+**Host name:**
 
 Get information about the host where the xrootd server is running.
 
-## Method title
+**Method title:**
 
 ```plaintext
 GET /host_name
 ```
 
-### Parameters
+**Parameters::**
 
 This endpoint does not require any parameters.
 
-### Response
+**Response:**
 
 If the request is successful, the API will return the following response:
 
@@ -22,13 +22,13 @@ If the request is successful, the API will return the following response:
 - `message`: `success`
 - `data`: A `string` value representing the host name of the xrootd server.
 
-### Example request
+**Example request:**
 
 ```shell
 curl --url "http://localhost:22000/host_name"
 ```
 
-### Example response
+**Example response:**
 
 ```json
 {

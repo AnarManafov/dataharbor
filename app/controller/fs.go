@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"net/http"
 
 	"github.com/AnarManafov/data_lake_ui/app/common"
 	"github.com/AnarManafov/data_lake_ui/app/request"
@@ -9,6 +10,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+// ReadDirFunc is a function type that reads the directory and returns the list of files.
+// This function definition is used for real and mock implementations.
+type ReadDirFunc func(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error)
+
+// TODO: Move to the configuration
+const pageSize = 500 // Default page size (a number of items per page)
 
 func GetInitialDir(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.InitialDir)
@@ -31,15 +39,109 @@ func GetDirItems(ctx *gin.Context) {
 		return
 	}
 
-	var items []response.DirItemResp
-
-	files, err := ReadDir(common.XrdConfig.Host, common.XrdConfig.Port, dirPath)
+	files, err := ReadDir(ctx, common.XrdConfig.Host, common.XrdConfig.Port, dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
 
-	for _, d := range files {
+	totalItems := len(files)
+	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
+
+	common.Debugf(ctx, "Total Items: %d; Total Pages: %d\n", totalItems, totalPages)
+
+	// Get the first page of items
+	startIndex := 0
+	endIndex := min(pageSize, totalItems)
+
+	var items []response.DirItemResp
+	var totalFileCount, totalFolderCount, cumulativeFileSize uint64
+
+	for _, d := range files[startIndex:endIndex] {
+		item := response.DirItemResp{
+			Name:     d.name,
+			DateTime: d.dt.Format("2006-01-02 15:04:05"),
+			Size:     d.size,
+		}
+		if d.isDir {
+			totalFolderCount++
+			item.Type = "dir"
+		} else {
+			item.Type = "file"
+			totalFileCount++
+			cumulativeFileSize += d.size
+		}
+
+		items = append(items, item)
+	}
+
+	// This second loop is used to calculate the total number of files, folders, and the cumulative file size.
+	for i := endIndex; i < totalItems; i++ {
+		d := files[i]
+		if d.isDir {
+			totalFolderCount++
+		} else {
+			totalFileCount++
+			cumulativeFileSize += d.size
+		}
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":               200,
+		"items":              items,
+		"totalItems":         totalItems,
+		"pageSize":           pageSize,
+		"totalPages":         totalPages,
+		"totalFileCount":     totalFileCount,
+		"totalFolderCount":   totalFolderCount,
+		"cumulativeFileSize": cumulativeFileSize,
+	})
+}
+
+func GetDirItemsByPage(ctx *gin.Context) {
+	_GetDirItemsByPage(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port)
+}
+
+func _GetDirItemsByPage(ctx *gin.Context, readDir ReadDirFunc, host string, port uint) {
+	var req request.DirItemsReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.FailWithErr(ctx, *response.SystemErr(err))
+		return
+	}
+
+	page := req.Page
+	if page < 1 {
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("invalid page number")))
+		return
+	}
+
+	dirPath := req.Path
+	if len(dirPath) == 0 {
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("empty directory path to list")))
+		return
+	}
+
+	files, err := readDir(ctx, host, port, dirPath)
+	if err != nil {
+		response.FailWithErr(ctx, *response.SystemErr(err))
+		return
+	}
+
+	totalItems := len(files)
+	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
+
+	common.Debugf(ctx, "Total Items: %d; Total Pages: %d", totalItems, totalPages)
+
+	if page > uint32(totalPages) {
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("page number out of range")))
+		return
+	}
+
+	startIndex := (page - 1) * pageSize
+	endIndex := min(startIndex+pageSize, uint32(totalItems))
+
+	var items []response.DirItemResp
+	for _, d := range files[startIndex:endIndex] {
 		item := response.DirItemResp{
 			Name:     d.name,
 			DateTime: d.dt.Format("2006-01-02 15:04:05"),
@@ -54,7 +156,10 @@ func GetDirItems(ctx *gin.Context) {
 		items = append(items, item)
 	}
 
-	response.Success(ctx, items)
+	ctx.JSON(http.StatusOK, gin.H{
+		"code":  200,
+		"items": items,
+	})
 }
 
 func GetFileStagedForDownload(ctx *gin.Context) {
