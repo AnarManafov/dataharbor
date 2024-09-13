@@ -10,18 +10,28 @@
                 </el-scrollbar>
             </el-aside>
             <el-container>
-                <el-header>
+                <el-header class="toolbar-header">
                     <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
                         :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
-                        :folderCount="folderCount" :fileCount="fileCount" :totalFileSize="totalFileSize"
-                        @changeDirToInitialPath="changeDirToInitialPath" @changeDir="changeDir" />
+                        :folderCount="folderCount" :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
+                        :totalFolderCount="totalFolderCount" :totalFileCount="totalFileCount"
+                        :totalFileSize="cumulativeFileSize" @changeDirToInitialPath="changeDirToInitialPath"
+                        @changeDir="changeDir" />
                 </el-header>
                 <el-container>
+                    <el-header class="pagination-header">
+                        <el-pagination background size="small" :page-size="pageSize" :total="totalItems"
+                            :current-page="currentPage" @current-change="handlePageChange" />
+                    </el-header>
                     <el-main>
                         <el-scrollbar>
                             <FileTable :filteredData="filteredData" :filters="filters" @selectDir="selectDir" />
                         </el-scrollbar>
                     </el-main>
+                    <el-footer class="pagination-footer">
+                        <el-pagination background size="small" :page-size="pageSize" :total="totalItems"
+                            :current-page="currentPage" @current-change="handlePageChange" />
+                    </el-footer>
                 </el-container>
             </el-container>
         </el-container>
@@ -29,7 +39,7 @@
 </template>
 
 <script lang="ts" setup>
-import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth } from '@/api/api';
+import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth, getPagedItemsInDir } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
 import { saveAs } from 'file-saver';
@@ -72,7 +82,15 @@ const serviceStatusColor = computed(() => {
 })
 
 // Origin table data received from backend API
-const tableData = ref([])
+const tableData = ref([]);
+// Define currentPage as a reactive property
+const currentPage = ref(1); // default page
+// Define pageSize as a reactive property
+const pageSize = ref(10); // default page size
+// Define totalPages as a reactive property
+const totalPages = ref(0);
+// Define total number of items
+const totalItems = ref(0);
 // Computed property of the table data.
 // A filter or other modifiers can be added to change the data representation for the user
 const filteredData = computed(() => {
@@ -85,19 +103,23 @@ const filteredData = computed(() => {
 const folderCount = computed(() => {
     return filteredData.value.filter(item => item.type === 'dir').length;
 });
-
 const fileCount = computed(() => {
     return filteredData.value.filter(item => item.type !== 'dir').length;
 });
-
 // Computed property to calculate the total size of the files
-const totalFileSize = computed(() => {
+const totalOnPageFileSize = computed(() => {
     const totalSize = filteredData.value
         .filter(item => item.type !== 'dir')
         .reduce((acc, item) => acc + item.size, 0);
     return filters.prettyBytes(totalSize);
 });
 
+// Declare totalFileCount variable
+const totalFileCount = ref(0);
+// Declare totalFolderCount variable
+const totalFolderCount = ref(0);
+// Declare cumulativeFileSize variable
+const cumulativeFileSize = ref("");
 
 let interval: number | undefined;
 /**
@@ -156,7 +178,6 @@ onMounted(() => {
             // Use new data only if there no value in the storage
             if (!currentDirectory.value) currentDirectory.value = homeDir
             initialPath.value = homeDir
-
             getXrdHostName()
         })
         .catch((error) => {
@@ -366,15 +387,22 @@ const listDir = async () => {
 
     try {
         const resp = await getItemsInDir(currentDirectory.value);
-        if (resp.data.data != null) {
-            tableData.value = resp.data.data;
+        if (resp.data.items != null) {
+            tableData.value = resp.data.items;
+            pageSize.value = resp.data.pageSize; // Update pageSize
+            totalPages.value = resp.data.totalPages; // Update totalPages
+            totalItems.value = resp.data.totalItems; // Update totalItems
+            totalFileCount.value = resp.data.totalFileCount; // Update totalFileCount
+            totalFolderCount.value = resp.data.totalFolderCount; // Update totalFolderCount
+            cumulativeFileSize.value = filters.prettyBytes(resp.data.cumulativeFileSize); // Update cumulativeFileSize
+            console.log("pageSize: %d, totalPages: %d, totalItems: %d, totalFileCount: %d, totalFolderCount: %d, cumulativeFileSize: %d", pageSize.value, totalPages.value, totalItems.value, totalFileCount.value, totalFolderCount.value, cumulativeFileSize.value);
         } else {
             // Revert the current directory value if the directory change fails
             currentDirectory.value = oldCurrentDirectory;
             // Empty the table data if the response is null and no errors
             tableData.value = [];
-            if (resp.data.code != 200 && resp.data.msg != "") {
-                throw new Error(resp.data.msg);
+            if (resp.data.code != 200 && resp.data.error != "") {
+                throw new Error(resp.data.error);
             }
         }
     } catch (error) {
@@ -385,6 +413,35 @@ const listDir = async () => {
         // Return an error
         throw new Error(`Error received from the backend while listing: ${currentDirectory.value}<br>${error.message}`);
     }
+};
+
+/**
+ * Function to handle page change event.
+ * 
+ * @param {number} page - The new page number.
+ * @returns {void}
+ */
+const handlePageChange = async (page: number) => {
+    console.log('handlePageChange: %d', page);
+    try {
+        const resp = await getPagedItemsInDir(currentDirectory.value, page);
+        if (resp.data.items != null) {
+            tableData.value = resp.data.items;
+        } else {
+            // Empty the table data if the response is null and no errors
+            tableData.value = [];
+            if (resp.data.code != 200 && resp.data.error != "") {
+                throw new Error(resp.data.error);
+            }
+        }
+    } catch (error) {
+        // Check the backend health
+        await fetchBackendServiceStatus();
+        // Return an error
+        throw new Error(`Error received from the backend while listing: ${currentDirectory.value}<br>${error.message}`);
+    }
+    currentPage.value = page;
+
 };
 
 /**
@@ -415,5 +472,25 @@ onBeforeUnmount(() => {
 .layout-file-tree-container .el-main {
     padding-right: 20px;
     padding-bottom: 20px;
+}
+
+.toolbar-header {
+    /* Ensure the toolbar is above other elements */
+    z-index: 2;
+}
+
+.pagination-header,
+.pagination-footer {
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.pagination-header {
+    margin-top: 40px;
+}
+
+.pagination-footer {
+    margin-bottom: 10px;
 }
 </style>

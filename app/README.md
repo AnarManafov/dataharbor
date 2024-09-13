@@ -19,7 +19,8 @@ The server port is configurable, see [the app's configuration](./config/applicat
 ### Files and Directories
 
 - [Initial directory](./docs/api/initial_dir.md) : `GET /initial_dir`
-- [List a directory](./docs/api/dir.md): `POST /dir`
+- [List a directory (returns the first page, if there are multiple)](./docs/api/dir.md#get-files-and-folders-from-a-directory): `POST /dir`
+- [List a directory by pages](./docs/api/dir.md#get-paginated-files-and-folders-from-a-directory): `POST /dir/page`
 - [Stage a file. Prepare for download.](./docs/api/stage_file.md): `POST /stage_file`
 
 ### General Details
@@ -29,41 +30,49 @@ The server port is configurable, see [the app's configuration](./config/applicat
 
 ## Requirements
 
-- [Go](https://go.dev/)
-  - OSX
+- [Go](https://go.dev/)  
+  **OSX:**
 
-    ```shell
-    brew install go
-    ```
+  ```shell
+  brew install go
+  ```
+
 - [an xrootd client](../docs/xrootd.md)
 
 ### Build the project
 
-- Install Dependencies
+**Install Dependencies:**
 
-  ```shell
-  cd app
-  go mod download
-  ```
+```shell
+cd app
+go mod download
+```
 
-- Build
+**Build:**
 
-  ```shell
-  cd app
-  go build -o app .
-  ```
+```shell
+cd app
+go build -o app .
+```
 
-- Run
+**Run unit-tests:**
 
-  ```shell
-   go run .
-  ```
+```shell
+cd app
+go test -v ./...
+```
 
-  Run with the app's config file
+**Run:**
 
-  ```shell
-  go run . --config=<the_config_file_name>
-  ```
+```shell
+ go run .
+```
+
+**Run with the app's config file:**
+
+```shell
+go run . --config=<the_config_file_name>
+```
 
   or just start an executable.
 
@@ -72,7 +81,7 @@ The server port is configurable, see [the app's configuration](./config/applicat
 The backend is not that big - just one executable and one configuration file, for now.  
 It might be an overkill to containerize it. But just in case it is needed, a [Podman Container file](./Containerfile) is in the app directory and below are some instructions.
 
-### Build a Podman container
+**Build a Podman container**
 
 ```shell
 podman build -t data_lake_ui_frontend:0.0.4 .
@@ -80,7 +89,7 @@ podman build -t data_lake_ui_frontend:0.0.4 .
 
 ,where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
 
-### Run a Podman container
+**Run a Podman container**
 
 ```shell
 podman run --network=host data_lake_ui_backend:0.0.4

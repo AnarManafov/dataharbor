@@ -19,5 +19,6 @@ func RegisterRoutes(r *gin.Engine) {
 	r.GET("/initial_dir", controller.GetInitialDir)
 	r.GET("/host_name", controller.GetHostName)
 	r.POST("/dir", controller.GetDirItems)
+	r.POST("/dir/page", controller.GetDirItemsByPage)
 	r.POST("/stage_file", controller.GetFileStagedForDownload)
 }
