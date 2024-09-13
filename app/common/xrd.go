@@ -20,7 +20,7 @@ func ParseXrdConfig() {
 	viper.SetDefault("xrd.port", 1094)
 	viper.SetDefault("xrd.initial_dir", "/tmp/")
 	viper.SetDefault("xrd.xrd_client_bin_path", "/opt/homebrew/bin/")
-	viper.SetDefault("xrd.process_timeout", 5)
+	viper.SetDefault("xrd.process_timeout", 30)
 	viper.SetDefault("xrd.staging_path", "/tmp/delete_me")
 	viper.SetDefault("xrd.sanitation_job_interval", 30)
 	viper.SetDefault("xrd.staging_tmp_dir_prefix", "stg_")

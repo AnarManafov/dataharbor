@@ -35,14 +35,16 @@
         </el-row>
         <!-- Second Row -->
         <el-row class='full-size-row second-row'>
-            <el-col :span='24' class='toolbar-left-content'>
-                <div>
-                    Folders: <span style='font-weight: bold;'>{{ folderCount }}</span>
+            <el-col :span='24' class='toolbar-left-content column-layout'>
+                <div class="current-page-stats">
+                    Current page: <span style='font-weight: bold; color: #409EFF'>{{ folderCount }} folders</span>,
+                    <span style='font-weight: bold; color: #67C23A'>{{ fileCount }} files</span>, cumulative file size:
+                    <span style='font-weight: bold;'>{{ totalOnPageFileSize }}</span>
                 </div>
-                <div>
-                    Files: <span style='font-weight: bold;'>{{ fileCount }} </span> (cumulative file size: <span
-                        style='font-weight: bold;'>{{ totalFileSize
-                        }}</span>)
+                <div class="total-stats">
+                    Total: <span style='font-weight: bold; color: #409EFF'>{{ totalFolderCount }} folders</span>,
+                    <span style='font-weight: bold; color: #67C23A'>{{ totalFileCount }} files</span>, cumulative file
+                    size: <span style='font-weight: bold;'>{{ totalFileSize }}</span>
                 </div>
             </el-col>
         </el-row>
@@ -60,6 +62,9 @@ const props = defineProps({
     initialPath: String,
     folderCount: Number,
     fileCount: Number,
+    totalOnPageFileSize: String,
+    totalFolderCount: Number,
+    totalFileCount: Number,
     totalFileSize: String
 });
 
@@ -88,7 +93,6 @@ const changeDir = (index: number) => {
     flex-direction: row;
     align-items: center;
     justify-content: start;
-    /* height: 100%;*/
 }
 
 .toolbar-right-content {
@@ -114,5 +118,10 @@ const changeDir = (index: number) => {
     margin-bottom: 5px;
     /* Add space between folder and file counters */
     margin-right: 10px;
+}
+
+.column-layout {
+    flex-direction: column;
+    align-items: flex-start;
 }
 </style>

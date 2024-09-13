@@ -45,7 +45,7 @@ func (busErr *BusErr) AppendErrMsg(err error) *BusErr {
 var SystemErr = func(err error) *BusErr {
 	return &BusErr{
 		code:    400,
-		message: "system error: " + err.Error(),
+		message: err.Error(),
 	}
 }
 

@@ -1,10 +1,15 @@
 # Backend Release Notes
 
+## [0.5.0] - NOT YET RELEASED
+
+- Added: Save directory listings in a runtime cache.
+- Added: Retrieve directory listings from the cache, if available.
+
 ## [0.4.0] - 2024-09-09
 
-- Fixed: pull file names with with white spaces.
-- Added: sanitation job to periodically check and clean staged temporary files.
+- Fixed: Pull file names with white spaces.
+- Added: Sanitation job to periodically check and clean staged temporary files.
 - Added: XRD settings moved to the backend configuration.
-- Added: detailed error response. (GH-5)
+- Added: Detailed error response. (GH-5)
 - Added: REST API documentation.
-- Added: use js plugins in order to improve the code.
+- Added: Use JS plugins to improve the code.

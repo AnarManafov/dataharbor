@@ -8,7 +8,7 @@ xrd:
   initial_dir: "/tmp"
   xrd_client_bin_path: "/opt/homebrew/bin/"
   # in seconds
-  process_timeout: 5
+  process_timeout: 30
   staging_path: "/tmp/delete_me"
   staging_tmp_dir_prefix: "stg_"
   # in minutes

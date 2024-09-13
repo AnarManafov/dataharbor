@@ -2,8 +2,10 @@ package controller
 
 import (
 	"regexp"
+	"sync"
 
 	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/gin-gonic/gin"
 
 	"bufio"
 	"context"
@@ -20,6 +22,40 @@ type xrdDirEntry struct {
 	dt    time.Time
 	size  uint64
 	isDir bool
+}
+
+type cacheEntry struct {
+	data      []xrdDirEntry
+	timestamp time.Time
+}
+
+var (
+	cache      = make(map[string]cacheEntry)
+	cacheMutex sync.Mutex
+
+	// TODO: Add "60" to the configuration
+	cacheTTL = 60 * time.Minute // Cache Time-To-Live
+)
+
+func getCachedData(key string) ([]xrdDirEntry, bool) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	entry, exists := cache[key]
+	if !exists || time.Since(entry.timestamp) > cacheTTL {
+		return nil, false
+	}
+	return entry.data, true
+}
+
+func setCachedData(key string, data []xrdDirEntry) {
+	cacheMutex.Lock()
+	defer cacheMutex.Unlock()
+
+	cache[key] = cacheEntry{
+		data:      data,
+		timestamp: time.Now(),
+	}
 }
 
 func RunXrdFs(arg ...string) (string, error) {
@@ -63,14 +99,23 @@ func RunXrdCp(_xrd_addr string, _src string, _dest string) error {
 	return nil
 }
 
-func ReadDir(host string, port uint, dir string) (retVal []xrdDirEntry, err error) {
+func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error) {
 	srd_addr := host + ":" + strconv.FormatUint(uint64(port), 10)
+	cacheKey := srd_addr + ":" + dir
+
+	// Check cache
+	if data, found := getCachedData(cacheKey); found {
+		return data, nil
+	}
+
+	// Run command and parse output
 	output, err := RunXrdFs(srd_addr, "ls", "-l", dir)
 	if err != nil {
 		return nil, err
 	}
 
-	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	var retVal []xrdDirEntry
+	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		// Split the input on substrings:
 		// Input format:
@@ -85,14 +130,9 @@ func ReadDir(host string, port uint, dir string) (retVal []xrdDirEntry, err erro
 		// File name
 		item.name = path.Base(columns[6])
 		// Is Dir
-		if columns[0][0] == 'd' {
-			item.isDir = true
-		} else {
-			item.isDir = false
-		}
+		item.isDir = columns[0][0] == 'd'
 		// Date/Time
-		var tt time.Time
-		const layoutTime string = "2006-01-02 15:04:05"
+		const layoutTime = "2006-01-02 15:04:05"
 		tt, err := time.Parse(layoutTime, columns[4]+" "+columns[5])
 		if err == nil {
 			item.dt = tt
@@ -104,6 +144,9 @@ func ReadDir(host string, port uint, dir string) (retVal []xrdDirEntry, err erro
 		}
 		retVal = append(retVal, item)
 	}
+
+	// Cache the parsed data
+	setCachedData(cacheKey, retVal)
 
 	return retVal, nil
 }

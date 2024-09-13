@@ -10,6 +10,11 @@ export const getItemsInDir = (path) => {
     return request.post("dir", { path });
 };
 
+// Get paged items in dir
+export const getPagedItemsInDir = (path, page) => {
+    return request.post("/dir/page", { path, page });
+};
+
 // Get the xrootd server's host name
 export const getHostName = () => {
     return request.get("host_name");

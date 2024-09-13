@@ -41,6 +41,14 @@ func InitLogger() {
 	Logger = zap.New(core).WithOptions(zap.WithCaller(true), zap.AddCallerSkip(1)).Sugar()
 }
 
+// InitializeTestLogger initializes the Logger for testing purposes.
+func InitializeTestLogger() {
+	config := zap.NewDevelopmentConfig()
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	logger, _ := config.Build()
+	Logger = logger.Sugar()
+}
+
 func concatTid(ctx *gin.Context, template string) string {
 	if ctx != nil {
 		tid := ctx.GetString("tid")

@@ -4,17 +4,17 @@
 
 This API provides information about the status of the backend service.
 
-### Method
+**Method:**
 
 ```plaintext
 GET /health
 ```
 
-### Parameters
+**Parameters:**
 
 This API does not require any parameters.
 
-### Response
+**Response:**
 
 If the request is successful, the API will return a JSON response with the following fields:
 
@@ -22,15 +22,13 @@ If the request is successful, the API will return a JSON response with the follo
 - `message`: A message indicating the success of the request, which will be `success`.
 - `data`: A string value representing the health status of the service. The value will be `ok` if the service is alive. Any other value indicates a problem with the service.
 
-## Example
-
-### Example Request
+**Example Request:**
 
 ```shell
 curl --url "http://localhost:22000/health"
 ```
 
-### Example Response
+**Example Response:**
 
 ```json
 {
