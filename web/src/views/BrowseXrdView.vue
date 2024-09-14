@@ -20,17 +20,18 @@
                 </el-header>
                 <el-container>
                     <el-header class="pagination-header">
-                        <el-pagination background size="small" :page-size="pageSize" :total="totalItems"
-                            :current-page="currentPage" @current-change="handlePageChange" />
+                        <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
+                            :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
                     </el-header>
                     <el-main>
                         <el-scrollbar>
-                            <FileTable :filteredData="filteredData" :filters="filters" @selectDir="selectDir" />
+                            <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
+                                @selectDir="selectDir" />
                         </el-scrollbar>
                     </el-main>
                     <el-footer class="pagination-footer">
-                        <el-pagination background size="small" :page-size="pageSize" :total="totalItems"
-                            :current-page="currentPage" @current-change="handlePageChange" />
+                        <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
+                            :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
                     </el-footer>
                 </el-container>
             </el-container>
@@ -68,6 +69,8 @@ const initialPath = ref("");
 const xrdHostName = ref("")
 const isBackendOnline = ref(false);
 
+const PAGE_SIZE = 500;
+
 // The current directory path. A ref property
 const currentDirectory = ref(useStorage('currentDirectory', '', sessionStorage));
 
@@ -98,6 +101,9 @@ const filteredData = computed(() => {
         item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
       );*/
 });
+
+// Define the table loading state
+const tableLoading = ref(false);
 
 // Computed properties to count folders and files
 const folderCount = computed(() => {
@@ -343,10 +349,17 @@ const loadDirectory = async (path) => {
         path = pathTmp.join('/');
     }
     currentDirectory.value = path;
+    // Show the loading spinner
+    tableLoading.value = true;
+    // Clear the table while loading to avoid showing the old data and a big empty table
+    tableData.value = [];
     try {
         await listDir();
     } catch (error) {
         displayErrorMessage(error);
+    } finally {
+        // Hide the loading spinner
+        tableLoading.value = false;
     }
 };
 
@@ -386,7 +399,7 @@ const listDir = async () => {
     }
 
     try {
-        const resp = await getItemsInDir(currentDirectory.value);
+        const resp = await getItemsInDir(currentDirectory.value, PAGE_SIZE);
         if (resp.data.items != null) {
             tableData.value = resp.data.items;
             pageSize.value = resp.data.pageSize; // Update pageSize

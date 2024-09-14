@@ -6,8 +6,8 @@ export const getInitialDirPath = () => {
 };
 
 // Get the items in dir
-export const getItemsInDir = (path) => {
-    return request.post("dir", { path });
+export const getItemsInDir = (path, pageSize) => {
+    return request.post("dir", { path, pageSize });
 };
 
 // Get paged items in dir
