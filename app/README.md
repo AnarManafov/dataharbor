@@ -81,7 +81,7 @@ go run . --config=<the_config_file_name>
 The backend is not that big - just one executable and one configuration file, for now.  
 It might be an overkill to containerize it. But just in case it is needed, a [Podman Container file](./Containerfile) is in the app directory and below are some instructions.
 
-**Build a Podman container**
+### Build a Podman container
 
 ```shell
 podman build -t data_lake_ui_frontend:0.0.4 .
@@ -89,7 +89,7 @@ podman build -t data_lake_ui_frontend:0.0.4 .
 
 ,where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
 
-**Run a Podman container**
+### Run a Podman container
 
 ```shell
 podman run --network=host data_lake_ui_backend:0.0.4
@@ -105,7 +105,7 @@ This link helps with some Podman on OSX issues: <https://github.com/ansible/vsco
 
 ## Dev Tips
 
-### Initialize Go
+**Initialize Go:**
 
 The following command will generate a `go.mod` file.
 
@@ -114,14 +114,14 @@ cd app
 go mod init github.com/${YOUR_USERNAME}/app
 ```
 
-### Register missing dependencies
+**Register missing dependencies:**
 
 ```shell
 cd app
 go get github.com/${YOUR_USERNAME}/app
 ```
 
-### Update/Add dependencies and sums
+**Update/Add dependencies and sums:**
 
 ```shell
 cd app
@@ -129,7 +129,7 @@ go get -u ./...
 go mod tidy
 ```
 
-### Update requared Go version
+**Update required Go version:**
 
 ```shell
 cd app
