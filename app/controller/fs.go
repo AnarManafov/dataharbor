@@ -15,8 +15,9 @@ import (
 // This function definition is used for real and mock implementations.
 type ReadDirFunc func(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error)
 
-// TODO: Move to the configuration
-const pageSize = 500 // Default page size (a number of items per page)
+// TODO: Move the default value to the configuration
+var pageSize uint32 = 500 // Default page size (a number of items per page)
+const minPageSize = 100
 
 func GetInitialDir(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.InitialDir)
@@ -45,7 +46,14 @@ func GetDirItems(ctx *gin.Context) {
 		return
 	}
 
-	totalItems := len(files)
+	pageSizeTmp := req.PageSize
+	if pageSizeTmp < minPageSize {
+		pageSize = minPageSize
+	} else {
+		pageSize = pageSizeTmp
+	}
+
+	totalItems := uint32(len(files))
 	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
 
 	common.Debugf(ctx, "Total Items: %d; Total Pages: %d\n", totalItems, totalPages)
@@ -127,7 +135,7 @@ func _GetDirItemsByPage(ctx *gin.Context, readDir ReadDirFunc, host string, port
 		return
 	}
 
-	totalItems := len(files)
+	totalItems := uint32(len(files))
 	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
 
 	common.Debugf(ctx, "Total Items: %d; Total Pages: %d", totalItems, totalPages)

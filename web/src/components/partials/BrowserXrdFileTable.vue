@@ -1,5 +1,5 @@
 <template>
-    <el-table :data='filteredData' :default-sort='{ prop: "name", order: "ascending" }' border>
+    <el-table v-loading='tableLoading' :data='filteredData' :default-sort='{ prop: "name", order: "ascending" }' border>
         <el-table-column prop='name' label='Name' sortable>
             <template #default='scope'>
                 <div style='display: flex; align-items: center'>
@@ -36,7 +36,8 @@ import { Folder, Document } from '@element-plus/icons-vue';
 
 const props = defineProps({
     filteredData: Array,
-    filters: Object
+    filters: Object,
+    tableLoading: Boolean
 });
 
 const emit = defineEmits(['selectDir']);
