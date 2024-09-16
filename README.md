@@ -1,4 +1,5 @@
 ![CI](https://github.com/AnarManafov/data_lake_ui/actions/workflows/master.yaml/badge.svg)
+![data_lake_ui/app](https://img.shields.io/badge/data_lake_ui%2Fapp-47.1%25-yellow)
 ![Coverage](https://img.shields.io/badge/Coverage-47.1%25-yellow)
 
 <!-- coverage-badge:begin -->
