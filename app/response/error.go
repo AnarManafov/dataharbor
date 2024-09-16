@@ -29,18 +29,6 @@ func (busErr *BusErr) Unwrap() error {
 	return busErr.err
 }
 
-// Append appends a message to the error message.
-func (busErr *BusErr) Append(message string) *BusErr {
-	busErr.message += ": " + message
-	return busErr
-}
-
-// AppendErrMsg appends an error message to the error message.
-func (busErr *BusErr) AppendErrMsg(err error) *BusErr {
-	busErr.message = busErr.message + ": " + err.Error()
-	return busErr
-}
-
 // SystemErr represents a system error.
 var SystemErr = func(err error) *BusErr {
 	return &BusErr{
