@@ -12,7 +12,6 @@ import (
 	"github.com/AnarManafov/data_lake_ui/app/request"
 	"github.com/AnarManafov/data_lake_ui/app/response"
 	"github.com/gin-gonic/gin"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -160,10 +159,7 @@ func TestGetDirItems(t *testing.T) {
 			fieldsToConvert := []string{"code", "cumulativeFileSize", "pageSize", "totalFileCount", "totalFolderCount", "totalItems", "totalPages"}
 			convertFieldsToInt(actualBody, fieldsToConvert)
 
-			// Use cmp.Diff to find the difference
-			if diff := cmp.Diff(tt.expectedBody, actualBody); diff != "" {
-				t.Errorf("mismatch (-expected +actual):\n%s", diff)
-			}
+			assert.Equal(t, tt.expectedBody, actualBody, "mismatch (-expected +actual)")
 		})
 	}
 }
