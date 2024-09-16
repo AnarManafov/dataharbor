@@ -5,6 +5,7 @@ go 1.23
 require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/gin-gonic/gin v1.10.0
+	github.com/google/go-cmp v0.6.0
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
