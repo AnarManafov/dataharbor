@@ -19,5 +19,41 @@ jobs:
           cache-dependency-path: "./app/go.sum"
       - name: Build
         run: go build -v ./...
-      - name: Test
-        run: go test -v ./...
+  test-and-coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - uses: actions/checkout@master
+      - name: Set up Go
+        uses: actions/setup-go@master
+        with:
+          go-version-file: "./app/go.mod"
+          cache-dependency-path: "./app/go.sum"
+      - name: Test and Coverage
+        run: |
+          go test -v ./... -covermode=count -coverprofile=coverage.out
+          go tool cover -func=coverage.out -o=coverage.out
+      - name: Generate Coverage Badge
+        uses: tj-actions/coverage-badge-go@v2
+        with:
+          filename: "./app/coverage.out"
+      - name: Verify Changed files
+        uses: tj-actions/verify-changed-files@v16
+        id: verify-changed-files
+        with:
+          files: README.md
+      - name: Commit changes
+        if: steps.verify-changed-files.outputs.files_changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add ../README.md
+          git commit -m "chore: Updated coverage badge."
+      - name: Push changes
+        if: steps.verify-changed-files.outputs.files_changed == 'true'
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ github.token }}
+          branch: ${{ github.head_ref }}

@@ -1,4 +1,10 @@
+[![CI](https://github.com/)](https://github.com/AnarManafov/data_lake_ui/actions?query=workflow%3ACI)
+
+<!-- coverage-badge:begin -->
+<!-- coverage-badge:end -->
+
 # Data Lake UI
+
 
 The Data Lake UI provides a user interface to access GSI Lustre cluster data.  
 It consists of the following main parts:
