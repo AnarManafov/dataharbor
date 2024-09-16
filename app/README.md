@@ -48,18 +48,13 @@ cd app
 go mod download
 ```
 
+> **Note**
+> All the following command should be run in the `app` directory (i.e. `cd app`)
+
 **Build:**
 
 ```shell
-cd app
 go build -o app .
-```
-
-**Run unit-tests:**
-
-```shell
-cd app
-go test -v ./...
 ```
 
 **Run:**
@@ -75,6 +70,43 @@ go run . --config=<the_config_file_name>
 ```
 
   or just start an executable.
+
+## Unit tests
+
+**Run unit-tests:**
+
+```shell
+go test -v ./...
+```
+
+using `-v` for full verbose output.
+
+***Test with Coverage report:**
+
+```shell
+go test -cover ./...
+```
+
+**Tests with a Detailed Coverage report:**
+
+```shell
+go test -coverprofile=coverage.out ./...
+```
+
+**View the Coverage Report:**
+
+```shell
+go tool cover -html=coverage.out
+```
+
+**View the Coverage Summary:**
+
+```shell
+go tool cover -func=coverage.out
+```
+
+This will display the coverage percentage for each function and a total coverage percentage at the end.
+
 
 ## Containerization
 

@@ -28,6 +28,10 @@ func GetHostName(ctx *gin.Context) {
 }
 
 func GetDirItems(ctx *gin.Context) {
+	_GetDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port)
+}
+
+func _GetDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
@@ -40,7 +44,7 @@ func GetDirItems(ctx *gin.Context) {
 		return
 	}
 
-	files, err := ReadDir(ctx, common.XrdConfig.Host, common.XrdConfig.Port, dirPath)
+	files, err := readDir(ctx, host, port, dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return

@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+	common.InitLogger()
 	config.InitCmd()
 	config.Init()
 

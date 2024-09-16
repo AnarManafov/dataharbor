@@ -46,6 +46,7 @@ var SystemErr = func(err error) *BusErr {
 	return &BusErr{
 		code:    400,
 		message: err.Error(),
+		err:     err,
 	}
 }
 

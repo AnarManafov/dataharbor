@@ -1,10 +1,10 @@
 package config
 
-import "flag"
-
-var configFile *string
+import (
+	"flag"
+)
 
 func InitCmd() {
-	configFile = flag.String("config", "./config/application.yaml", "config file path")
+	flag.StringVar(&ConfigFile, "config", "./config/application.yaml", "config file path")
 	flag.Parse()
 }
