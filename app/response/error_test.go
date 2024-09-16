@@ -38,21 +38,6 @@ func TestBusErr_Unwrap(t *testing.T) {
 	assert.Equal(t, err, busErr.Unwrap())
 }
 
-func TestBusErr_Append(t *testing.T) {
-	busErr := NewBusErr(500, nil, "business error")
-	busErr.Append("additional message")
-
-	assert.Equal(t, "business error: additional message", busErr.message)
-}
-
-func TestBusErr_AppendErrMsg(t *testing.T) {
-	err := errors.New("additional error")
-	busErr := NewBusErr(500, nil, "business error")
-	busErr.AppendErrMsg(err)
-
-	assert.Equal(t, "business error: additional error", busErr.message)
-}
-
 func TestSystemErr(t *testing.T) {
 	err := errors.New("system error")
 	systemErr := SystemErr(err)

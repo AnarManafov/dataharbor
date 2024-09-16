@@ -141,7 +141,7 @@ func TestGetDirItems(t *testing.T) {
 			c.Request.Header.Set("Content-Type", "application/json")
 
 			// Call the function
-			_GetDirItems(c, MockReadDir, "host", 123)
+			_ListDirectoryCommon(c, MockReadDir, "host", 123, false)
 
 			// Convert actual response to expected type
 			var actualBody gin.H
@@ -273,7 +273,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 			c.Request.Header.Set("Content-Type", "application/json")
 
 			// Call the function
-			_GetDirItemsByPage(c, MockReadDir, "host", 123)
+			_ListDirectoryCommon(c, MockReadDir, "host", 123, true)
 
 			// Convert actual response to expected type
 			var actualBody gin.H

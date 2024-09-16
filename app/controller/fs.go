@@ -28,13 +28,24 @@ func GetHostName(ctx *gin.Context) {
 }
 
 func GetDirItems(ctx *gin.Context) {
-	_GetDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port)
+	_ListDirectoryCommon(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, false)
 }
 
-func _GetDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint) {
+func GetDirItemsByPage(ctx *gin.Context) {
+	_ListDirectoryCommon(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, true)
+}
+
+// Common function to list directory items with optional pagination
+func _ListDirectoryCommon(ctx *gin.Context, readDir ReadDirFunc, host string, port uint, paginate bool) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
+		return
+	}
+
+	page := req.Page
+	if paginate && page < 1 {
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("invalid page number")))
 		return
 	}
 
@@ -61,6 +72,11 @@ func _GetDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint)
 	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
 
 	common.Debugf(ctx, "Total Items: %d; Total Pages: %d\n", totalItems, totalPages)
+
+	if paginate && page > uint32(totalPages) {
+		response.FailWithErr(ctx, *response.SystemErr(errors.New("page number out of range")))
+		return
+	}
 
 	// Get the first page of items
 	startIndex := 0
@@ -98,80 +114,23 @@ func _GetDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint)
 		}
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"code":               200,
-		"items":              items,
-		"totalItems":         totalItems,
-		"pageSize":           pageSize,
-		"totalPages":         totalPages,
-		"totalFileCount":     totalFileCount,
-		"totalFolderCount":   totalFolderCount,
-		"cumulativeFileSize": cumulativeFileSize,
-	})
-}
-
-func GetDirItemsByPage(ctx *gin.Context) {
-	_GetDirItemsByPage(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port)
-}
-
-func _GetDirItemsByPage(ctx *gin.Context, readDir ReadDirFunc, host string, port uint) {
-	var req request.DirItemsReq
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		response.FailWithErr(ctx, *response.SystemErr(err))
-		return
+	if !paginate {
+		ctx.JSON(http.StatusOK, gin.H{
+			"code":               200,
+			"items":              items,
+			"totalItems":         totalItems,
+			"pageSize":           pageSize,
+			"totalPages":         totalPages,
+			"totalFileCount":     totalFileCount,
+			"totalFolderCount":   totalFolderCount,
+			"cumulativeFileSize": cumulativeFileSize,
+		})
+	} else {
+		ctx.JSON(http.StatusOK, gin.H{
+			"code":  200,
+			"items": items,
+		})
 	}
-
-	page := req.Page
-	if page < 1 {
-		response.FailWithErr(ctx, *response.SystemErr(errors.New("invalid page number")))
-		return
-	}
-
-	dirPath := req.Path
-	if len(dirPath) == 0 {
-		response.FailWithErr(ctx, *response.SystemErr(errors.New("empty directory path to list")))
-		return
-	}
-
-	files, err := readDir(ctx, host, port, dirPath)
-	if err != nil {
-		response.FailWithErr(ctx, *response.SystemErr(err))
-		return
-	}
-
-	totalItems := uint32(len(files))
-	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
-
-	common.Debugf(ctx, "Total Items: %d; Total Pages: %d", totalItems, totalPages)
-
-	if page > uint32(totalPages) {
-		response.FailWithErr(ctx, *response.SystemErr(errors.New("page number out of range")))
-		return
-	}
-
-	startIndex := (page - 1) * pageSize
-	endIndex := min(startIndex+pageSize, uint32(totalItems))
-
-	var items []response.DirItemResp
-	for _, d := range files[startIndex:endIndex] {
-		item := response.DirItemResp{
-			Name:     d.name,
-			DateTime: d.dt.Format("2006-01-02 15:04:05"),
-			Size:     d.size,
-		}
-		if d.isDir { // If you want to list both files and dirs, remove this check.
-			item.Type = "dir"
-		} else {
-			item.Type = "file"
-		}
-
-		items = append(items, item)
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"code":  200,
-		"items": items,
-	})
 }
 
 func GetFileStagedForDownload(ctx *gin.Context) {
