@@ -1,4 +1,5 @@
 [![CI](https://github.com/)](https://github.com/AnarManafov/data_lake_ui/actions?query=workflow%3ACI)
+![Coverage](https://img.shields.io/badge/Coverage-47.1%25-yellow)
 
 <!-- coverage-badge:begin -->
 <!-- coverage-badge:end -->
