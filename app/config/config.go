@@ -16,8 +16,6 @@ func Init() {
 	}
 
 	// Set the default values for the configuration.
-	common.ParseDatabaseConfig()
-	common.ParseRedisConf()
 	common.ParseXrdConfig()
 }
 
