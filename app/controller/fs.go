@@ -14,6 +14,7 @@ import (
 // ReadDirFunc is a function type that reads the directory and returns the list of files.
 // This function definition is used for real and mock implementations.
 type ReadDirFunc func(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error)
+type StageFileFunc func(host string, port uint, filePath string) (string, error)
 
 // TODO: Move the default value to the configuration
 var pageSize uint32 = 500 // Default page size (a number of items per page)
@@ -134,6 +135,10 @@ func _ListDirectoryCommon(ctx *gin.Context, readDir ReadDirFunc, host string, po
 }
 
 func GetFileStagedForDownload(ctx *gin.Context) {
+	_GetFileStagedForDownload(ctx, StageFile, common.XrdConfig.Host, common.XrdConfig.Port)
+}
+
+func _GetFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host string, port uint) {
 	var req request.DirItemsReq
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
@@ -148,7 +153,7 @@ func GetFileStagedForDownload(ctx *gin.Context) {
 
 	// Stage the requested file:
 	// Ask XRD to copy the requested file to the Server's public location, so that it can be downloaded.
-	stagedFilePath, err := StageFile(common.XrdConfig.Host, common.XrdConfig.Port, filePath)
+	stagedFilePath, err := stageFile(host, port, filePath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return

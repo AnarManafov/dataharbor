@@ -29,9 +29,9 @@ func Fail(ctx *gin.Context, msg string, errcode int) {
 }
 
 func ValidateFail(ctx *gin.Context, data map[string][]string) {
-	Response(ctx, http.StatusUnprocessableEntity, 422, data, map[string]string{"error": "params validation error"})
+	Response(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, data, map[string]string{"error": http.StatusText(http.StatusUnprocessableEntity)})
 }
 
-func FailWithErr(ctx *gin.Context, err BusErr) {
+func FailWithErr(ctx *gin.Context, err TransferProtocolError) {
 	Response(ctx, http.StatusOK, err.code, nil, map[string]string{"error": err.message})
 }

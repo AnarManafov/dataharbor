@@ -295,91 +295,92 @@ func TestGetDirItemsByPage(t *testing.T) {
 	}
 }
 
-// func TestGetFileStagedForDownload(t *testing.T) {
-// 	gin.SetMode(gin.TestMode)
+func TestGetFileStagedForDownload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
 
-// 	tests := []struct {
-// 		name         string
-// 		requestBody  request.DirItemsReq
-// 		mockError    error
-// 		expectedCode int
-// 		expectedBody gin.H
-// 	}{
-// 		{
-// 			name: "valid request",
-// 			requestBody: request.DirItemsReq{
-// 				Path: "/valid/file",
-// 			},
-// 			expectedCode: http.StatusOK,
-// 			expectedBody: gin.H{
-// 				"code": 200,
-// 				"data": gin.H{
-// 					"path": "/staged/file",
-// 				},
-// 			},
-// 		},
-// 		{
-// 			name: "empty file path",
-// 			requestBody: request.DirItemsReq{
-// 				Path: "",
-// 			},
-// 			expectedCode: http.StatusBadRequest,
-// 			expectedBody: gin.H{
-// 				"code":  400,
-// 				"data":  nil,
-// 				"error": "empty file path for staging",
-// 			},
-// 		},
-// 		{
-// 			name: "staging error",
-// 			requestBody: request.DirItemsReq{
-// 				Path: "/valid/file",
-// 			},
-// 			mockError:    errors.New("staging error"),
-// 			expectedCode: http.StatusInternalServerError,
-// 			expectedBody: gin.H{
-// 				"code":  400,
-// 				"data":  nil,
-// 				"error": "staging error",
-// 			},
-// 		},
-// 	}
+	tests := []struct {
+		name         string
+		requestBody  request.DirItemsReq
+		mockError    error
+		expectedCode int
+		expectedBody gin.H
+	}{
+		{
+			name: "valid request",
+			requestBody: request.DirItemsReq{
+				Path: "/valid/file",
+			},
+			expectedCode: http.StatusOK,
+			expectedBody: gin.H{
+				"code": 200,
+				"data": map[string]interface{}{
+					"path": "/staged/file",
+				},
+				"msg": "success",
+			},
+		},
+		{
+			name: "empty file path",
+			requestBody: request.DirItemsReq{
+				Path: "",
+			},
+			expectedCode: http.StatusBadRequest,
+			expectedBody: gin.H{
+				"code":  400,
+				"data":  nil,
+				"error": "empty file path for staging",
+			},
+		},
+		{
+			name: "staging error",
+			requestBody: request.DirItemsReq{
+				Path: "/valid/file",
+			},
+			mockError:    errors.New("staging error"),
+			expectedCode: http.StatusInternalServerError,
+			expectedBody: gin.H{
+				"code":  400,
+				"data":  nil,
+				"error": "staging error",
+			},
+		},
+	}
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			// Mock StageFile function
-// 			MockStageFile := func(host string, port uint, path string) (string, error) {
-// 				if tt.mockError != nil {
-// 					return "", tt.mockError
-// 				}
-// 				return "/staged/file", nil
-// 			}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Mock StageFile function
+			MockStageFile := func(host string, port uint, path string) (string, error) {
+				if tt.mockError != nil {
+					return "", tt.mockError
+				}
+				return "/staged/file", nil
+			}
 
-// 			// Create a new gin context
-// 			w := httptest.NewRecorder()
-// 			c, _ := gin.CreateTestContext(w)
+			// Create a new gin context
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
 
-// 			// Create request body
-// 			body, _ := json.Marshal(tt.requestBody)
-// 			c.Request, _ = http.NewRequest(http.MethodPost, "/file-staged-for-download", bytes.NewBuffer(body))
-// 			c.Request.Header.Set("Content-Type", "application/json")
+			// Create request body
+			body, _ := json.Marshal(tt.requestBody)
+			c.Request, _ = http.NewRequest(http.MethodPost, "/file-staged-for-download", bytes.NewBuffer(body))
+			c.Request.Header.Set("Content-Type", "application/json")
 
-// 			// Call the function
-// 			GetFileStagedForDownload(c)
+			// Call the function
+			_GetFileStagedForDownload(c, MockStageFile, "host", 123)
 
-// 			// Convert actual response to expected type
-// 			var actualBody gin.H
-// 			if err := json.Unmarshal(w.Body.Bytes(), &actualBody); err != nil {
-// 				t.Fatalf("Failed to unmarshal response body: %v", err)
-// 			}
+			// Convert actual response to expected type
+			var actualBody gin.H
+			if err := json.Unmarshal(w.Body.Bytes(), &actualBody); err != nil {
+				t.Fatalf("Failed to unmarshal response body: %v", err)
+			}
 
-// 			// Convert code field to int
-// 			if code, ok := actualBody["code"].(float64); ok {
-// 				actualBody["code"] = int(code)
-// 			}
+			// Convert code field to int
+			if code, ok := actualBody["code"].(float64); ok {
+				actualBody["code"] = int(code)
+			}
 
-// 			// Assert equality
-// 			assert.Equal(t, tt.expectedBody, actualBody)
-// 		})
-// 	}
-// }
+			// Assert equality
+			assert.Equal(t, tt.expectedBody, actualBody)
+		})
+	}
+}
