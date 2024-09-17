@@ -14,9 +14,9 @@ jobs:
       run:
         working-directory: ./web
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Set up Node
-        uses: actions/setup-node@master
+        uses: actions/setup-node@v4
       - name: Install Dependencies
         run: npm install
       - name: Build

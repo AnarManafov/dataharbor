@@ -11,9 +11,9 @@ jobs:
       run:
         working-directory: ./app
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@master
+        uses: actions/setup-go@v5
         with:
           go-version-file: "./app/go.mod"
           cache-dependency-path: "./app/go.sum"
@@ -25,9 +25,9 @@ jobs:
       run:
         working-directory: ./app
     steps:
-      - uses: actions/checkout@master
+      - uses: actions/checkout@v4
       - name: Set up Go
-        uses: actions/setup-go@master
+        uses: actions/setup-go@v5
         with:
           go-version-file: "./app/go.mod"
           cache-dependency-path: "./app/go.sum"
