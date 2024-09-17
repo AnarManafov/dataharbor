@@ -1,5 +1,6 @@
-![CI](https://github.com/AnarManafov/data_lake_ui/actions/workflows/master.yaml/badge.svg)
+![CI](https://github.com/AnarManafov/data_lake_ui/actions/workflows/backend.yml/badge.svg)
 ![Coverage](https://img.shields.io/badge/Coverage-47.1%25-yellow)
+![CI](https://github.com/AnarManafov/data_lake_ui/actions/workflows/frontend.yml/badge.svg)
 
 <!-- coverage-badge:begin -->
 <!-- coverage-badge:end -->
