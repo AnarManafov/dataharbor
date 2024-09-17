@@ -35,12 +35,17 @@ jobs:
         run: |
           go test -v ./... -covermode=count -coverprofile=coverage.out
           go tool cover -func=coverage.out -o=coverage.out
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v2
+        with:
+           name: coverage-report
+           path: "./app/coverage.out"
       - name: Generate Coverage Badge
         uses: tj-actions/coverage-badge-go@v2
         with:
           filename: "./app/coverage.out"
       - name: Verify Changed files
-        uses: tj-actions/verify-changed-files@v16
+        uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
         with:
           files: README.md
