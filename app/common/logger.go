@@ -14,6 +14,12 @@ import (
 var Logger *zap.SugaredLogger
 
 func InitLogger() {
+	// Set environment variable prefix
+	viper.SetEnvPrefix("LOGGER")
+
+	// Automatically map environment variables to configuration keys
+	viper.AutomaticEnv()
+
 	loggerList := viper.GetStringMap("logger")
 
 	if len(loggerList) == 0 {
@@ -28,11 +34,17 @@ func InitLogger() {
 	for loggerName := range loggerList {
 		c, err := parseLogger(loggerName)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "parse logger %s failed, err: %s", loggerName, err)
+			fmt.Fprintf(os.Stderr, "parse logger %s failed; err: %s\n", loggerName, err)
 			continue
 		}
 
 		cList = append(cList, c)
+	}
+
+	if len(cList) == 0 {
+		// If no valid logger configurations were found, set Logger to nil
+		Logger = nil
+		return
 	}
 
 	core := zapcore.NewTee(cList...)
@@ -41,12 +53,9 @@ func InitLogger() {
 	Logger = zap.New(core).WithOptions(zap.WithCaller(true), zap.AddCallerSkip(1)).Sugar()
 }
 
-// InitializeTestLogger initializes the Logger for testing purposes.
-func InitializeTestLogger() {
-	config := zap.NewDevelopmentConfig()
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, _ := config.Build()
-	Logger = logger.Sugar()
+// DestroyLogger sets the Logger to nil
+func DestroyLogger() {
+	Logger = nil
 }
 
 func concatTid(ctx *gin.Context, template string) string {
@@ -85,7 +94,7 @@ func parseLogger(name string) (zapcore.Core, error) {
 	case "file":
 		return parseFileConf(cnf), nil
 	default:
-		return parseConsoleConf(cnf), nil
+		return nil, fmt.Errorf("invalid logger driver name: \"%s\"", driverName)
 	}
 }
 
