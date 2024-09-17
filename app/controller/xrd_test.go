@@ -8,6 +8,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSetCachedData(t *testing.T) {
+	key := "testKey"
+	data := []xrdDirEntry{
+		{name: "file1", dt: time.Now(), size: 123, isDir: false},
+	}
+	setCachedData(key, data)
+
+	cachedData, found := getCachedData(key)
+	assert.True(t, found)
+	assert.Equal(t, data, cachedData)
+}
+
 func TestGetCachedData(t *testing.T) {
 	// Test case: Cache hit
 	t.Run("cache hit", func(t *testing.T) {
