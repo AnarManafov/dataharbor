@@ -20,25 +20,25 @@ type StageFileFunc func(host string, port uint, filePath string) (string, error)
 var pageSize uint32 = 500 // Default page size (a number of items per page)
 const minPageSize = 100
 
-func GetInitialDir(ctx *gin.Context) {
+func FetchInitialDir(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.InitialDir)
 }
 
-func GetHostName(ctx *gin.Context) {
+func FetchHostName(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.Host)
 }
 
-func GetDirItems(ctx *gin.Context) {
-	_ListDirectoryCommon(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, false)
+func FetchDirItems(ctx *gin.Context) {
+	fetchDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, false)
 }
 
-func GetDirItemsByPage(ctx *gin.Context) {
-	_ListDirectoryCommon(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, true)
+func FetchDirItemsByPage(ctx *gin.Context) {
+	fetchDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, true)
 }
 
 // Common function to list directory items with optional pagination
-func _ListDirectoryCommon(ctx *gin.Context, readDir ReadDirFunc, host string, port uint, paginate bool) {
-	var req request.DirItemsReq
+func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint, paginate bool) {
+	var req request.DirectoryItemsRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
@@ -83,11 +83,11 @@ func _ListDirectoryCommon(ctx *gin.Context, readDir ReadDirFunc, host string, po
 	startIndex := 0
 	endIndex := min(pageSize, totalItems)
 
-	var items []response.DirItemResp
+	var items []response.DirectoryItemResponse
 	var totalFileCount, totalFolderCount, cumulativeFileSize uint64
 
 	for _, d := range files[startIndex:endIndex] {
-		item := response.DirItemResp{
+		item := response.DirectoryItemResponse{
 			Name:     d.name,
 			DateTime: d.dt.Format("2006-01-02 15:04:05"),
 			Size:     d.size,
@@ -134,12 +134,12 @@ func _ListDirectoryCommon(ctx *gin.Context, readDir ReadDirFunc, host string, po
 	}
 }
 
-func GetFileStagedForDownload(ctx *gin.Context) {
-	_GetFileStagedForDownload(ctx, StageFile, common.XrdConfig.Host, common.XrdConfig.Port)
+func FetchFileStagedForDownload(ctx *gin.Context) {
+	fetchFileStagedForDownload(ctx, StageFile, common.XrdConfig.Host, common.XrdConfig.Port)
 }
 
-func _GetFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host string, port uint) {
-	var req request.DirItemsReq
+func fetchFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host string, port uint) {
+	var req request.DirectoryItemsRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
@@ -160,7 +160,7 @@ func _GetFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host s
 	}
 
 	// Send the response the to the server with the public location of the requested file.
-	respondData := response.StageFileResp{Path: stagedFilePath}
+	respondData := response.StagedFileResponse{Path: stagedFilePath}
 
 	response.Success(ctx, respondData)
 }

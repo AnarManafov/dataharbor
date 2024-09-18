@@ -16,8 +16,8 @@ import (
 )
 
 // Helper function to convert map to response.DirItemResp
-func convertToDirItemResp(item map[string]interface{}) response.DirItemResp {
-	return response.DirItemResp{
+func convertToDirItemResp(item map[string]interface{}) response.DirectoryItemResponse {
+	return response.DirectoryItemResponse{
 		Name:     item["name"].(string),
 		Type:     item["type"].(string),
 		DateTime: item["date_time"].(string),
@@ -36,36 +36,36 @@ func convertFieldsToInt(data gin.H, fields []string) {
 	}
 }
 
-func TestGetInitialDir(t *testing.T) {
+func TestFetchInitialDir(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	GetInitialDir(c)
+	FetchInitialDir(c)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"code":200,"data":"/tmp/","msg":"success"}`, w.Body.String())
 }
 
-func TestGetHostName(t *testing.T) {
+func TestFetchHostName(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	GetHostName(c)
+	FetchHostName(c)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"code":200,"data":"localhost","msg":"success"}`, w.Body.String())
 }
 
-func TestGetDirItems(t *testing.T) {
+func TestFetchDirItems(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
-		requestBody  request.DirItemsReq
+		requestBody  request.DirectoryItemsRequest
 		mockFiles    []xrdDirEntry
 		mockError    error
 		expectedCode int
@@ -73,7 +73,7 @@ func TestGetDirItems(t *testing.T) {
 	}{
 		{
 			name: "valid request",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path:     "/valid/path",
 				PageSize: 500,
 			},
@@ -84,7 +84,7 @@ func TestGetDirItems(t *testing.T) {
 			expectedCode: http.StatusOK,
 			expectedBody: gin.H{
 				"code": 200,
-				"items": []response.DirItemResp{
+				"items": []response.DirectoryItemResponse{
 					{Name: "file1", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
 					{Name: "dir1", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
 				},
@@ -98,7 +98,7 @@ func TestGetDirItems(t *testing.T) {
 		},
 		{
 			name: "empty directory path",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "",
 			},
 			expectedCode: http.StatusBadRequest,
@@ -110,7 +110,7 @@ func TestGetDirItems(t *testing.T) {
 		},
 		{
 			name: "directory read error",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/path",
 			},
 			mockError:    errors.New("read error"),
@@ -140,7 +140,7 @@ func TestGetDirItems(t *testing.T) {
 			c.Request.Header.Set("Content-Type", "application/json")
 
 			// Call the function
-			_ListDirectoryCommon(c, MockReadDir, "host", 123, false)
+			fetchDirItems(c, MockReadDir, "host", 123, false)
 
 			// Convert actual response to expected type
 			var actualBody gin.H
@@ -148,7 +148,7 @@ func TestGetDirItems(t *testing.T) {
 				t.Fatalf("Failed to unmarshal response body: %v", err)
 			}
 			if items, ok := actualBody["items"].([]interface{}); ok {
-				var convertedItems []response.DirItemResp
+				var convertedItems []response.DirectoryItemResponse
 				for _, item := range items {
 					convertedItems = append(convertedItems, convertToDirItemResp(item.(map[string]interface{})))
 				}
@@ -164,12 +164,12 @@ func TestGetDirItems(t *testing.T) {
 	}
 }
 
-func TestGetDirItemsByPage(t *testing.T) {
+func TestFetchDirItemsByPage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
-		requestBody  request.DirItemsReq
+		requestBody  request.DirectoryItemsRequest
 		mockFiles    []xrdDirEntry
 		mockError    error
 		expectedCode int
@@ -177,7 +177,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 	}{
 		{
 			name: "valid request",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/path",
 				Page: 1,
 			},
@@ -188,7 +188,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 			expectedCode: http.StatusOK,
 			expectedBody: gin.H{
 				"code": 200,
-				"items": []response.DirItemResp{
+				"items": []response.DirectoryItemResponse{
 					{Name: "file1", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
 					{Name: "dir1", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
 				},
@@ -196,7 +196,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 		},
 		{
 			name: "invalid page number",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/path",
 				Page: 0,
 			},
@@ -209,7 +209,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 		},
 		{
 			name: "empty directory path",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "",
 				Page: 1,
 			},
@@ -222,7 +222,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 		},
 		{
 			name: "directory read error",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/path",
 				Page: 1,
 			},
@@ -236,7 +236,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 		},
 		{
 			name: "page number out of range",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/path",
 				Page: 2,
 			},
@@ -269,7 +269,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 			c.Request.Header.Set("Content-Type", "application/json")
 
 			// Call the function
-			_ListDirectoryCommon(c, MockReadDir, "host", 123, true)
+			fetchDirItems(c, MockReadDir, "host", 123, true)
 
 			// Convert actual response to expected type
 			var actualBody gin.H
@@ -277,7 +277,7 @@ func TestGetDirItemsByPage(t *testing.T) {
 				t.Fatalf("Failed to unmarshal response body: %v", err)
 			}
 			if items, ok := actualBody["items"].([]interface{}); ok {
-				var convertedItems []response.DirItemResp
+				var convertedItems []response.DirectoryItemResponse
 				for _, item := range items {
 					convertedItems = append(convertedItems, convertToDirItemResp(item.(map[string]interface{})))
 				}
@@ -295,19 +295,19 @@ func TestGetDirItemsByPage(t *testing.T) {
 	}
 }
 
-func TestGetFileStagedForDownload(t *testing.T) {
+func TestFetchFileStagedForDownload(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
-		requestBody  request.DirItemsReq
+		requestBody  request.DirectoryItemsRequest
 		mockError    error
 		expectedCode int
 		expectedBody gin.H
 	}{
 		{
 			name: "valid request",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/file",
 			},
 			expectedCode: http.StatusOK,
@@ -321,7 +321,7 @@ func TestGetFileStagedForDownload(t *testing.T) {
 		},
 		{
 			name: "empty file path",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "",
 			},
 			expectedCode: http.StatusBadRequest,
@@ -333,7 +333,7 @@ func TestGetFileStagedForDownload(t *testing.T) {
 		},
 		{
 			name: "staging error",
-			requestBody: request.DirItemsReq{
+			requestBody: request.DirectoryItemsRequest{
 				Path: "/valid/file",
 			},
 			mockError:    errors.New("staging error"),
@@ -366,7 +366,7 @@ func TestGetFileStagedForDownload(t *testing.T) {
 			c.Request.Header.Set("Content-Type", "application/json")
 
 			// Call the function
-			_GetFileStagedForDownload(c, MockStageFile, "host", 123)
+			fetchFileStagedForDownload(c, MockStageFile, "host", 123)
 
 			// Convert actual response to expected type
 			var actualBody gin.H
