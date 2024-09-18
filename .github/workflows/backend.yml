@@ -1,4 +1,4 @@
-name: Backend
+name: CI
 on:
   push:
     branches: ["master"]
@@ -38,8 +38,8 @@ jobs:
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
-           name: coverage-report
-           path: "./app/coverage.out"
+          name: coverage-report
+          path: "./app/coverage.out"
       - name: Generate Coverage Badge
         uses: tj-actions/coverage-badge-go@v2
         with:
@@ -62,3 +62,19 @@ jobs:
         with:
           github_token: ${{ github.token }}
           branch: ${{ github.head_ref }}
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "./app/go.mod"
+          cache-dependency-path: "./app/go.sum"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: "./app/"
