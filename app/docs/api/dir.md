@@ -12,9 +12,10 @@ POST /dir
 
 **Parameters:**
 
-| Attribute | Type   | Required | Description                             |
-| --------- | ------ | -------- | --------------------------------------- |
-| `path`    | string | Yes      | The full path to the directory to list. |
+| Attribute  | Type   | Required | Description                             |
+| ---------- | ------ | -------- | --------------------------------------- |
+| `path`     | string | Yes      | The full path to the directory to list. |
+| `pageSize` | uint32 | Yes      | The number of items per page.           |
 
 **Response:**
 
@@ -39,7 +40,7 @@ If the request is successful, the API will return a response with the following 
 **Example Request:**
 
 ```shell
-curl -X POST -d '{"path":"/tmp/"}' http://localhost:22000/dir
+curl -X POST -d '{"path":"/tmp/" , "pageSize": 10}' http://localhost:22000/dir
 ```
 
 **Example Response:**
@@ -71,6 +72,14 @@ This API endpoint allows you to retrieve a paginated list of files and folders f
 ```plaintext
 POST /dir/page
 ```
+
+**Parameters:**
+
+| Attribute  | Type   | Required | Description                             |
+| ---------- | ------ | -------- | --------------------------------------- |
+| `path`     | string | Yes      | The full path to the directory to list. |
+| `page`     | uint32 | Yes      | The page number to retrieve.            |
+| `pageSize` | uint32 | Yes      | The number of items per page.           |
 
 **Response:**
 
@@ -120,5 +129,23 @@ curl -X POST -d '{"path":"/tmp/", "page": 1, "pageSize": 10}' http://localhost:2
     ],
     "pageSize": 3,
     "totalPages": 5
+}
+```
+
+## Error Response
+
+If the request fails, the API will return an error response with the following attributes:
+
+| Attribute | Type    | Description                            |
+| --------- | ------- | -------------------------------------- |
+| `code`    | integer | The status code of the error response. |
+| `message` | string  | A description of the error.            |
+
+**Example Error Response:**
+
+```json
+{
+    "code": 400,
+    "message": "Invalid directory path"
 }
 ```

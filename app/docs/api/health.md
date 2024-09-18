@@ -38,3 +38,20 @@ curl --url "http://localhost:22000/health"
 }
 ```
 
+## Error Response
+
+If the request fails, the API will return an error response with the following attributes:
+
+| Attribute | Type    | Description                            |
+| --------- | ------- | -------------------------------------- |
+| `code`    | integer | The status code of the error response. |
+| `message` | string  | A description of the error.            |
+
+**Example Error Response:**
+
+```json
+{
+    "code": 500,
+    "message": "Internal Server Error"
+}
+```
