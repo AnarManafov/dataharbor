@@ -31,6 +31,8 @@ jobs:
         with:
           go-version-file: "./app/go.mod"
           cache-dependency-path: "./app/go.sum"
+      - name: Vet
+        run: go vet ./...
       - name: Test and Coverage
         run: |
           go test -v ./... -covermode=count -coverprofile=coverage.out
