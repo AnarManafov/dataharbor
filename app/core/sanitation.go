@@ -1,7 +1,6 @@
 package core
 
 import (
-	"log"
 	"path"
 	"strings"
 
@@ -32,7 +31,8 @@ func NewSanitationScheduler() (*time.Ticker, chan bool) {
 func CleanStagingDir() {
 	files, err := os.ReadDir(common.XrdConfig.StagingPath)
 	if err != nil {
-		log.Fatal(err)
+		common.Logger.Error(err)
+		return
 	}
 
 	for _, file := range files {
