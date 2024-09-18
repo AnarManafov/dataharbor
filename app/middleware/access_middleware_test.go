@@ -93,3 +93,26 @@ test content
 		assert.Equal(t, "OK", w.Body.String())
 	})
 }
+
+func TestCustomResponseWriter_WriteString(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.Use(AccessLogger())
+	router.POST("/test", func(ctx *gin.Context) {
+		blw := &CustomResponseWriter{body: bytes.NewBufferString(""), ResponseWriter: ctx.Writer}
+		blw.WriteString("test response")
+		ctx.Writer = blw
+		ctx.String(http.StatusOK, "OK")
+	})
+
+	req, _ := http.NewRequest(http.MethodPost, "/test", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Tid", "test-tid")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "test response")
+}
