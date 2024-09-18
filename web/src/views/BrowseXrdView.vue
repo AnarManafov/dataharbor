@@ -437,7 +437,7 @@ const listDir = async () => {
 const handlePageChange = async (page: number) => {
     console.log('handlePageChange: %d', page);
     try {
-        const resp = await getPagedItemsInDir(currentDirectory.value, page);
+        const resp = await getPagedItemsInDir(currentDirectory.value, page, PAGE_SIZE);
         if (resp.data.items != null) {
             tableData.value = resp.data.items;
         } else {

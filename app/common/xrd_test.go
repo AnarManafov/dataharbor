@@ -21,7 +21,7 @@ func TestParseXrdConfig(t *testing.T) {
 	}{
 		{"initial_ir", "/tmp/", XrdConfig.InitialDir},
 		{"host", "localhost", XrdConfig.Host},
-		{"process_timeout", 30, int(XrdConfig.ProcessTimeout)},
+		{"process_timeout", 60, int(XrdConfig.ProcessTimeout)},
 	}
 
 	for _, tt := range tests {

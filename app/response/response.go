@@ -6,32 +6,50 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Response(ctx *gin.Context, httpStatus int, code int, data interface{}, msg map[string]string) {
-	response := gin.H{"code": code, "data": data}
-	if errorMsg, exists := msg["error"]; exists {
-		response["error"] = errorMsg
-	} else if msgMsg, exists := msg["message"]; exists {
-		response["msg"] = msgMsg
+// Response structure
+type Response struct {
+	// Internal error code. For now we mostly reuse HTTP status codes
+	Code int `json:"code"`
+	// Response data
+	Data interface{} `json:"data,omitempty"`
+	// Response message
+	Message string `json:"message,omitempty"`
+	// Error message
+	Error string `json:"error,omitempty"`
+}
+
+// Send a JSON response
+func sendResponse(ctx *gin.Context, httpStatus int, code int, data interface{}, message string, error string) {
+	response := Response{
+		Code:    code,
+		Data:    data,
+		Message: message,
+		Error:   error,
 	}
 	ctx.JSON(httpStatus, response)
 }
 
+// Success response
 func Success(ctx *gin.Context, data interface{}) {
-	Response(ctx, http.StatusOK, http.StatusOK, data, map[string]string{"message": "success"})
+	sendResponse(ctx, http.StatusOK, http.StatusOK, data, "success", "")
 }
 
+// Parameter validation failure response
 func ParamValidateFail(ctx *gin.Context, msg string) {
-	Response(ctx, http.StatusOK, http.StatusUnprocessableEntity, nil, map[string]string{"error": msg})
+	sendResponse(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, nil, "", msg)
 }
 
+// General failure response
 func Fail(ctx *gin.Context, msg string, errcode int) {
-	Response(ctx, http.StatusOK, errcode, nil, map[string]string{"error": msg})
+	sendResponse(ctx, http.StatusBadRequest, errcode, nil, "", msg)
 }
 
+// Validation failure response with data
 func ValidateFail(ctx *gin.Context, data map[string][]string) {
-	Response(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, data, map[string]string{"error": http.StatusText(http.StatusUnprocessableEntity)})
+	sendResponse(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, data, "", http.StatusText(http.StatusUnprocessableEntity))
 }
 
+// Failure response with custom error
 func FailWithErr(ctx *gin.Context, err TransferProtocolError) {
-	Response(ctx, http.StatusOK, err.code, nil, map[string]string{"error": err.message})
+	sendResponse(ctx, http.StatusBadRequest, err.code, nil, "", err.message)
 }

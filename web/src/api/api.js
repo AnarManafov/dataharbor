@@ -11,8 +11,8 @@ export const getItemsInDir = (path, pageSize) => {
 };
 
 // Get paged items in dir
-export const getPagedItemsInDir = (path, page) => {
-    return request.post("/dir/page", { path, page });
+export const getPagedItemsInDir = (path, page, pageSize) => {
+    return request.post("/dir/page", { path, page, pageSize });
 };
 
 // Get the xrootd server's host name

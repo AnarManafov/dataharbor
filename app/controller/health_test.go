@@ -22,9 +22,9 @@ func TestHealth(t *testing.T) {
 			name:         "health check",
 			expectedCode: http.StatusOK,
 			expectedBody: gin.H{
-				"code": 200,
-				"data": "ok",
-				"msg":  "success",
+				"code":    200,
+				"data":    "ok",
+				"message": "success",
 			},
 		},
 	}
