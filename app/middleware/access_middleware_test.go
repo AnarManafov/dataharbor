@@ -101,7 +101,11 @@ func TestCustomResponseWriter_WriteString(t *testing.T) {
 	router.Use(AccessLogger())
 	router.POST("/test", func(ctx *gin.Context) {
 		blw := &CustomResponseWriter{body: bytes.NewBufferString(""), ResponseWriter: ctx.Writer}
-		blw.WriteString("test response")
+		if _, err := blw.WriteString("test response"); err != nil {
+			ctx.Writer = blw
+			ctx.String(http.StatusInternalServerError, err.Error())
+			return
+		}
 		ctx.Writer = blw
 		ctx.String(http.StatusOK, "OK")
 	})
