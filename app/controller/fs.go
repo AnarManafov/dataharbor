@@ -18,7 +18,7 @@ type StageFileFunc func(host string, port uint, filePath string) (string, error)
 
 // TODO: Move the default value to the configuration
 var pageSize uint32 = 500 // Default page size (a number of items per page)
-const minPageSize = 100
+const minPageSize = 5
 
 func FetchInitialDir(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.InitialDir)
@@ -44,24 +44,29 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 		return
 	}
 
+	// Validate the page number, only if pagination is enabled
 	page := req.Page
 	if paginate && page < 1 {
 		response.FailWithErr(ctx, *response.SystemErr(errors.New("invalid page number")))
 		return
 	}
 
+	// Validate the directory path
 	dirPath := req.Path
 	if len(dirPath) == 0 {
 		response.FailWithErr(ctx, *response.SystemErr(errors.New("empty directory path to list")))
 		return
 	}
 
+	// Fetch the list of files from the requested directory
 	files, err := readDir(ctx, host, port, dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
+	common.Debugf(ctx, "Fetched %d items from the directory: %s\n", len(files), dirPath)
 
+	// Calculate the total number of pages and the number of items to be returned
 	pageSizeTmp := req.PageSize
 	if pageSizeTmp < minPageSize {
 		pageSize = minPageSize
@@ -72,7 +77,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	totalItems := uint32(len(files))
 	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
 
-	common.Debugf(ctx, "Total Items: %d; Total Pages: %d\n", totalItems, totalPages)
+	common.Debugf(ctx, "Requisted Page: %d; Page size: %d; Total Items: %d; Total Pages: %d\n", page, pageSize, totalItems, totalPages)
 
 	if paginate && page > uint32(totalPages) {
 		response.FailWithErr(ctx, *response.SystemErr(errors.New("page number out of range")))
@@ -80,8 +85,13 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	}
 
 	// Get the first page of items
-	startIndex := 0
-	endIndex := min(pageSize, totalItems)
+	var startIndex uint32 = 0
+	// Calculate the end index of the items to be returned
+	if paginate {
+		startIndex = (page - 1) * pageSize
+	}
+	//endIndex := min(pageSize, totalItems)
+	endIndex := min(startIndex+pageSize, uint32(totalItems))
 
 	var items []response.DirectoryItemResponse
 	var totalFileCount, totalFolderCount, cumulativeFileSize uint64

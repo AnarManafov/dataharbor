@@ -45,7 +45,7 @@ func TestFetchInitialDir(t *testing.T) {
 	FetchInitialDir(c)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"code":200,"data":"/tmp/","msg":"success"}`, w.Body.String())
+	assert.JSONEq(t, `{"code":200,"data":"/tmp/","message":"success"}`, w.Body.String())
 }
 
 func TestFetchHostName(t *testing.T) {
@@ -57,7 +57,7 @@ func TestFetchHostName(t *testing.T) {
 	FetchHostName(c)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"code":200,"data":"localhost","msg":"success"}`, w.Body.String())
+	assert.JSONEq(t, `{"code":200,"data":"localhost","message":"success"}`, w.Body.String())
 }
 
 func TestFetchDirItems(t *testing.T) {
@@ -104,7 +104,6 @@ func TestFetchDirItems(t *testing.T) {
 			expectedCode: http.StatusBadRequest,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "empty directory path to list",
 			},
 		},
@@ -117,7 +116,6 @@ func TestFetchDirItems(t *testing.T) {
 			expectedCode: http.StatusInternalServerError,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "read error",
 			},
 		},
@@ -178,19 +176,34 @@ func TestFetchDirItemsByPage(t *testing.T) {
 		{
 			name: "valid request",
 			requestBody: request.DirectoryItemsRequest{
-				Path: "/valid/path",
-				Page: 1,
+				Path:     "/valid/path",
+				Page:     2,
+				PageSize: 6,
 			},
 			mockFiles: []xrdDirEntry{
 				{name: "file1", dt: time.Now(), size: 123, isDir: false},
 				{name: "dir1", dt: time.Now(), size: 0, isDir: true},
+				{name: "file2", dt: time.Now(), size: 123, isDir: false},
+				{name: "dir2", dt: time.Now(), size: 0, isDir: true},
+				{name: "file3", dt: time.Now(), size: 123, isDir: false},
+				{name: "dir3", dt: time.Now(), size: 0, isDir: true},
+				{name: "file4", dt: time.Now(), size: 123, isDir: false},
+				{name: "dir4", dt: time.Now(), size: 0, isDir: true},
+				{name: "file5", dt: time.Now(), size: 123, isDir: false},
+				{name: "dir5", dt: time.Now(), size: 0, isDir: true},
+				{name: "file6", dt: time.Now(), size: 123, isDir: false},
+				{name: "dir6", dt: time.Now(), size: 0, isDir: true},
 			},
 			expectedCode: http.StatusOK,
 			expectedBody: gin.H{
 				"code": 200,
 				"items": []response.DirectoryItemResponse{
-					{Name: "file1", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
-					{Name: "dir1", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
+					{Name: "file4", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
+					{Name: "dir4", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
+					{Name: "file5", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
+					{Name: "dir5", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
+					{Name: "file6", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
+					{Name: "dir6", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
 				},
 			},
 		},
@@ -203,7 +216,6 @@ func TestFetchDirItemsByPage(t *testing.T) {
 			expectedCode: http.StatusBadRequest,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "invalid page number",
 			},
 		},
@@ -216,7 +228,6 @@ func TestFetchDirItemsByPage(t *testing.T) {
 			expectedCode: http.StatusBadRequest,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "empty directory path to list",
 			},
 		},
@@ -230,7 +241,6 @@ func TestFetchDirItemsByPage(t *testing.T) {
 			expectedCode: http.StatusInternalServerError,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "read error",
 			},
 		},
@@ -246,7 +256,6 @@ func TestFetchDirItemsByPage(t *testing.T) {
 			expectedCode: http.StatusBadRequest,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "page number out of range",
 			},
 		},
@@ -316,7 +325,7 @@ func TestFetchFileStagedForDownload(t *testing.T) {
 				"data": map[string]interface{}{
 					"path": "/staged/file",
 				},
-				"msg": "success",
+				"message": "success",
 			},
 		},
 		{
@@ -327,7 +336,6 @@ func TestFetchFileStagedForDownload(t *testing.T) {
 			expectedCode: http.StatusBadRequest,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "empty file path for staging",
 			},
 		},
@@ -340,7 +348,6 @@ func TestFetchFileStagedForDownload(t *testing.T) {
 			expectedCode: http.StatusInternalServerError,
 			expectedBody: gin.H{
 				"code":  400,
-				"data":  nil,
 				"error": "staging error",
 			},
 		},

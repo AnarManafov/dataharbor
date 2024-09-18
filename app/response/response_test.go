@@ -9,19 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestResponse(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(w)
-
-	msg := map[string]string{"message": "test message"}
-	Response(ctx, http.StatusOK, 200, "test data", msg)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	expectedBody := `{"code":200,"data":"test data","msg":"test message"}`
-	assert.JSONEq(t, expectedBody, w.Body.String())
-}
-
 func TestSuccess(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -30,7 +17,7 @@ func TestSuccess(t *testing.T) {
 	Success(ctx, "test data")
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	expectedBody := `{"code":200,"data":"test data","msg":"success"}`
+	expectedBody := `{"code":200,"data":"test data","message":"success"}`
 	assert.JSONEq(t, expectedBody, w.Body.String())
 }
 
@@ -41,8 +28,8 @@ func TestParamValidateFail(t *testing.T) {
 
 	ParamValidateFail(ctx, "validation failed")
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	expectedBody := `{"code":422,"data":null,"error":"validation failed"}`
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
+	expectedBody := `{"code":422,"error":"validation failed"}`
 	assert.JSONEq(t, expectedBody, w.Body.String())
 }
 
@@ -53,8 +40,8 @@ func TestFail(t *testing.T) {
 
 	Fail(ctx, "failure message", 500)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	expectedBody := `{"code":500,"data":null,"error":"failure message"}`
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	expectedBody := `{"code":500,"error":"failure message"}`
 	assert.JSONEq(t, expectedBody, w.Body.String())
 }
 
@@ -79,7 +66,7 @@ func TestFailWithErr(t *testing.T) {
 	err := TransferProtocolError{code: 500, message: "internal error"}
 	FailWithErr(ctx, err)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	expectedBody := `{"code":500,"data":null,"error":"internal error"}`
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	expectedBody := `{"code":500,"error":"internal error"}`
 	assert.JSONEq(t, expectedBody, w.Body.String())
 }
