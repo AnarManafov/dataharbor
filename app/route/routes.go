@@ -16,9 +16,9 @@ func RegisterRoutes(r *gin.Engine) {
 
 	// Define routes
 	r.GET("/health", controller.Health)
-	r.GET("/initial_dir", controller.GetInitialDir)
-	r.GET("/host_name", controller.GetHostName)
-	r.POST("/dir", controller.GetDirItems)
-	r.POST("/dir/page", controller.GetDirItemsByPage)
-	r.POST("/stage_file", controller.GetFileStagedForDownload)
+	r.GET("/initial_dir", controller.FetchInitialDir)
+	r.GET("/host_name", controller.FetchHostName)
+	r.POST("/dir", controller.FetchDirItems)
+	r.POST("/dir/page", controller.FetchDirItemsByPage)
+	r.POST("/stage_file", controller.FetchFileStagedForDownload)
 }

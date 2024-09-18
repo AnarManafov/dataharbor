@@ -21,8 +21,8 @@ func TestIsOlderThanXHours(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := IsOlderThanXHours(tt.args._t, tt.args._x); got != tt.want {
-				t.Errorf("IsOlderThanXHours(%v, %v) = %v, want %v", tt.args._t, tt.args._x, got, tt.want)
+			if got := isOlderThanXHours(tt.args._t, tt.args._x); got != tt.want {
+				t.Errorf("isOlderThanXHours(%v, %v) = %v, want %v", tt.args._t, tt.args._x, got, tt.want)
 			}
 		})
 	}

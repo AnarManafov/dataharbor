@@ -78,7 +78,7 @@ func RunXrdFs(arg ...string) (string, error) {
 	return string(output), nil
 }
 
-func RunXrdCp(_xrd_addr string, _src string, _dest string) error {
+func RunXrdCp(xrdAddr string, src string, dest string) error {
 	timeout := common.XrdConfig.ProcessTimeout
 
 	ctx := context.Background()
@@ -88,9 +88,9 @@ func RunXrdCp(_xrd_addr string, _src string, _dest string) error {
 		defer cancel()
 	}
 
-	_src = "xroot://" + _xrd_addr + "/" + _src
-	common.Logger.Info("XRD: Staging " + _src + " to " + _dest)
-	cmd := exec.CommandContext(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdcp"), "--force", _src, _dest)
+	src = "xroot://" + xrdAddr + "/" + src
+	common.Logger.Info("XRD: Staging " + src + " to " + dest)
+	cmd := exec.CommandContext(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdcp"), "--force", src, dest)
 
 	err := cmd.Run()
 	if err != nil {
@@ -100,8 +100,8 @@ func RunXrdCp(_xrd_addr string, _src string, _dest string) error {
 }
 
 func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error) {
-	srd_addr := host + ":" + strconv.FormatUint(uint64(port), 10)
-	cacheKey := srd_addr + ":" + dir
+	srdAddr := host + ":" + strconv.FormatUint(uint64(port), 10)
+	cacheKey := srdAddr + ":" + dir
 
 	// Check cache
 	if data, found := getCachedData(cacheKey); found {
@@ -109,7 +109,7 @@ func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntr
 	}
 
 	// Run command and parse output
-	output, err := RunXrdFs(srd_addr, "ls", "-l", dir)
+	output, err := RunXrdFs(srdAddr, "ls", "-l", dir)
 	if err != nil {
 		return nil, err
 	}
@@ -151,16 +151,16 @@ func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntr
 	return retVal, nil
 }
 
-func StageFile(_host string, _port uint, _file string) (string, error) {
-	srd_addr := _host + ":" + strconv.FormatUint(uint64(_port), 10)
+func StageFile(host string, port uint, file string) (string, error) {
+	srdAddr := host + ":" + strconv.FormatUint(uint64(port), 10)
 	// Create a random subdirectory to allow concurrent download files with the same name.
 	tmpDir, err := os.MkdirTemp(common.XrdConfig.StagingPath, common.XrdConfig.StagingTmpDirPrefix)
 	if err != nil {
 		return "", err
 	}
-	stagedFilePath := path.Join(tmpDir, path.Base(_file))
+	stagedFilePath := path.Join(tmpDir, path.Base(file))
 	// Request XRD to copy the file from XRD to a local location
-	err = RunXrdCp(srd_addr, _file, stagedFilePath)
+	err = RunXrdCp(srdAddr, file, stagedFilePath)
 	if err != nil {
 		return "", err
 	}

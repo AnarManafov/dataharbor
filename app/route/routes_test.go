@@ -22,11 +22,11 @@ func TestRegisterRoutes(t *testing.T) {
 		handler  gin.HandlerFunc
 	}{
 		{"GET", "/health", controller.Health},
-		{"GET", "/initial_dir", controller.GetInitialDir},
-		{"GET", "/host_name", controller.GetHostName},
-		{"POST", "/dir", controller.GetDirItems},
-		{"POST", "/dir/page", controller.GetDirItemsByPage},
-		{"POST", "/stage_file", controller.GetFileStagedForDownload},
+		{"GET", "/initial_dir", controller.FetchInitialDir},
+		{"GET", "/host_name", controller.FetchHostName},
+		{"POST", "/dir", controller.FetchDirItems},
+		{"POST", "/dir/page", controller.FetchDirItemsByPage},
+		{"POST", "/stage_file", controller.FetchFileStagedForDownload},
 	}
 
 	for _, tt := range tests {

@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-// IsOlderThanXHours checks if the given time is older than X hours.
+// isOlderThanXHours checks if the given time is older than X hours.
 // It returns true if the time is older than X hours, otherwise false.
-func IsOlderThanXHours(_t time.Time, _x uint) bool {
-	return time.Since(_t) > (time.Duration(_x) * time.Hour)
+func isOlderThanXHours(t time.Time, x uint) bool {
+	return time.Since(t) > (time.Duration(x) * time.Hour)
 }
 
 // NewSanitationScheduler creates a new sanitation scheduler.
@@ -38,8 +38,8 @@ func CleanStagingDir() {
 	for _, file := range files {
 		if file.IsDir() {
 			common.Logger.Info("Check staging dir: " + file.Name())
-			file_inf, err := file.Info()
-			if err == nil && strings.HasPrefix(file.Name(), common.XrdConfig.StagingTmpDirPrefix) && IsOlderThanXHours(file_inf.ModTime(), 2) {
+			fileInfo, err := file.Info()
+			if err == nil && strings.HasPrefix(file.Name(), common.XrdConfig.StagingTmpDirPrefix) && isOlderThanXHours(fileInfo.ModTime(), 2) {
 				dirToRemove := path.Join(common.XrdConfig.StagingPath, file.Name())
 				common.Logger.Info("Need to remove staging dir: " + dirToRemove)
 				if err := os.RemoveAll(dirToRemove); err != nil {
