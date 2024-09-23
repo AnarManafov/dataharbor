@@ -4,9 +4,9 @@ export default {
         // Define your custom colors
         const appColors = {
             // offline - red
-            offline: '#C23A3A',
+            offline: 'var(--el-color-danger)',
             // online - green 
-            online: '#67C23A',
+            online: 'var(--el-color-success)',
         };
 
         // Make the colors available globally

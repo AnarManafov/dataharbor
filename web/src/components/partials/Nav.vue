@@ -91,13 +91,13 @@ nav {
     // margin-bottom: 10px;
 
     a {
-        color: #2c3e50;
+        color: var(--el-color-text-primary);
         text-decoration: none;
 
         &.router-link-exact-active {
             background-color: transparent;
             font-weight: bold;
-            color: #d88d00;
+            color: var(--el-color-warning);
         }
     }
 }
