@@ -10,6 +10,10 @@ The frontend is built using [Vite](https://vitejs.dev/) and [Vue 3](https://vuej
     ```shell
     brew install npm
     ```
+  **Windows:**
+   ```shell
+   winget install OpenJS.NodeJS.LTS
+   ```
 
 ## Build/Run
 
