@@ -37,6 +37,12 @@ The server port is configurable, see [the app's configuration](./config/applicat
   brew install go
   ```
 
+  **Windows:**
+
+  ```shell
+  winget install GoLang.Go
+  ```
+  
 - [an xrootd client](../docs/xrootd.md)
 
 ### Build the project
