@@ -31,15 +31,12 @@ The server port is configurable, see [the app's configuration](./config/applicat
 ## Requirements
 
 - [Go](https://go.dev/)  
-  **OSX:**
 
   ```shell
+  # OS X
   brew install go
-  ```
-
-  **Windows:**
-
-  ```shell
+  
+  # Windows
   winget install GoLang.Go
   ```
   
