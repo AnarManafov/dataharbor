@@ -20,7 +20,7 @@ type StageFileFunc func(host string, port uint, filePath string) (string, error)
 const (
 	// Default page size (a number of items per page)
 	defaultPageSize uint32 = 500
-	minPageSize            = 5
+	minPageSize     uint32 = 5
 )
 
 func FetchInitialDir(ctx *gin.Context) {
