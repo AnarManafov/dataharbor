@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/gin-gonic/gin"
 
 	"bufio"
 	"context"
@@ -90,7 +89,7 @@ func RunXrdCp(xrdAddr string, src string, dest string) error {
 	return err
 }
 
-func ReadDir(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error) {
+func ReadDir(xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error) {
 	srdAddr := host + ":" + strconv.FormatUint(uint64(port), 10)
 	cacheKey := srdAddr + ":" + dir
 
