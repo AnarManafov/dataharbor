@@ -13,7 +13,7 @@ import (
 
 // ReadDirFunc is a function type that reads the directory and returns the list of files.
 // This function definition is used for real and mock implementations.
-type ReadDirFunc func(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error)
+type ReadDirFunc func(xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error)
 type StageFileFunc func(host string, port uint, filePath string) (string, error)
 
 // TODO: Move the default value to the configuration
@@ -61,7 +61,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	}
 
 	// Fetch the list of files from the requested directory
-	files, err := readDir(ctx, RunXrdFs, host, port, dirPath)
+	files, err := readDir(RunXrdFs, host, port, dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return

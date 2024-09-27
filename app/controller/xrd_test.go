@@ -125,7 +125,7 @@ func TestReadDir(t *testing.T) {
 		{name: "Google Drive", dt: time.Date(2023, 5, 11, 8, 24, 48, 0, time.UTC), size: 224, isDir: true},
 	}
 
-	data, err := ReadDir(nil, mockXrdFS, "localhost", 1094, "/")
+	data, err := ReadDir(mockXrdFS, "localhost", 1094, "/")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedData, data)
 }

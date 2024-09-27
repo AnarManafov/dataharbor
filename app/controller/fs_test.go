@@ -121,12 +121,13 @@ func TestFetchDirItems(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mock ReadDir function
-			MockReadDir := func(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, path string) ([]xrdDirEntry, error) {
+			MockReadDir := func(xrdFS RunXrdFsFunc, host string, port uint, path string) ([]xrdDirEntry, error) {
 				return tt.mockFiles, tt.mockError
 			}
 
 			// Create a new gin context
 			c, w := setupTestContext()
+
 			// Create request body
 			body, _ := json.Marshal(tt.requestBody)
 			c.Request, _ = http.NewRequest(http.MethodPost, "/dir-items", bytes.NewBuffer(body))
@@ -259,7 +260,7 @@ func TestFetchDirItemsByPage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mock ReadDir function
-			MockReadDir := func(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, path string) ([]xrdDirEntry, error) {
+			MockReadDir := func(xrdFS RunXrdFsFunc, host string, port uint, path string) ([]xrdDirEntry, error) {
 				return tt.mockFiles, tt.mockError
 			}
 
