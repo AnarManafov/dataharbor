@@ -107,3 +107,25 @@ dr-x------ user staff   224 2023-05-11 08:24:48 /Users/user/Google Drive`
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOutput, output)
 }
+
+// Mock function for xrdFS
+func mockXrdFS(execCmd execCommandFunc, arg ...string) (string, error) {
+	output := `drwxr-xr-x user staff    96 2023-05-09 09:26:08 /Users/user/Development
+drwx------ user staff   320 2023-05-09 06:47:54 /Users/user/Documents
+drwx------ user staff   608 2023-10-06 07:55:55 /Users/user/Downloads
+dr-x------ user staff   224 2023-05-11 08:24:48 /Users/user/Google Drive`
+	return output, nil
+}
+
+func TestReadDir(t *testing.T) {
+	expectedData := []xrdDirEntry{
+		{name: "Development", dt: time.Date(2023, 5, 9, 9, 26, 8, 0, time.UTC), size: 96, isDir: true},
+		{name: "Documents", dt: time.Date(2023, 5, 9, 6, 47, 54, 0, time.UTC), size: 320, isDir: true},
+		{name: "Downloads", dt: time.Date(2023, 10, 6, 7, 55, 55, 0, time.UTC), size: 608, isDir: true},
+		{name: "Google Drive", dt: time.Date(2023, 5, 11, 8, 24, 48, 0, time.UTC), size: 224, isDir: true},
+	}
+
+	data, err := ReadDir(nil, mockXrdFS, "localhost", 1094, "/")
+	assert.NoError(t, err)
+	assert.Equal(t, expectedData, data)
+}

@@ -13,12 +13,15 @@ import (
 
 // ReadDirFunc is a function type that reads the directory and returns the list of files.
 // This function definition is used for real and mock implementations.
-type ReadDirFunc func(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error)
+type ReadDirFunc func(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error)
 type StageFileFunc func(host string, port uint, filePath string) (string, error)
 
 // TODO: Move the default value to the configuration
-var pageSize uint32 = 500 // Default page size (a number of items per page)
-const minPageSize = 5
+const (
+	// Default page size (a number of items per page)
+	defaultPageSize uint32 = 500
+	minPageSize            = 5
+)
 
 func FetchInitialDir(ctx *gin.Context) {
 	response.Success(ctx, common.XrdConfig.InitialDir)
@@ -45,8 +48,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	}
 
 	// Validate the page number, only if pagination is enabled
-	page := req.Page
-	if paginate && page < 1 {
+	if paginate && req.Page < 1 {
 		response.FailWithErr(ctx, *response.SystemErr(errors.New("invalid page number")))
 		return
 	}
@@ -59,7 +61,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	}
 
 	// Fetch the list of files from the requested directory
-	files, err := readDir(ctx, host, port, dirPath)
+	files, err := readDir(ctx, RunXrdFs, host, port, dirPath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
@@ -67,31 +69,29 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	common.Debugf(ctx, "Fetched %d items from the directory: %s\n", len(files), dirPath)
 
 	// Calculate the total number of pages and the number of items to be returned
-	pageSizeTmp := req.PageSize
-	if pageSizeTmp < minPageSize {
+	pageSize := req.PageSize
+	if pageSize < minPageSize {
 		pageSize = minPageSize
-	} else {
-		pageSize = pageSizeTmp
 	}
 
 	totalItems := uint32(len(files))
 	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
 
-	common.Debugf(ctx, "Requisted Page: %d; Page size: %d; Total Items: %d; Total Pages: %d\n", page, pageSize, totalItems, totalPages)
+	common.Debugf(ctx, "Requested Page: %d; Page size: %d; Total Items: %d; Total Pages: %d\n", req.Page, pageSize, totalItems, totalPages)
 
-	if paginate && page > uint32(totalPages) {
+	if paginate && req.Page > uint32(totalPages) {
 		response.FailWithErr(ctx, *response.SystemErr(errors.New("page number out of range")))
 		return
 	}
 
 	// Get the first page of items
-	var startIndex uint32 = 0
+	startIndex := uint32(0)
 	// Calculate the end index of the items to be returned
 	if paginate {
-		startIndex = (page - 1) * pageSize
+		startIndex = (req.Page - 1) * pageSize
 	}
 	//endIndex := min(pageSize, totalItems)
-	endIndex := min(startIndex+pageSize, uint32(totalItems))
+	endIndex := min(startIndex+pageSize, totalItems)
 
 	var items []response.DirectoryItemResponse
 	var totalFileCount, totalFolderCount, cumulativeFileSize uint64
@@ -110,7 +110,6 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 			totalFileCount++
 			cumulativeFileSize += d.size
 		}
-
 		items = append(items, item)
 	}
 
@@ -173,4 +172,11 @@ func fetchFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host 
 	respondData := response.StagedFileResponse{Path: stagedFilePath}
 
 	response.Success(ctx, respondData)
+}
+
+func min(a, b uint32) uint32 {
+	if a < b {
+		return a
+	}
+	return b
 }

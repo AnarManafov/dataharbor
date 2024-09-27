@@ -15,6 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func setupTestContext() (*gin.Context, *httptest.ResponseRecorder) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	return c, w
+}
+
 // Helper function to convert map to response.DirItemResp
 func convertToDirItemResp(item map[string]interface{}) response.DirectoryItemResponse {
 	return response.DirectoryItemResponse{
@@ -37,25 +44,15 @@ func convertFieldsToInt(data gin.H, fields []string) {
 }
 
 func TestFetchInitialDir(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
+	c, w := setupTestContext()
 	FetchInitialDir(c)
-
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"code":200,"data":"/tmp/","message":"success"}`, w.Body.String())
 }
 
 func TestFetchHostName(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-
+	c, w := setupTestContext()
 	FetchHostName(c)
-
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"code":200,"data":"localhost","message":"success"}`, w.Body.String())
 }
@@ -124,14 +121,12 @@ func TestFetchDirItems(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mock ReadDir function
-			MockReadDir := func(ctx *gin.Context, host string, port uint, path string) ([]xrdDirEntry, error) {
+			MockReadDir := func(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, path string) ([]xrdDirEntry, error) {
 				return tt.mockFiles, tt.mockError
 			}
 
 			// Create a new gin context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
+			c, w := setupTestContext()
 			// Create request body
 			body, _ := json.Marshal(tt.requestBody)
 			c.Request, _ = http.NewRequest(http.MethodPost, "/dir-items", bytes.NewBuffer(body))
@@ -264,14 +259,12 @@ func TestFetchDirItemsByPage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Mock ReadDir function
-			MockReadDir := func(ctx *gin.Context, host string, port uint, path string) ([]xrdDirEntry, error) {
+			MockReadDir := func(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, path string) ([]xrdDirEntry, error) {
 				return tt.mockFiles, tt.mockError
 			}
 
 			// Create a new gin context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
+			c, w := setupTestContext()
 			// Create request body
 			body, _ := json.Marshal(tt.requestBody)
 			c.Request, _ = http.NewRequest(http.MethodPost, "/dir-items-by-page", bytes.NewBuffer(body))
@@ -364,9 +357,7 @@ func TestFetchFileStagedForDownload(t *testing.T) {
 			}
 
 			// Create a new gin context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-
+			c, w := setupTestContext()
 			// Create request body
 			body, _ := json.Marshal(tt.requestBody)
 			c.Request, _ = http.NewRequest(http.MethodPost, "/file-staged-for-download", bytes.NewBuffer(body))
