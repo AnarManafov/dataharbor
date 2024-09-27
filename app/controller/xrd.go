@@ -37,6 +37,9 @@ var (
 	cacheTTL = 60 * time.Minute // Cache Time-To-Live
 )
 
+// Define a type for the command execution function
+type execCommandFunc func(ctx context.Context, name string, arg ...string) *exec.Cmd
+
 func getCachedData(key string) ([]xrdDirEntry, bool) {
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
@@ -58,7 +61,7 @@ func setCachedData(key string, data []xrdDirEntry) {
 	}
 }
 
-func RunXrdFs(arg ...string) (string, error) {
+func RunXrdFs(execCmd execCommandFunc, arg ...string) (string, error) {
 	common.Logger.Info("RunXrdFs: ", arg)
 	timeout := common.XrdConfig.ProcessTimeout
 
@@ -69,7 +72,7 @@ func RunXrdFs(arg ...string) (string, error) {
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdfs"), arg...)
+	cmd := execCmd(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdfs"), arg...)
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -109,7 +112,7 @@ func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntr
 	}
 
 	// Run command and parse output
-	output, err := RunXrdFs(srdAddr, "ls", "-l", dir)
+	output, err := RunXrdFs(exec.CommandContext, srdAddr, "ls", "-l", dir)
 	if err != nil {
 		return nil, err
 	}
