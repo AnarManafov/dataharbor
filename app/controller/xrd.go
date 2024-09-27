@@ -40,6 +40,8 @@ var (
 // Define a type for the command execution function
 type execCommandFunc func(ctx context.Context, name string, arg ...string) *exec.Cmd
 
+type RunXrdFsFunc func(execCmd execCommandFunc, arg ...string) (string, error)
+
 func getCachedData(key string) ([]xrdDirEntry, bool) {
 	cacheMutex.Lock()
 	defer cacheMutex.Unlock()
@@ -61,10 +63,7 @@ func setCachedData(key string, data []xrdDirEntry) {
 	}
 }
 
-func RunXrdFs(execCmd execCommandFunc, arg ...string) (string, error) {
-	common.Logger.Info("RunXrdFs: ", arg)
-	timeout := common.XrdConfig.ProcessTimeout
-
+func runCommand(execCmd execCommandFunc, timeout uint, name string, arg ...string) (string, error) {
 	ctx := context.Background()
 	if timeout > 0 {
 		var cancel context.CancelFunc
@@ -72,8 +71,7 @@ func RunXrdFs(execCmd execCommandFunc, arg ...string) (string, error) {
 		defer cancel()
 	}
 
-	cmd := execCmd(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdfs"), arg...)
-
+	cmd := execCmd(ctx, name, arg...)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -81,28 +79,18 @@ func RunXrdFs(execCmd execCommandFunc, arg ...string) (string, error) {
 	return string(output), nil
 }
 
-func RunXrdCp(xrdAddr string, src string, dest string) error {
-	timeout := common.XrdConfig.ProcessTimeout
-
-	ctx := context.Background()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-		defer cancel()
-	}
-
-	src = "xroot://" + xrdAddr + "/" + src
-	common.Logger.Info("XRD: Staging " + src + " to " + dest)
-	cmd := exec.CommandContext(ctx, path.Join(common.XrdConfig.XrdClientBinPath, "xrdcp"), "--force", src, dest)
-
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-	return nil
+func RunXrdFs(execCmd execCommandFunc, arg ...string) (string, error) {
+	common.Logger.Info("RunXrdFs: ", arg)
+	return runCommand(execCmd, common.XrdConfig.ProcessTimeout, path.Join(common.XrdConfig.XrdClientBinPath, "xrdfs"), arg...)
 }
 
-func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntry, error) {
+func RunXrdCp(xrdAddr string, src string, dest string) error {
+	common.Logger.Info("XRD: Staging " + src + " to " + dest)
+	_, err := runCommand(exec.CommandContext, common.XrdConfig.ProcessTimeout, path.Join(common.XrdConfig.XrdClientBinPath, "xrdcp"), "--force", "xroot://"+xrdAddr+"/"+src, dest)
+	return err
+}
+
+func ReadDir(ctx *gin.Context, xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error) {
 	srdAddr := host + ":" + strconv.FormatUint(uint64(port), 10)
 	cacheKey := srdAddr + ":" + dir
 
@@ -112,7 +100,7 @@ func ReadDir(ctx *gin.Context, host string, port uint, dir string) ([]xrdDirEntr
 	}
 
 	// Run command and parse output
-	output, err := RunXrdFs(exec.CommandContext, srdAddr, "ls", "-l", dir)
+	output, err := xrdFS(exec.CommandContext, srdAddr, "ls", "-l", dir)
 	if err != nil {
 		return nil, err
 	}
