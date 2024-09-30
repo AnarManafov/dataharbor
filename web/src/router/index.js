@@ -21,7 +21,8 @@ const router = createRouter({
             path: '/browse/:path*',
             name: 'browse',
             component: () => import('../views/BrowseXrdView.vue'),
-            props: route => ({ path: Array.isArray(route.params.path) ? route.params.path.join('/') : route.params.path })
+            props: route => ({ path: Array.isArray(route.params.path) ? route.params.path.join('/') : route.params.path }),
+            meta: { requiresAuth: true }
         },
         {
             path: '/documentation',
@@ -50,5 +51,21 @@ const router = createRouter({
         }
     ]
 })
+
+// Add a navigation guard
+router.beforeEach((to, from, next) => {
+    if (to.matched.some(record => record.meta.requiresAuth)) {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            console.log('Authenticated, token:', token);
+            next();
+        } else {
+            console.log('Not authenticated');
+            next({ name: 'home' }); // Redirect to login if not authenticated
+        }
+    } else {
+        next(); // Always call next() to resolve the hook
+    }
+});
 
 export default router
