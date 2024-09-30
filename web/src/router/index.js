@@ -32,6 +32,21 @@ const router = createRouter({
             path: '/login',
             name: 'login',
             component: () => import('../views/LoginView.vue')
+        },
+        {
+            // The Authentication process
+            // - User Clicks Login Button:
+            //   When the user clicks the login button on your SPA, redirect them to the third-party authentication service.
+            // - Redirect to Authentication Service: 
+            //   The user is redirected to the authentication service’s login page where they enter their credentials.
+            // - Authentication and Token Generation: 
+            //   After successful authentication, the service generates a token (usually a JWT).
+            // - Redirect Back to Your App: 
+            //   The authentication service redirects the user back to your app with the token included in the URL as a query parameter (e.g., https://yourapp.com/callback?token=xyz).
+            // 
+            // The Authentication Callback URL
+            path: '/callback',
+            component: () => import('../components/partials/CallbackComponent.vue')
         }
     ]
 })
