@@ -43,9 +43,10 @@
             <div class="navbar-end">
                 <div class="navbar-item">
                     <div class="buttons">
-                        <router-link to="/login" class="button is-dark is-outlined">
+                        <router-link v-if="!isLoggedIn" to="/login" class="button is-dark is-outlined">
                             Log In
                         </router-link>
+                        <span v-else>Welcome, User!</span>
                     </div>
                 </div>
             </div>
@@ -54,9 +55,16 @@
 </template>
 <script>
 import { version } from '../../../package.json';
+import { useAuth } from '../../composables/useAuth';
 
 export default {
     name: 'Nav',
+    setup() {
+        const { isLoggedIn } = useAuth();
+        return {
+            isLoggedIn
+        };
+    },
     data() {
         return {
             appVersion: version

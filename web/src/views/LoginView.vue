@@ -10,7 +10,8 @@
 export default {
     name: 'LoginView',
     mounted() {
-        window.location.href = 'callback?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE3Mjc2OTY4NTAsImV4cCI6MTc1OTIzMjg1MCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoianJvY2tldEBleGFtcGxlLmNvbSIsIkdpdmVuTmFtZSI6IkpvaG5ueSIsIlN1cm5hbWUiOiJSb2NrZXQiLCJFbWFpbCI6Impyb2NrZXRAZXhhbXBsZS5jb20iLCJSb2xlIjpbIk1hbmFnZXIiLCJQcm9qZWN0IEFkbWluaXN0cmF0b3IiXX0.tQEp51BqOHK6gBfrMtygdLNn-8Q99is8xaWffnYd3A4';
+        // a fake token for demonstration purposes. Generated using http://jwtbuilder.jamiekurtz.com
+        window.location.href = 'callback?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE3Mjc2OTc5MzgsImV4cCI6MTc1OTIzMzkzOCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoianJvY2tldEBleGFtcGxlLmNvbSIsIkZpcnN0TmFtZSI6IkpvaG5ueSIsIkxhc3ROYW1lIjoiUm9ja2V0IiwiRW1haWwiOiJqcm9ja2V0QGV4YW1wbGUuY29tIiwiUm9sZSI6WyJNYW5hZ2VyIiwiUHJvamVjdCBBZG1pbmlzdHJhdG9yIl19._CxtUaVCN7zycnfXEzQBQxgsrwj7LZPA5nPl8IA338o';
     }
 };
 </script>
