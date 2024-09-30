@@ -9,6 +9,7 @@
 - Added: Display of folder and file counts, as well as cumulative file size in the toolbar.
 - Added: Support pagination for directory listings. (GH-15)
 - Added: Show loading feedback when receiving big data. (GH-17)
+- Added: A back to top button when the file browser gets too many entries.
 
 ## [0.4.0] - 2024-09-09
 

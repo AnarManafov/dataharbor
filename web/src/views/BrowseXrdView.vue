@@ -27,6 +27,8 @@
                         <el-scrollbar>
                             <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
                                 @selectDir="selectDir" />
+                            <!-- Show a button to back to top -->
+                            <el-backtop :right="100" :bottom="25" />
                         </el-scrollbar>
                     </el-main>
                     <el-footer class="pagination-footer">
