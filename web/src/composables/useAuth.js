@@ -1,4 +1,3 @@
-// src/composables/useAuth.js
 import { ref, provide, inject } from 'vue';
 
 const authSymbol = Symbol();
