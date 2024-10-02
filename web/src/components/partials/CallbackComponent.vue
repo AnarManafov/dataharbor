@@ -8,7 +8,7 @@ import { useAuth } from '../../composables/useAuth';
 // A login callback component that extracts the token from the URL and stores it securely. 
 export default {
     created() {
-        const { login } = useAuth();
+        const { login, setUserName } = useAuth();
         const token = this.$route.query.token;
         if (token) {
             localStorage.setItem('authToken', token);
@@ -22,7 +22,10 @@ export default {
             console.log('Name: %s %s', firstName, lastName);
             console.log('Expiration Date: ', expirationDate);
 
-            login(); // Update the login state
+            // Update the user name
+            setUserName(`${firstName} ${lastName}`);
+            // Update the login state
+            login();
 
             this.$router.push('/browse');
         } else {

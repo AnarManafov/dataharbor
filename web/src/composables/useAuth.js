@@ -5,6 +5,7 @@ const authSymbol = Symbol();
 
 export function provideAuth() {
     const isLoggedIn = ref(false);
+    const userName = ref('');
 
     const login = () => {
         isLoggedIn.value = true;
@@ -12,12 +13,19 @@ export function provideAuth() {
 
     const logout = () => {
         isLoggedIn.value = false;
+        userName.value = '';
+    };
+
+    const setUserName = (name) => {
+        userName.value = name;
     };
 
     provide(authSymbol, {
         isLoggedIn,
+        userName,
         login,
-        logout
+        logout,
+        setUserName
     });
 }
 
