@@ -46,7 +46,7 @@
                         <router-link v-if="!isLoggedIn" to="/login" class="button is-dark is-outlined">
                             Log In
                         </router-link>
-                        <span v-else>Welcome, User!</span>
+                        <span v-else>Welcome, {{ userName }}!</span>
                     </div>
                 </div>
             </div>
@@ -60,9 +60,10 @@ import { useAuth } from '../../composables/useAuth';
 export default {
     name: 'Nav',
     setup() {
-        const { isLoggedIn } = useAuth();
+        const { isLoggedIn, userName } = useAuth();
         return {
-            isLoggedIn
+            isLoggedIn,
+            userName
         };
     },
     data() {
