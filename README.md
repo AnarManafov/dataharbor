@@ -29,6 +29,18 @@ Each release is tagged according to the following rules:
 * **Frontend Versions**: Use a prefix `web/vX.Y.Z` (e.g., `web/v1.0.0`) to distinguish Frontend versions.
 * **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to distinguish global versions.
 
+### Release process
+
+* Frontend:
+  * Update the top level version in the [package.json](./web/package.json) to reflect the frontend version.
+  * Update [RELEASE_NOTES](./web/RELEASE_NOTES.md)
+* Backend:
+  * * Update [RELEASE_NOTES](./app/RELEASE_NOTES.md)
+* Global:
+  * Update the top level version in the [package.json](./package.json) to reflect the global versions number.
+  * Update [RELEASE_NOTES](./RELEASE_NOTES.md)
+* Apply git tags according to [Versioning rules](#versioning)
+
 ## How to run locally
 
 This setup ensures that both the Vue 3 Frontend and Go Backend are running simultaneously in development mode, making development more efficient.

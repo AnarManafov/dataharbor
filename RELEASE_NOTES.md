@@ -1,5 +1,10 @@
 # Global Release Notes
 
+## [0.5.0] - 2024-10-02
+
+- [Frontend v0.5.0 release notes](./web/RELEASE_NOTES.md#050---2024-1002)
+- [Backend v0.5.0 release notes](./app/RELEASE_NOTES.md#050---2024-10-02)
+
 ## [0.4.0] - 2024-09-09
 
 - [Frontend v0.4.0 release notes](./web/RELEASE_NOTES.md#040---2024-09-09)
