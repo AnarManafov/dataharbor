@@ -13,17 +13,17 @@
         "@types/file-saver": "^2.0.7",
         "axios": "^1.7.7",
         "bulma": "^1.0.2",
-        "element-plus": "^2.8.3",
+        "element-plus": "^2.8.4",
         "file-saver": "^2.0.5",
         "jwt-decode": "^4.0.0",
-        "pinia": "^2.2.2",
-        "vue": "^3.5.9",
+        "pinia": "^2.2.4",
+        "vue": "^3.5.10",
         "vue-axios": "^3.5.2",
         "vue-router": "^4.4.5"
     },
     "devDependencies": {
         "@vitejs/plugin-vue": "^5.1.4",
-        "sass": "^1.79.3",
+        "sass": "^1.79.4",
         "unplugin-auto-import": "^0.18.3",
         "unplugin-vue-components": "^0.27.4",
         "vite": "^5.4.8"
