@@ -1,5 +1,9 @@
 # Backend Release Notes
 
+## [0.6.0] - NOT YET RELEASED
+
+- Added: RPM package build. (GH-20)
+
 ## [0.5.0] - 2024-10-02
 
 - Added: Save directory listings in a runtime cache.
