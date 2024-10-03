@@ -36,9 +36,6 @@ rpmbuild -ba ${BUILD_DIR}/SPECS/${APP_NAME}.spec
 # Check if the RPM was created successfully
 if [ $? -eq 0 ]; then
     echo "RPM package created successfully."
-    # Debugging: List the contents of the RPM directory
-    echo "Listing contents of RPM directory..."
-    ls -l ${BUILD_DIR}/RPMS/x86_64/
 else
     echo "Failed to create RPM package."
     exit 1
