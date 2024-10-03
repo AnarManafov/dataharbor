@@ -1,16 +1,16 @@
-Name:           data-lake-ui-backend
+Name:           data-lake-ui-frontend
 Version:        0.6.0
 Release:        1%{?dist}
-Summary:        data-lake-ui Go Backend Application
+Summary:        data-lake-ui Vue.js Frontend Application
 
 License:        GPL-3.0
 URL:            https://github.com/AnarManafov/data-lake-ui
 Source0:        %{name}-%{version}.tar.gz
 
-BuildArch:      x86_64
+BuildArch:      noarch
 
 %description
-data-lake-ui Go Backend Application.
+data-lake-ui Vue.js Frontend Application.
 
 %prep
 # No preparation needed as we are using pre-built binaries
@@ -19,11 +19,11 @@ data-lake-ui Go Backend Application.
 # No build needed as we are using pre-built binaries
 
 %install
-mkdir -p %{buildroot}/usr/local/bin
-install -m 0755 %{_sourcedir}/%{name} %{buildroot}/usr/local/bin/%{name}
+mkdir -p %{buildroot}/usr/share/%{name}
+cp -r %{_sourcedir}/%{name}-%{version}/* %{buildroot}/usr/share/%{name}/
 
 %files
-/usr/local/bin/%{name}
+/usr/share/%{name}
 
 %changelog
 * Wed Oct 02 2024 Anar Manafov <Anar.Manafov@gmail.com> - 0.6.0-1

@@ -1,5 +1,9 @@
 # Frontend Release Notes
 
+## [0.6.0] - NOT YET RELEASED
+
+- Added: RPM package build. (GH-21)
+
 ## [0.5.0] - 2024-10.02
 
 - Modified: Split `BrowseXrdView.vue` into multiple components.

@@ -22,4 +22,12 @@ export default defineConfig({
             "@": fileURLToPath(new URL("./src", import.meta.url)),
         },
     },
+    css: {
+        preprocessorOptions: {
+            scss: {
+                // this resolves the warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
+                api: 'modern-compiler', // or 'modern'
+            },
+        },
+    },
 });
