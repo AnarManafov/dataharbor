@@ -1,42 +1,54 @@
 #!/bin/bash
 
+# How to use:
+# * to build both backend and frontend packages: ./packaging/build_rpm.sh
+#   or ./packaging/build_rpm.sh -b -f
+# * to build the backend package only: ./packaging/build_rpm.sh -b
+# * to build the frontend package only: ./packaging/build_rpm.sh -f
+
 # Variables
-APP_NAME="data-lake-ui-backend"
-VERSION="0.5.0"
-RELEASE="1"
-SOURCE_DIR="app"
-BUILD_DIR="$HOME/rpmbuild"
-SPEC_FILE="packaging/${APP_NAME}.spec"
+VERSION_BACKEND="0.6.0"
+APP_NAME_BACKEND="data-lake-ui-backend"
+SOURCE_DIR_BACKEND="app"
+SPEC_FILE_BACKEND="packaging/${APP_NAME_BACKEND}.spec"
 
-# Ensure rpmbuild directories exist
-mkdir -p ${BUILD_DIR}/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+VERSION_FRONTEND="0.6.0"
+APP_NAME_FRONTEND="data-lake-ui-frontend"
+SOURCE_DIR_FRONTEND="web"
+SPEC_FILE_FRONTEND="packaging/${APP_NAME_FRONTEND}.spec"
 
-# Step 1: Cross-compile the Go application for Linux
-echo "Building the Go application..."
-cd ${SOURCE_DIR}
-GOOS=linux GOARCH=amd64 go build -o ${APP_NAME}
-cd ..
+# Default values
+BUILD_BACKEND=false
+BUILD_FRONTEND=false
 
-# Step 2: Copy the binary to the SOURCES directory
-echo "Copying binary to SOURCES directory..."
-cp ${SOURCE_DIR}/${APP_NAME} ${BUILD_DIR}/SOURCES/
+# Parse arguments
+while getopts "bf" opt; do
+  case ${opt} in
+    b )
+      BUILD_BACKEND=true
+      ;;
+    f )
+      BUILD_FRONTEND=true
+      ;;
+    \? )
+      echo "Usage: cmd [-b] [-f]"
+      exit 1
+      ;;
+  esac
+done
 
-# Step 3: Create a source tarball
-echo "Creating source tarball..."
-tar czvf ${BUILD_DIR}/SOURCES/${APP_NAME}-${VERSION}.tar.gz -C ${SOURCE_DIR} ${APP_NAME}
+# If no flags are provided, build both
+if [ "$BUILD_BACKEND" = false ] && [ "$BUILD_FRONTEND" = false ]; then
+  BUILD_BACKEND=true
+  BUILD_FRONTEND=true
+fi
 
-# Step 4: Copy the spec file to the SPECS directory
-echo "Copying spec file..."
-cp ${SPEC_FILE} ${BUILD_DIR}/SPECS/
+# Build backend package if requested
+if [ "$BUILD_BACKEND" = true ]; then
+  ./packaging/build_rpm_base.sh ${APP_NAME_BACKEND} ${SOURCE_DIR_BACKEND} ${SPEC_FILE_BACKEND} ${VERSION_BACKEND}
+fi
 
-# Step 5: Build the RPM package
-echo "Building the RPM package..."
-rpmbuild -ba ${BUILD_DIR}/SPECS/${APP_NAME}.spec
-
-# Check if the RPM was created successfully
-if [ $? -eq 0 ]; then
-    echo "RPM package created successfully."
-else
-    echo "Failed to create RPM package."
-    exit 1
+# Build frontend package if requested
+if [ "$BUILD_FRONTEND" = true ]; then
+  ./packaging/build_rpm_base.sh ${APP_NAME_FRONTEND} ${SOURCE_DIR_FRONTEND} ${SPEC_FILE_FRONTEND} ${VERSION_FRONTEND}
 fi

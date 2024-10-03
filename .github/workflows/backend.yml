@@ -89,7 +89,7 @@ jobs:
       - name: Install RPM build dependencies
         run: sudo apt-get install -y rpm
       - name: Run RPM build script
-        run: ./packaging/build_rpm.sh
+        run: ./packaging/build_rpm.sh -b
       - name: Upload RPM artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
