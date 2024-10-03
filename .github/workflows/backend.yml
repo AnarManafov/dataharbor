@@ -43,10 +43,12 @@ jobs:
           name: coverage-report
           path: "./app/coverage.out"
       - name: Generate Coverage Badge
+        if: github.event_name != 'pull_request'
         uses: tj-actions/coverage-badge-go@v2
         with:
           filename: "./app/coverage.out"
       - name: Verify Changed files
+        if: github.event_name != 'pull_request'
         uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
         with:
@@ -80,3 +82,17 @@ jobs:
         with:
           version: latest
           working-directory: "./app/"
+  build-rpm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install RPM build dependencies
+        run: sudo apt-get install -y rpm
+      - name: Run RPM build script
+        run: ./packaging/build_rpm.sh
+      - name: Upload RPM artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: $HOME/rpmbuild/RPMS/x86_64/*.rpm

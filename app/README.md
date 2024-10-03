@@ -138,6 +138,18 @@ An xrootd client bin directory needs to be exposed to the container.
 
 This link helps with some Podman on OSX issues: <https://github.com/ansible/vscode-ansible/wiki/macos>
 
+## Packaging
+
+### RPM
+
+```shell
+# only for OS X 
+brew install rpm
+
+# Build the package
+./packaging/build_rpm.sh
+```
+
 ## Dev Tips
 
 **Initialize Go:**
