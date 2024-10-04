@@ -6,7 +6,7 @@ SOURCE_DIR=$2
 SPEC_FILE=$3
 VERSION=$4
 BUILD_DIR="$HOME/rpmbuild"
-RELEASE_NOTES_FILE="${SOURCE_DIR}/RELEASE_NOTES.MD"
+RELEASE_NOTES_FILE="RELEASE_NOTES.md"
 
 # Ensure rpmbuild directories exist
 mkdir -p ${BUILD_DIR}/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
@@ -47,8 +47,7 @@ cp ${SPEC_FILE} ${BUILD_DIR}/SPECS/
 
 # Step 5: Generate the changelog
 echo "Generating changelog..."
-./packaging/generate_changelog.sh ${BUILD_DIR}/SPECS/$(basename ${SPEC_FILE}) ${RELEASE_NOTES_FILE}
-
+./packaging/generate_changelog.sh ${BUILD_DIR}/SPECS/$(basename ${SPEC_FILE}) ${SOURCE_DIR}/${RELEASE_NOTES_FILE}
 
 # Step 6: Build the RPM package
 echo "Building the RPM package..."
