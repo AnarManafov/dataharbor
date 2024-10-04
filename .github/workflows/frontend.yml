@@ -23,9 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install RPM build dependencies
-        run: sudo apt-get install -y rpm
+        run: sudo apt-get install -y rpm python3
       - name: Run RPM build script
-        run: ./packaging/build_rpm.sh -f
+        run: python3 packaging/build_rpm.py -f
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:

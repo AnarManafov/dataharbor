@@ -87,9 +87,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install RPM build dependencies
-        run: sudo apt-get install -y rpm
+        run: sudo apt-get install -y rpm python3
       - name: Run RPM build script
-        run: ./packaging/build_rpm.sh -b
+        run: python3 packaging/build_rpm.py -b
       - name: Upload RPM artifact
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
