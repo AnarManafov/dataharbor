@@ -26,5 +26,3 @@ cp -r %{_sourcedir}/%{name}-%{version}/* %{buildroot}/usr/share/%{name}/
 /usr/share/%{name}
 
 %changelog
-* Wed Oct 02 2024 Anar Manafov <Anar.Manafov@gmail.com> - 0.6.0-1
-- Initial package

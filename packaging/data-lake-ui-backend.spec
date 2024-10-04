@@ -26,5 +26,3 @@ install -m 0755 %{_sourcedir}/%{name} %{buildroot}/usr/local/bin/%{name}
 /usr/local/bin/%{name}
 
 %changelog
-* Wed Oct 02 2024 Anar Manafov <Anar.Manafov@gmail.com> - 0.6.0-1
-- Initial package
