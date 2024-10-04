@@ -4,7 +4,7 @@
 
 - Added: RPM package build. (GH-21)
 
-## [0.5.0] - 2024-10.02
+## [0.5.0] - 2024-10-02
 
 - Modified: Split `BrowseXrdView.vue` into multiple components.
 - Modified: Refactored the toolbar component of the File Browser.
