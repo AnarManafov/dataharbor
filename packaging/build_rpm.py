@@ -43,8 +43,11 @@ def build_package(app_name, source_dir, spec_file, version):
         subprocess.run(["npm", "install"], check=True)
         subprocess.run(["npm", "run", "build"], check=True)
     elif os.path.isfile("go.mod"):
-        subprocess.run(["go", "build", "-o", app_name], check=True,
-                       env={"GOOS": "linux", "GOARCH": "amd64"})
+        go_env = os.environ.copy()
+        go_env["GOOS"] = "linux"
+        go_env["GOARCH"] = "amd64"
+        go_env["GOPATH"] = os.path.expanduser("~/go")
+        subprocess.run(["go", "build", "-o", app_name], check=True, env=go_env)
     else:
         print("Unknown project type. Exiting.")
         return
