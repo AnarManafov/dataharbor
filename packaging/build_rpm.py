@@ -27,7 +27,7 @@ import subprocess
 import os
 
 
-def build_package(app_name, source_dir, spec_file, version):
+def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None):
     build_dir = os.path.expanduser("~/rpmbuild")
     release_notes_file = "RELEASE_NOTES.md"
 
@@ -61,6 +61,11 @@ def build_package(app_name, source_dir, spec_file, version):
     else:
         subprocess.run(["cp", f"{source_dir}/{app_name}",
                        f"{build_dir}/SOURCES/"], check=True)
+
+    print("Copying nginx.conf to SOURCES directory...")
+    if nginx_conf_path:
+        subprocess.run(["cp", nginx_conf_path, f"{
+                       build_dir}/SOURCES/"], check=True)
 
     print("Creating source tarballs...")
     if os.path.isdir(f"{source_dir}/dist"):
@@ -106,6 +111,7 @@ def main():
     app_name_frontend = "data-lake-ui-frontend"
     source_dir_frontend = "web"
     spec_file_frontend = f"packaging/{app_name_frontend}.spec"
+    nginx_conf_path = "web/nginx.conf"
 
     if not args.backend and not args.frontend:
         args.backend = True
@@ -117,7 +123,7 @@ def main():
 
     if args.frontend:
         build_package(app_name_frontend, source_dir_frontend,
-                      spec_file_frontend, version_frontend)
+                      spec_file_frontend, version_frontend, nginx_conf_path)
 
 
 if __name__ == "__main__":
