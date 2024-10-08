@@ -64,8 +64,8 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
 
     print("Copying nginx.conf to SOURCES directory...")
     if nginx_conf_path:
-        subprocess.run(["cp", nginx_conf_path, f"{
-                       build_dir}/SOURCES/"], check=True)
+        subprocess.run(["cp", nginx_conf_path,
+                        f"{build_dir}/SOURCES/"], check=True)
 
     print("Creating source tarballs...")
     if os.path.isdir(f"{source_dir}/dist"):
