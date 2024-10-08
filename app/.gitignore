@@ -9,6 +9,7 @@
 *.dylib
 # default output name for golang binaries
 app
+data-lake-ui-backend
 
 # Test binary, built with `go test -c`
 *.test

@@ -8,6 +8,7 @@ URL:            https://github.com/AnarManafov/data-lake-ui
 Source0:        %{name}-%{version}.tar.gz
 
 BuildArch:      noarch
+Requires:       nginx
 
 %description
 data-lake-ui Vue.js Frontend Application.
@@ -22,7 +23,13 @@ data-lake-ui Vue.js Frontend Application.
 mkdir -p %{buildroot}/usr/share/%{name}
 cp -r %{_sourcedir}/%{name}-%{version}/* %{buildroot}/usr/share/%{name}/
 
+# Install nginx configuration
+mkdir -p %{buildroot}/etc/nginx
+install -m 0644 %{_sourcedir}/nginx.conf %{buildroot}/etc/nginx/nginx.conf
+
+
 %files
 /usr/share/%{name}
+/etc/nginx/nginx.conf
 
 %changelog
