@@ -142,13 +142,20 @@ This link helps with some Podman on OSX issues: <https://github.com/ansible/vsco
 
 ### RPM
 
-```shell
-# only for OS X 
-brew install rpm
+- SPEC File: [data-lake-ui-backend.spec](../packaging/data-lake-ui-backend.spec)
+- To build the package:
+  
+  ```shell
+  # only for OS X 
+  brew install rpm
 
-# Build the package
-./packaging/build_rpm.sh
-```
+  # Build command
+  python3 packaging/build_rpm.py -b
+  ```
+
+- Package name: `data-lake-ui-frontend-<VERSION>-<RELEASE>.noarch.rpm`
+
+The package will install a backend executable, statically linked, as `/usr/local/bin/data-lake-ui-backend`.
 
 ## Dev Tips
 
