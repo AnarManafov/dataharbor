@@ -7,7 +7,8 @@ License:        GPL-3.0
 URL:            https://github.com/AnarManafov/data-lake-ui
 Source0:        %{name}-%{version}.tar.gz
 
-BuildArch:      x86_64
+# The target architecture is provided via the command line using the --target option with the rpmbuild command
+# BuildArch:      x86_64
 
 %description
 data-lake-ui Go Backend Application.

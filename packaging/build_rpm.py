@@ -25,6 +25,7 @@ If no options are specified, both backend and frontend packages will be built.
 import argparse
 import subprocess
 import os
+import platform
 
 
 def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None):
@@ -44,8 +45,6 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
         subprocess.run(["npm", "run", "build"], check=True)
     elif os.path.isfile("go.mod"):
         go_env = os.environ.copy()
-        go_env["GOOS"] = "linux"
-        go_env["GOARCH"] = "amd64"
         go_env["GOPATH"] = os.path.expanduser("~/go")
         subprocess.run(["go", "build", "-o", app_name], check=True, env=go_env)
     else:
@@ -85,8 +84,9 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
                    f"{build_dir}/SPECS/{os.path.basename(spec_file)}", f"{source_dir}/{release_notes_file}"], check=True)
 
     print("Building the RPM package...")
+    arch = platform.machine()
     result = subprocess.run(
-        ["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}"])
+        ["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}", f"--target={arch}"])
     if result.returncode == 0:
         print("RPM package created successfully.")
     else:
