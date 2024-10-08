@@ -4,7 +4,7 @@ The frontend is built using [Vite](https://vitejs.dev/) and [Vue 3](https://vuej
 
 ## Requirements
 
-* npm  
+- npm  
 
     ```shell
     # OS X
@@ -16,31 +16,31 @@ The frontend is built using [Vite](https://vitejs.dev/) and [Vue 3](https://vuej
 
 ## Build/Run
 
-* install dependencies
+- install dependencies
 
   ```shell
   npm install
   ```
 
-* Compiles and hot-reloads for development
+- Compiles and hot-reloads for development
 
   ```shell
   npm run dev
   ```
 
-* Compiles and minifies for production
+- Compiles and minifies for production
 
   ```shell
   npm run build
   ```
 
-* Run locally
+- Run locally
 
   ```shell
   npm run preview
   ```
 
-* Upgrade dependencies (when needed)
+- Upgrade dependencies (when needed)
 
   ```shell
   npx npm-check-updates -u
@@ -67,6 +67,28 @@ podman run -p 8080:8080 data_lake_ui_frontend:0.4.0
 ```
 
 The nginx of the container will be serving on port 8080, which can be changed if needed, of course.
+
+## Packaging
+
+### RPM
+
+- SPEC File: [data-lake-ui-frontend.spec](../packaging/data-lake-ui-frontend.spec)
+- To build the package:
+
+  ```shell
+  # only for OS X 
+  brew install rpm
+
+  # Build command
+  python3 packaging/build_rpm.py -b
+  ```
+
+- Package name: `data-lake-ui-frontend-<VERSION>-<RELEASE>.noarch.rpm`
+
+The package will install:
+
+- all frontend required files into `/usr/share/data-lake-ui-frontend`.
+- [ngingx.conf](./nginx.conf) into `/etc/data-lake-ui-frontend/ngingx/ngingx.conf`
 
 ## Customize configuration
 

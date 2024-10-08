@@ -82,6 +82,10 @@ npm run build
 
 This will build the Vue Frontend using Vite and compile the Go Backend.
 
+## RPM Packaging
+
+The project provides RPM packages for both parts, [the frontend](./web/README.md#rpm) and [the backend](./app/README.md#rpm).
+
 ## Containerization
 
 The project can provide Two Containers ([One for Frontend](./web/README.md#containerization), [One for Backend](./app/README.md#containerization)). The Backend can be treated as a microservice.  The Backend is relatively compact, therefore container is not really needed, as it can be deployed as an app. But splitting Frontend and Backend deployment is still advisable, see below.
