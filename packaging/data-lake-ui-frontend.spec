@@ -25,7 +25,7 @@ cp -r %{_sourcedir}/%{name}-%{version}/* %{buildroot}/usr/share/%{name}/
 
 # Install nginx configuration
 mkdir -p %{buildroot}/etc/data-lake-ui/nginx
-install -m 0644 %{_sourcedir}/nginx.conf %{buildroot}/etc/data-lake-ui/nginx/nginx.conf
+install -m 0644 %{_sourcedir}/nginx.conf %{buildroot}/etc/data-lake-ui-frontend/nginx/nginx.conf
 
 
 %files

@@ -90,6 +90,37 @@ The package will install:
 - all frontend required files into `/usr/share/data-lake-ui-frontend`.
 - [ngingx.conf](./nginx.conf) into `/etc/data-lake-ui-frontend/ngingx/ngingx.conf`
 
+```shell
+## Check locations of installed files
+rpm -ql package_name
+```
+
+#### Configuration
+
+Update the configuration file to include the path to the custom configuration file:
+
+```shell
+sudo vim /etc/nginx/nginx.conf
+```
+
+```Nginx
+http {
+    include /etc/nginx/sites-enabled/*;
+    include /etc/nginx/sites-available/*;
+}
+```
+
+Create a symbolic link to your custom configuration file in the `sites-available` and `sites-enabled`:
+
+```shell
+sudo ln -s /etc/data-lake-ui-frontend/nginx/nginx.conf /etc/nginx/sites-available/nginx.conf
+
+sudo ln -s /etc/nginx/sites-available/nginx.conf /etc/nginx/sites-enabled/nginx.conf
+
+# Restart NGINX to apply the changes:
+sudo systemctl restart nginx
+```
+
 ## Customize configuration
 
 See [Configuration Reference](https://cli.vuejs.org/config/).
