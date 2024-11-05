@@ -3,7 +3,7 @@
     <nav class="navbar is-transparent" role="navigation" aria-label="main navigation">
         <div class="navbar-brand no-hover">
             <a class="navbar-item is-size-4 has-text-weight-bold" href="/">
-                <img src="../../assets/brand.png">
+                <img src="/assets/brand.png">
                 <!--strong class="is-size-4">Data Lake UI</strong-->
             </a>
             <a role="button" class="navbar-burger burger" aria-label="menu" aria-expanded="true"
