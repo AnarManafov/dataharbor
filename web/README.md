@@ -34,12 +34,6 @@ The frontend is built using [Vite](https://vitejs.dev/) and [Vue 3](https://vuej
   npm run build
   ```
 
-- Run locally
-
-  ```shell
-  npm run preview
-  ```
-
 - Upgrade dependencies (when needed)
 
   ```shell
@@ -127,9 +121,9 @@ See [Configuration Reference](https://cli.vuejs.org/config/).
 
 ## Links
 
-* [Vue SFC Playground](https://play.vuejs.org/)
-* [Vite](https://vitejs.dev)
-* [Install Vue](https://cli.vuejs.org/guide/installation.html)
-* [Create new Project](https://cli.vuejs.org/guide/creating-a-project.html)
-* [Serving Single-Page Application in a single binary file with Go](https://dev.to/aryaprakasa/serving-single-page-application-in-a-single-binary-file-with-go-12ij)
-* [Go+Vue example](https://github.com/Simon-L/vue-go)
+- [Vue SFC Playground](https://play.vuejs.org/)
+- [Vite](https://vitejs.dev)
+- [Install Vue](https://cli.vuejs.org/guide/installation.html)
+- [Create new Project](https://cli.vuejs.org/guide/creating-a-project.html)
+- [Serving Single-Page Application in a single binary file with Go](https://dev.to/aryaprakasa/serving-single-page-application-in-a-single-binary-file-with-go-12ij)
+- [Go+Vue example](https://github.com/Simon-L/vue-go)

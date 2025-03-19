@@ -110,7 +110,6 @@ go tool cover -func=coverage.out
 
 This will display the coverage percentage for each function and a total coverage percentage at the end.
 
-
 ## Containerization
 
 The backend is not that big - just one executable and one configuration file, for now.  
