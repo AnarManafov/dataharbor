@@ -187,5 +187,5 @@ go mod tidy
 
 ```shell
 cd app
-go mod edit -go=1.23
+go mod edit -go=1.24
 ```
