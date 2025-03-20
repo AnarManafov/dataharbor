@@ -47,13 +47,16 @@ const router = createRouter({
             // 
             // The Authentication Callback URL
             path: '/callback',
-            component: () => import('../components/partials/CallbackComponent.vue')
+            name: 'callback',
+            component: () => import('../components/partials/CallbackComponent.vue'),
+            props: route => ({ token: route.query.token }) // Pass token as prop to component
         }
     ]
 })
 
 // Add a navigation guard
 router.beforeEach((to, from, next) => {
+    // Check if the route requires authentication
     if (to.matched.some(record => record.meta.requiresAuth)) {
         const token = localStorage.getItem('authToken');
         if (token) {
@@ -61,7 +64,7 @@ router.beforeEach((to, from, next) => {
             next();
         } else {
             console.log('Not authenticated');
-            next({ name: 'home' }); // Redirect to login if not authenticated
+            next({ name: 'login' }); // Redirect to login instead of home when not authenticated
         }
     } else {
         next(); // Always call next() to resolve the hook

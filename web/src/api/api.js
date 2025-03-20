@@ -2,7 +2,11 @@ import request from "./request";
 
 // Get the initial directory
 export const getInitialDirPath = () => {
-    return request.get("initial_dir");
+    return request.get("initial_dir")
+        .catch(error => {
+            console.error("Failed to get initial directory path:", error);
+            throw error;
+        });
 };
 
 // Get the items in dir
