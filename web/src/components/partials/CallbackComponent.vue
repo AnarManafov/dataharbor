@@ -1,20 +1,35 @@
+<template>
+    <div class="callback-container">
+        <p v-if="loading">Processing authentication...</p>
+    </div>
+</template>
+
 <script>
 import { jwtDecode } from 'jwt-decode';
 import { useAuth } from '../../composables/useAuth';
 
-//
-// A Login Process
-//
-// A login callback component that extracts the token from the URL and stores it securely. 
 export default {
-    created() {
+    name: 'CallbackComponent',
+    props: {
+        token: {
+            type: String,
+            default: null
+        }
+    },
+    data() {
+        return {
+            loading: true
+        }
+    },
+    mounted() {
         const { login, setUserName } = useAuth();
-        const token = this.$route.query.token;
-        if (token) {
-            localStorage.setItem('authToken', token);
-            console.log('Token: ', token);
+        // Handle the token from the query parameter
+        if (this.token) {
+            // Store the token in localStorage
+            localStorage.setItem('authToken', this.token);
+            console.log('Authentication token stored');
 
-            const decodedToken = jwtDecode(token);
+            const decodedToken = jwtDecode(this.token);
             const firstName = decodedToken.FirstName;
             const lastName = decodedToken.LastName;
             const expirationDate = new Date(decodedToken.exp * 1000);
@@ -27,9 +42,12 @@ export default {
             // Update the login state
             login();
 
-            this.$router.push('/browse');
+            // Redirect to the protected route or home
+            this.$router.push({ name: 'browse', params: { path: '' } });
         } else {
-            console.error('No token found in URL');
+            // No token found, redirect to login
+            console.error('No authentication token received');
+            this.$router.push({ name: 'login' });
         }
     }
 }

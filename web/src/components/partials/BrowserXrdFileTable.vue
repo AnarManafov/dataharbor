@@ -35,9 +35,19 @@
 import { Folder, Document } from '@element-plus/icons-vue';
 
 const props = defineProps({
-    filteredData: Array,
-    filters: Object,
-    tableLoading: Boolean
+    filteredData: {
+        type: Array,
+        required: true,
+        default: () => []
+    },
+    filters: {
+        type: Object,
+        required: true
+    },
+    tableLoading: {
+        type: Boolean,
+        default: false
+    }
 });
 
 const emit = defineEmits(['selectDir']);

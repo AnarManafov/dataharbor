@@ -1,23 +1,14 @@
 <template>
-    <el-menu :default-opened="['2']" default-active='2'>
+    <el-menu :default-opened="['1']" default-active='1'>
         <el-sub-menu index='1'>
             <template #title>
                 <el-icon>
                     <IconMenu />
-                </el-icon>Navigator One
+                </el-icon>Navigation
             </template>
-            <el-menu-item-group>
-                <template #title>Group 1</template>
-                <el-menu-item index='1-1'>Option 1</el-menu-item>
-                <el-menu-item index='1-2'>Option 2</el-menu-item>
-            </el-menu-item-group>
-            <el-menu-item-group title='Group 2'>
-                <el-menu-item index='1-3'>Option 3</el-menu-item>
-            </el-menu-item-group>
-            <el-sub-menu index='1-4'>
-                <template #title>Option4</template>
-                <el-menu-item index='1-4-1'>Option 4-1</el-menu-item>
-            </el-sub-menu>
+            <el-menu-item index='1-1' @click="$emit('navigateToHome')">Home Directory</el-menu-item>
+            <el-menu-item index='1-2' @click="$emit('navigateToFavorites')">Favorites</el-menu-item>
+            <el-menu-item index='1-3' @click="$emit('navigateToRecent')">Recently Accessed</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index='2'>
             <template #title>
@@ -25,24 +16,23 @@
                     <Setting />
                 </el-icon>Settings
             </template>
-            <el-menu-item-group>
-                <template #title>Group 1</template>
-                <el-menu-item index='2-1'>Option 1</el-menu-item>
-                <el-menu-item index='2-2'>Option 2</el-menu-item>
-            </el-menu-item-group>
-            <el-menu-item-group title='Group 2'>
-                <el-menu-item index='2-3'>Option 3</el-menu-item>
-            </el-menu-item-group>
-            <el-sub-menu index='2-4'>
-                <template #title>Option 4</template>
-                <el-menu-item index='2-4-1'>Option 4-1</el-menu-item>
-            </el-sub-menu>
+            <el-menu-item index='2-1' @click="$emit('openPreferences')">Preferences</el-menu-item>
+            <el-menu-item index='2-2' @click="$emit('toggleDarkMode')">Dark Mode</el-menu-item>
         </el-sub-menu>
     </el-menu>
 </template>
 
 <script lang="ts" setup>
 import { Menu as IconMenu, Setting } from '@element-plus/icons-vue';
+
+// Define emits for navigation events
+defineEmits([
+    'navigateToHome',
+    'navigateToFavorites',
+    'navigateToRecent',
+    'openPreferences',
+    'toggleDarkMode'
+]);
 </script>
 
 <style scoped>
