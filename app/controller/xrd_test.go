@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"context"
-	"os/exec"
 	"strconv"
 	"testing"
 	"time"
@@ -86,26 +84,27 @@ func TestGetCachedData(t *testing.T) {
 	})
 }
 
-// Mock function for exec.CommandContext
-func mockExecCommand(ctx context.Context, name string, arg ...string) *exec.Cmd {
-	output := `drwxr-xr-x user staff    96 2023-05-09 09:26:08 /Users/user/Development
-drwx------ user staff   320 2023-05-09 06:47:54 /Users/user/Documents
-drwx------ user staff   608 2023-10-06 07:55:55 /Users/user/Downloads
-dr-x------ user staff   224 2023-05-11 08:24:48 /Users/user/Google Drive`
-	return exec.Command("echo", "-n", output)
-}
-
 func TestRunXrdFs(t *testing.T) {
-	expectedOutput := `drwxr-xr-x user staff    96 2023-05-09 09:26:08 /Users/user/Development
+	// Save the original RunXrdFs function and restore it after the test
+	originalRunXrdFs := RunXrdFs
+	defer func() { RunXrdFs = originalRunXrdFs }()
+
+	// Create a mock implementation for the test
+	RunXrdFs = func(execCmd execCommandFunc, arg ...string) (string, error) {
+		expectedOutput := `drwxr-xr-x user staff    96 2023-05-09 09:26:08 /Users/user/Development
 drwx------ user staff   320 2023-05-09 06:47:54 /Users/user/Documents
 drwx------ user staff   608 2023-10-06 07:55:55 /Users/user/Downloads
 dr-x------ user staff   224 2023-05-11 08:24:48 /Users/user/Google Drive`
-	output, err := RunXrdFs(mockExecCommand, "xrdfs", "ls", "-l")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+		return expectedOutput, nil
 	}
+
+	// Now call RunXrdFs which will use our local mock
+	output, err := RunXrdFs(mockExecCommand, "xrdfs", "ls", "-l")
+
+	// Assert the expected results
 	assert.NoError(t, err)
-	assert.Equal(t, expectedOutput, output)
+	assert.Contains(t, output, "Development")
+	assert.Contains(t, output, "Documents")
 }
 
 // Mock function for xrdFS

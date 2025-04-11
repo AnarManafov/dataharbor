@@ -1,54 +1,49 @@
 <template>
     <div class="callback-container">
-        <p v-if="loading">Processing authentication...</p>
+        <div class="spinner-container">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Processing authentication callback...</p>
+            <p v-if="error" class="text-danger mt-2">{{ error }}</p>
+        </div>
     </div>
 </template>
 
-<script>
-import { jwtDecode } from 'jwt-decode';
-import { useAuth } from '../../composables/useAuth';
+<script setup>
+import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import useAuth from '../../composables/useAuth';
 
-export default {
-    name: 'CallbackComponent',
-    props: {
-        token: {
-            type: String,
-            default: null
-        }
-    },
-    data() {
-        return {
-            loading: true
-        }
-    },
-    mounted() {
-        const { login, setUserName } = useAuth();
-        // Handle the token from the query parameter
-        if (this.token) {
-            // Store the token in localStorage
-            localStorage.setItem('authToken', this.token);
-            console.log('Authentication token stored');
+const router = useRouter();
+const { handleCallback, error: authError } = useAuth();
+const error = ref('');
 
-            const decodedToken = jwtDecode(this.token);
-            const firstName = decodedToken.FirstName;
-            const lastName = decodedToken.LastName;
-            const expirationDate = new Date(decodedToken.exp * 1000);
+onMounted(async () => {
+    try {
+        // Process the auth callback using vue-oidc-client
+        await handleCallback();
 
-            console.log('Name: %s %s', firstName, lastName);
-            console.log('Expiration Date: ', expirationDate);
+        // The handleCallback function handles the redirect internally
+    } catch (err) {
+        console.error('Callback processing error:', err);
+        error.value = authError.value || 'Authentication failed';
 
-            // Update the user name
-            setUserName(`${firstName} ${lastName}`);
-            // Update the login state
-            login();
-
-            // Redirect to the protected route or home
-            this.$router.push({ name: 'browse', params: { path: '' } });
-        } else {
-            // No token found, redirect to login
-            console.error('No authentication token received');
-            this.$router.push({ name: 'login' });
-        }
+        // Redirect to login after a delay
+        setTimeout(() => router.push('/login'), 3000);
     }
-}
+});
 </script>
+
+<style scoped>
+.callback-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 70vh;
+}
+
+.spinner-container {
+    text-align: center;
+}
+</style>

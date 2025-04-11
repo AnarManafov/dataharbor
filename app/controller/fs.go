@@ -11,16 +11,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ReadDirFunc is a function type that reads the directory and returns the list of files.
-// This function definition is used for real and mock implementations.
+// ReadDirFunc enables dependency injection for unit testing
 type ReadDirFunc func(xrdFS RunXrdFsFunc, host string, port uint, dir string) ([]xrdDirEntry, error)
 type StageFileFunc func(host string, port uint, filePath string) (string, error)
 
-// TODO: Move the default value to the configuration
+// Pagination constants to balance performance with user experience
 const (
-	// Default page size (a number of items per page)
-	defaultPageSize uint32 = 500
-	minPageSize     uint32 = 5
+	defaultPageSize uint32 = 500 // Large enough for most views while maintaining performance
+	minPageSize     uint32 = 5   // Prevents excessive API calls that could impact server performance
 )
 
 func FetchInitialDir(ctx *gin.Context) {
@@ -39,7 +37,8 @@ func FetchDirItemsByPage(ctx *gin.Context) {
 	fetchDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, true)
 }
 
-// Common function to list directory items with optional pagination
+// Handles directory listing with unified business logic for both paginated
+// and non-paginated views to ensure consistent behavior
 func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint, paginate bool) {
 	var req request.DirectoryItemsRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -47,7 +46,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 		return
 	}
 
-	// Validate the page number, only if pagination is enabled
+	// Validate the page number when pagination is enabled
 	if paginate && req.Page < 1 {
 		response.FailWithErr(ctx, *response.SystemErr(errors.New("invalid page number")))
 		return
@@ -68,14 +67,14 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 	}
 	common.Debugf(ctx, "Fetched %d items from the directory: %s\n", len(files), dirPath)
 
-	// Calculate the total number of pages and the number of items to be returned
+	// Enforce minimum page size to prevent performance issues
 	pageSize := req.PageSize
 	if pageSize < minPageSize {
 		pageSize = minPageSize
 	}
 
 	totalItems := uint32(len(files))
-	totalPages := (totalItems + pageSize - 1) / pageSize // Calculate total pages
+	totalPages := (totalItems + pageSize - 1) / pageSize // Ceiling division ensures partial pages are counted
 
 	common.Debugf(ctx, "Requested Page: %d; Page size: %d; Total Items: %d; Total Pages: %d\n", req.Page, pageSize, totalItems, totalPages)
 
@@ -84,18 +83,17 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 		return
 	}
 
-	// Get the first page of items
+	// Calculate slice boundaries based on pagination settings
 	startIndex := uint32(0)
-	// Calculate the end index of the items to be returned
 	if paginate {
 		startIndex = (req.Page - 1) * pageSize
 	}
-	//endIndex := min(pageSize, totalItems)
 	endIndex := min(startIndex+pageSize, totalItems)
 
 	var items []response.DirectoryItemResponse
 	var totalFileCount, totalFolderCount, cumulativeFileSize uint64
 
+	// Process visible items for the current page
 	for _, d := range files[startIndex:endIndex] {
 		item := response.DirectoryItemResponse{
 			Name:     d.name,
@@ -113,7 +111,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 		items = append(items, item)
 	}
 
-	// This second loop is used to calculate the total number of files, folders, and the cumulative file size.
+	// Calculate totals for non-visible items to provide accurate statistics
 	for i := endIndex; i < totalItems; i++ {
 		d := files[i]
 		if d.isDir {
@@ -124,6 +122,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 		}
 	}
 
+	// Return different response formats depending on pagination mode
 	if !paginate {
 		ctx.JSON(http.StatusOK, gin.H{
 			"code":               200,
@@ -144,7 +143,7 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 }
 
 func FetchFileStagedForDownload(ctx *gin.Context) {
-	fetchFileStagedForDownload(ctx, StageFile, common.XrdConfig.Host, common.XrdConfig.Port)
+	fetchFileStagedForDownload(ctx, stageFileLocal, common.XrdConfig.Host, common.XrdConfig.Port)
 }
 
 func fetchFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host string, port uint) {
@@ -160,20 +159,19 @@ func fetchFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host 
 		return
 	}
 
-	// Stage the requested file:
-	// Ask XRD to copy the requested file to the Server's public location, so that it can be downloaded.
-	stagedFilePath, err := stageFile(host, port, filePath)
+	// Stage the file for download
+	result, err := stageFile(host, port, filePath)
 	if err != nil {
 		response.FailWithErr(ctx, *response.SystemErr(err))
 		return
 	}
 
-	// Send the response the to the server with the public location of the requested file.
-	respondData := response.StagedFileResponse{Path: stagedFilePath}
-
+	// Send response with the public location of the staged file
+	respondData := response.StagedFileResponse{Path: result}
 	response.Success(ctx, respondData)
 }
 
+// min returns the smaller of two uint32 values
 func min(a, b uint32) uint32 {
 	if a < b {
 		return a

@@ -12,7 +12,6 @@ func TestMain(m *testing.M) {
 	// Initialize the logger and the configuration
 	common.InitLogger()
 	config.InitCmd()
-	config.Init()
 
 	// Run the tests
 	exitCode := m.Run()

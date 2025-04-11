@@ -43,7 +43,7 @@
             <div class="navbar-end">
                 <div class="navbar-item">
                     <div class="buttons">
-                        <router-link v-if="!isLoggedIn" to="/login" class="button is-dark is-outlined">
+                        <router-link v-if="!isAuthenticated" to="/login" class="button is-dark is-outlined">
                             Log In
                         </router-link>
                         <span v-else>Welcome, {{ userName }}!</span>
@@ -56,14 +56,47 @@
 <script>
 import { version } from '../../../package.json';
 import { useAuth } from '../../composables/useAuth';
+import { computed } from 'vue';
 
 export default {
     name: 'Nav',
     setup() {
-        const { isLoggedIn, userName } = useAuth();
+        const { isAuthenticated, user } = useAuth();
         return {
-            isLoggedIn,
-            userName
+            isAuthenticated,
+            // Try multiple standard OIDC claims for the user's name
+            // Order of preference: given_name, name, preferred_username, email, sub
+            userName: computed(() => {
+                if (!user.value) return 'User';
+                
+                // Check for given name first (first name)
+                if (user.value.given_name) {
+                    return user.value.given_name;
+                }
+                
+                // Full name is next best option
+                if (user.value.name) {
+                    return user.value.name;
+                }
+                
+                // Username is third choice
+                if (user.value.preferred_username) {
+                    return user.value.preferred_username;
+                }
+                
+                // Email as a fallback
+                if (user.value.email) {
+                    return user.value.email.split('@')[0]; // Just the part before @
+                }
+                
+                // Subject ID as last resort
+                if (user.value.sub) {
+                    return user.value.sub;
+                }
+                
+                // If nothing is available, use "User"
+                return 'User';
+            })
         };
     },
     data() {
@@ -72,18 +105,18 @@ export default {
         };
     },
     mounted() {
-        // Get all "navbar-burger" elements
+        // Find all burger menu toggles for responsive design
         const $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
 
-        // Add a click event on each of them
+        // Attach click handlers to each burger menu
         $navbarBurgers.forEach(el => {
             el.addEventListener('click', () => {
 
-                // Get the target from the "data-target" attribute
+                // Retrieve the target menu from the data-target attribute
                 const target = el.dataset.target;
                 const $target = document.getElementById(target);
 
-                // Toggle the "is-active" class on both the "navbar-burger" and the "navbar-menu"
+                // Toggle active state on both the burger button and the menu
                 el.classList.toggle('is-active');
                 $target.classList.toggle('is-active');
 

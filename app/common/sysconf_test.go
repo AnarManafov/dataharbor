@@ -4,22 +4,22 @@ import (
 	"testing"
 
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseSystemConfig(t *testing.T) {
-	// Reset viper configuration to ensure test isolation
+	// Set up test configuration
 	viper.Reset()
+	viper.Set("server.port", 22000)
+	viper.Set("server.debug", true)
 
-	// Call the function to parse the system config
+	// Call the function to be tested
 	ParseSystemConfig()
 
-	// Check if the default port is set correctly
-	if ServerConfig.Port != 22000 {
-		t.Errorf("Expected Port to be 22000, but got %d", ServerConfig.Port)
-	}
+	// Assert the results
+	assert.Equal(t, 22000, ServerConfig.Port, "Expected Port to be 22000, but got %d", ServerConfig.Port)
+	assert.Equal(t, true, ServerConfig.Debug, "Expected Debug to be true, but got %v", ServerConfig.Debug)
 
-	// Check if the default debug value is set correctly
-	if !ServerConfig.Debug {
-		t.Errorf("Expected Debug to be true, but got %v", ServerConfig.Debug)
-	}
+	// Reset for other tests
+	ServerConfig = ServerConfigType{}
 }

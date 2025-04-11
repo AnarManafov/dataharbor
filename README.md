@@ -1,12 +1,8 @@
+# Data Lake UI
+
 ![CI](https://github.com/AnarManafov/data_lake_ui/actions/workflows/backend.yml/badge.svg)
 ![Coverage](https://img.shields.io/badge/Coverage-85.3%25-brightgreen)
 ![CI](https://github.com/AnarManafov/data_lake_ui/actions/workflows/frontend.yml/badge.svg)
-
-<!-- coverage-badge:begin -->
-<!-- coverage-badge:end -->
-
-# Data Lake UI
-
 
 The Data Lake UI provides a user interface to access GSI Lustre cluster data.  
 It consists of the following main parts:
@@ -19,6 +15,77 @@ It consists of the following main parts:
 * Users can remotely browse directories and files.
 * Directories and files are listed with their properties (size, modification date).
 * Users can select and download individual files.
+
+## Architecture
+
+### Authentication
+
+The application uses OpenID Connect (OIDC) for authentication, implemented with a Backend-For-Frontend (BFF) pattern for enhanced security. This approach keeps authentication tokens secure on the server side, never exposing them to the browser.
+
+#### BFF Authentication Flow
+
+The diagram below illustrates the authentication flow in our application:
+
+[![BFF Authentication Flow Diagram](./docs/architecture/auth/bff_auth_flow_sequence.png)](./docs/architecture/auth/bff_auth_flow_sequence.png)
+
+[Original draw.io source file](./docs/architecture/auth/bff_auth_flow_sequence.drawio) (for editing and reference)
+
+#### Authentication Algorithm
+
+The authentication flow works as follows:
+
+1. **Initial Authentication Request**:
+   * User attempts to access a protected resource in the frontend
+   * Frontend detects user is not authenticated
+   * Frontend redirects to the login page
+
+1. **Login Initiation**:
+   * User clicks the login button
+   * Frontend calls the backend endpoint (`GET /api/auth/login`)
+   * Backend generates a random state parameter to prevent CSRF attacks
+   * Backend creates the OIDC authorization URL and returns it to the frontend
+   * Frontend redirects the user's browser to the OIDC provider's authorization URL
+
+1. **OIDC Authentication**:
+   * User authenticates with the OIDC provider (e.g., Keycloak)
+   * OIDC provider validates credentials and permissions
+   * OIDC provider redirects back to our backend callback URL with an authorization code and state parameter
+
+1. **Token Exchange**:
+   * Backend verifies the state parameter to prevent CSRF attacks
+   * Backend exchanges the authorization code for tokens with the OIDC provider
+   * This exchange occurs server-to-server and includes the client secret
+   * Backend receives access token, ID token, and refresh token
+
+1. **Secure Session Creation**:
+   * Backend stores tokens in HTTP-only cookies that JavaScript cannot access
+   * Backend sets appropriate cookie security flags (HttpOnly, SameSite, etc.)
+   * Backend redirects the user to the originally requested page
+
+1. **Authenticated API Requests**:
+   * Frontend makes API requests to backend with cookies automatically attached
+   * Backend middleware validates the session cookies
+   * Backend extracts the access token and uses it for backend operations
+   * Protected resources are returned to the frontend
+
+1. **Token Refresh**:
+   * When the access token expires, backend detects this during an API request
+   * Backend uses the stored refresh token to obtain a new access token
+   * Backend updates the session cookies with the new tokens
+   * The original API request is completed without user interruption
+
+1. **Logout**:
+   * User initiates logout in the frontend
+   * Frontend calls the backend logout endpoint (`POST /api/auth/logout`)
+   * Backend invalidates the session and clears the secure cookies
+   * User is redirected to the login page or home page
+
+Key security benefits of this approach:
+
+* Authentication tokens are stored securely in HTTP-only cookies
+* Tokens are never accessible to JavaScript, mitigating XSS attacks
+* Token refresh happens server-side, improving security
+* Server-side session management with stronger protection
 
 ## Versioning
 
@@ -65,6 +132,8 @@ This will start the Vue Frontend server and the Go Backend server concurrently.
 The Frontend will be running on [localhost:5173](http://localhost:5173/) (or on the port specified by Vite).
 
 ### Configuration
+
+#### Provide Configuration File
 
 If you need to provide an optional configuration file path to the Go Backend, set the `CONFIG_FILE_PATH` environment variable before running the npm run dev command:
 

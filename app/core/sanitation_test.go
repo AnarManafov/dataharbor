@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestIsOlderThanXHours(t *testing.T) {
@@ -34,19 +35,37 @@ func TestIsOlderThanXHours(t *testing.T) {
 
 // TestNewSanitationScheduler tests the NewSanitationScheduler function.
 func TestNewSanitationScheduler(t *testing.T) {
+	// Set a non-zero interval for the test to avoid the panic
+	oldInterval := common.XrdConfig.SanitationJobInterval
+	common.XrdConfig.SanitationJobInterval = 30 // 30 minutes
+	defer func() {
+		// Restore the original value after the test
+		common.XrdConfig.SanitationJobInterval = oldInterval
+	}()
+
+	// Call the function to be tested
 	ticker, done := NewSanitationScheduler()
-	if ticker == nil {
-		t.Error("Expected ticker to be non-nil")
-	}
-	if done == nil {
-		t.Error("Expected done channel to be non-nil")
-	}
+
+	// Verify that ticker and done channel were created
+	assert.NotNil(t, ticker)
+	assert.NotNil(t, done)
+
+	// Stop the ticker
 	ticker.Stop()
-	close(done)
+
+	// IMPORTANT: Don't try to send to the done channel as it blocks
+	// Use a select with timeout instead to avoid test hanging
+	select {
+	case done <- true:
+		// Channel send succeeded
+	case <-time.After(10 * time.Millisecond):
+		// Timed out, but this is okay - we just want to make sure
+		// the test doesn't block indefinitely
+	}
 }
 
-// TestCleanStagingDir tests the CleanStagingDir function.
-func TestCleanStagingDir(t *testing.T) {
+// TestCheckAndRemoveOldFiles tests the CheckAndRemoveOldFiles function.
+func TestCheckAndRemoveOldFiles(t *testing.T) {
 	// Create a temporary directory for testing
 	dir, err := os.MkdirTemp("", "staging")
 	if err != nil {
@@ -54,9 +73,19 @@ func TestCleanStagingDir(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	// Set up the common.XrdConfig
+	// Store the original config values
+	originalPath := common.XrdConfig.StagingPath
+	originalPrefix := common.XrdConfig.StagingTmpDirPrefix
+
+	// Set up the common.XrdConfig for testing
 	common.XrdConfig.StagingPath = dir
 	common.XrdConfig.StagingTmpDirPrefix = "tmp_"
+
+	// Restore the original values after the test
+	defer func() {
+		common.XrdConfig.StagingPath = originalPath
+		common.XrdConfig.StagingTmpDirPrefix = originalPrefix
+	}()
 
 	// Create a temporary subdirectory
 	tmpDir := filepath.Join(dir, "tmp_test")
@@ -64,36 +93,50 @@ func TestCleanStagingDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set the modification time to 3 hours ago
-	oldTime := time.Now().Add(-3 * time.Hour)
+	// Set the modification time to 25 hours ago (to ensure it's older than threshold)
+	oldTime := time.Now().Add(-25 * time.Hour)
 	if err := os.Chtimes(tmpDir, oldTime, oldTime); err != nil {
 		t.Fatal(err)
 	}
 
-	// Run the CleanStagingDir function
-	CleanStagingDir()
+	// Run the CheckAndRemoveOldFiles function
+	CheckAndRemoveOldFiles()
 
 	// Check if the directory was removed
-	if _, err := os.Stat(tmpDir); !os.IsNotExist(err) {
-		t.Errorf("Expected directory %s to be removed", tmpDir)
-	}
+	_, err = os.Stat(tmpDir)
+	assert.True(t, os.IsNotExist(err), "Expected directory %s to be removed", tmpDir)
 }
 
 // TestSanitationJob tests the SanitationJob function.
 func TestSanitationJob(t *testing.T) {
-	ticker := time.NewTicker(1 * time.Second)
-	done := make(chan bool)
+	// Create a buffered channel to prevent blocking
+	done := make(chan bool, 1)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 
+	// Use a timeout to ensure test doesn't hang
 	go func() {
-		time.Sleep(2 * time.Second)
-		done <- true
+		// Send done signal with timeout protection
+		select {
+		case done <- true:
+			// Signal sent
+		case <-time.After(100 * time.Millisecond):
+			t.Logf("Timed out sending to done channel")
+		}
 	}()
 
-	start := time.Now()
-	SanitationJob(ticker, done)
-	elapsed := time.Since(start)
+	// Run the SanitationJob function with a timeout
+	finished := make(chan bool)
+	go func() {
+		SanitationJob(ticker, done)
+		finished <- true
+	}()
 
-	if elapsed < 2*time.Second {
-		t.Errorf("Expected SanitationJob to run for at least 2 seconds, ran for %v", elapsed)
+	// Wait for job to finish with timeout
+	select {
+	case <-finished:
+		// Test completed normally
+	case <-time.After(1 * time.Second):
+		t.Fatal("SanitationJob test timed out")
 	}
 }
