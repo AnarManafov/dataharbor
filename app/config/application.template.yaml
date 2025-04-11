@@ -1,19 +1,54 @@
+env: development
+
 server:
+  address: ":8080"
   port: 22000
   debug: false
+  shutdown_timeout: 30s
+  cors:
+    allow_credentials: true
+    allow_headers:
+      - Origin
+      - Content-Length
+      - Content-Type
+      - Authorization
+    allow_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allow_origins:
+      - http://localhost:8080
+      - http://localhost:8081
+  ssl:
+    enabled: false
+    # cert_file: server.crt
+    # key_file: server.key
+
+log:
+  format: text  # text or json
+  level: info   # trace, debug, info, warn, error, fatal
 
 xrd:
   host: "localhost"
   port: 1094
   initial_dir: "/tmp"
   xrd_client_bin_path: "/opt/homebrew/bin/"
-  # in seconds
-  process_timeout: 60
+  process_timeout: 60           # In seconds
   staging_path: "/tmp/delete_me"
   staging_tmp_dir_prefix: "stg_"
-  # in minutes
-  sanitation_job_interval: 30
+  sanitation_job_interval: 30   # In minutes
+  url: "root://localhost:1094"
+  user: ""
+  usergroup: ""
+  userpwd: ""
+  user_required: false
+  tls: false
+  client_cert: ""
+  client_key: ""
 
+# Logger configuration for zap logger
 logger:
   console:
     level: "info"
@@ -26,3 +61,18 @@ logger:
     maxbackups: 2
     maxage: 27
     compress: true
+
+auth:
+  enabled: true
+  skip_auth_paths:
+    - "/health"
+    - "/api/auth/login"
+    - "/api/auth/callback"
+  oidc:
+    issuer: "https://id.gsi.de/realms/wl"
+    client_id: "xrootd"
+    client_secret: ""  # Must be provided in the actual config file
+    discovery_url: "https://id.gsi.de/realms/wl/.well-known/openid-configuration"
+    allowed_roles:
+      - "xrootd-user"
+    session_secret: ""  # Generate a secure random string for this in production
