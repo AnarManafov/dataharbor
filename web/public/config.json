@@ -1,4 +1,6 @@
 {
-    "apiBaseUrl": "http://localhost:22000/",
-    "apiTimeout": 600000
-}
+    "apiBaseUrl": "/api",
+    "features": {
+      "enableDocumentation": true
+    }
+  }

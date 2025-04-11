@@ -6,50 +6,73 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Response structure
+// Response structure for standardized API responses
 type Response struct {
-	// Internal error code. For now we mostly reuse HTTP status codes
-	Code int `json:"code"`
-	// Response data
-	Data interface{} `json:"data,omitempty"`
-	// Response message
-	Message string `json:"message,omitempty"`
-	// Error message
-	Error string `json:"error,omitempty"`
+	Code    int         `json:"code"`              // Internal code (typically HTTP status code)
+	Data    interface{} `json:"data,omitempty"`    // Response payload
+	Message string      `json:"message,omitempty"` // User-friendly message
+	Error   string      `json:"error,omitempty"`   // Error message if applicable
 }
 
-// Send a JSON response
-func sendResponse(ctx *gin.Context, httpStatus int, code int, data interface{}, message string, error string) {
+// sendResponse sends a standardized JSON response
+func sendResponse(ctx *gin.Context, httpStatus int, code int, data interface{}, message string, errorMsg string) {
 	response := Response{
 		Code:    code,
 		Data:    data,
 		Message: message,
-		Error:   error,
+		Error:   errorMsg,
 	}
 	ctx.JSON(httpStatus, response)
 }
 
-// Success response
+// Success sends a successful response with data
 func Success(ctx *gin.Context, data interface{}) {
 	sendResponse(ctx, http.StatusOK, http.StatusOK, data, "success", "")
 }
 
-// Parameter validation failure response
-func ParamValidateFail(ctx *gin.Context, msg string) {
-	sendResponse(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, nil, "", msg)
+// Error sends an error response with the given status code and message
+// This consolidates multiple error response functions into a single, flexible one
+func Error(ctx *gin.Context, status int, message string) {
+	sendResponse(ctx, status, status, nil, "", message)
 }
 
-// General failure response
+// ValidationError sends a response for validation failures
+func ValidationError(ctx *gin.Context, data interface{}) {
+	statusCode := http.StatusUnprocessableEntity
+	sendResponse(ctx, statusCode, statusCode, data, "", http.StatusText(statusCode))
+}
+
+// ErrorWithCode sends an error response with a custom error code
+func ErrorWithCode(ctx *gin.Context, httpStatus int, code int, message string) {
+	sendResponse(ctx, httpStatus, code, nil, "", message)
+}
+
+// Fail sends a general failure response with a message and error code
+// Maintained for backward compatibility with existing code
 func Fail(ctx *gin.Context, msg string, errcode int) {
 	sendResponse(ctx, http.StatusBadRequest, errcode, nil, "", msg)
 }
 
-// Validation failure response with data
+// ParamValidateFail sends a parameter validation failure response
+// Maintained for backward compatibility with existing code
+func ParamValidateFail(ctx *gin.Context, msg string) {
+	sendResponse(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, nil, "", msg)
+}
+
+// ValidateFail sends a validation failure response with data
+// Maintained for backward compatibility with existing code
 func ValidateFail(ctx *gin.Context, data map[string][]string) {
 	sendResponse(ctx, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity, data, "", http.StatusText(http.StatusUnprocessableEntity))
 }
 
-// Failure response with custom error
+// FailWithErr sends a failure response with a custom error type
+// Maintained for backward compatibility with existing code
 func FailWithErr(ctx *gin.Context, err TransferProtocolError) {
 	sendResponse(ctx, http.StatusBadRequest, err.code, nil, "", err.message)
+}
+
+// JSON sends a raw JSON response without using the standard Response structure
+// Use this only for special cases where the standard Response format doesn't fit
+func JSON(ctx *gin.Context, status int, data interface{}) {
+	ctx.JSON(status, data)
 }

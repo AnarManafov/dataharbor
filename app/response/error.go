@@ -1,6 +1,8 @@
 package response
 
-import "net/http"
+import (
+	"net/http"
+)
 
 // Error codes:
 // https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
@@ -49,3 +51,5 @@ var UnAuthenticateErr = &TransferProtocolError{code: http.StatusUnauthorized, me
 
 // UnAuthorizationErr represents an unauthorized error.
 var UnAuthorizationErr = &TransferProtocolError{code: http.StatusForbidden, message: http.StatusText(http.StatusForbidden)}
+
+// NOTE: The Error() and JSON() functions were moved to response.go as part of code consolidation

@@ -1,73 +1,121 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
+import BrowseXrdView from '../views/BrowseXrdView.vue'
+import AboutView from '../views/AboutView.vue'
+import DocumentationView from '../views/DocumentationView.vue'
+import LoginView from '../views/LoginView.vue'
+import OidcCallbackComponent from '../components/partials/OidcCallbackComponent.vue'
+import OidcCallbackError from '../components/partials/OidcCallbackError.vue'
+import { useAuth } from '../composables/useAuth'
+
+// Routes configuration with metadata for access control
+const routes = [
+    {
+        path: '/',
+        name: 'home',
+        component: HomeView,
+        // Public routes allow access even when not authenticated
+        meta: { isPublic: true }
+    },
+    {
+        path: '/browse',
+        name: 'browse',
+        component: BrowseXrdView,
+        // Protected routes will redirect to login when user isn't authenticated
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/about',
+        name: 'about',
+        component: AboutView,
+        meta: { isPublic: true }
+    },
+    {
+        path: '/docs',
+        name: 'docs',
+        component: DocumentationView,
+        meta: { isPublic: true }
+    },
+    // Secondary path for documentation to support existing bookmarks and links
+    {
+        path: '/documentation',
+        redirect: '/docs',
+        meta: { isPublic: true }
+    },
+    {
+        path: '/login',
+        name: 'login',
+        component: LoginView,
+        meta: { isPublic: true }
+    },
+    // Authentication callback routes for OIDC flow
+    {
+        path: '/oidc-callback',
+        name: 'oidcCallback',
+        component: OidcCallbackComponent,
+        meta: { isPublic: true }
+    },
+    {
+        path: '/oidc-callback-error',
+        name: 'oidcCallbackError',
+        component: OidcCallbackError,
+        meta: { isPublic: true }
+    }
+]
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
-    routes: [
-        {
-            path: '/',
-            name: 'home',
-            component: HomeView
-        },
-        {
-            path: '/about',
-            name: 'about',
-            // route level code-splitting
-            // this generates a separate chunk (About.[hash].js) for this route
-            // which is lazy-loaded when the route is visited.
-            component: () => import('../views/AboutView.vue')
-        },
-        {
-            path: '/browse/:path*',
-            name: 'browse',
-            component: () => import('../views/BrowseXrdView.vue'),
-            props: route => ({ path: Array.isArray(route.params.path) ? route.params.path.join('/') : route.params.path }),
-            meta: { requiresAuth: true }
-        },
-        {
-            path: '/documentation',
-            name: 'documentation',
-            component: () => import('../views/DocumentationView.vue')
-        },
-        {
-            path: '/login',
-            name: 'login',
-            component: () => import('../views/LoginView.vue')
-        },
-        {
-            // The Authentication process
-            // - User Clicks Login Button:
-            //   When the user clicks the login button on your SPA, redirect them to the third-party authentication service.
-            // - Redirect to Authentication Service: 
-            //   The user is redirected to the authentication service’s login page where they enter their credentials.
-            // - Authentication and Token Generation: 
-            //   After successful authentication, the service generates a token (usually a JWT).
-            // - Redirect Back to Your App: 
-            //   The authentication service redirects the user back to your app with the token included in the URL as a query parameter (e.g., https://yourapp.com/callback?token=xyz).
-            // 
-            // The Authentication Callback URL
-            path: '/callback',
-            name: 'callback',
-            component: () => import('../components/partials/CallbackComponent.vue'),
-            props: route => ({ token: route.query.token }) // Pass token as prop to component
-        }
-    ]
+    routes
 })
 
-// Add a navigation guard
-router.beforeEach((to, from, next) => {
-    // Check if the route requires authentication
-    if (to.matched.some(record => record.meta.requiresAuth)) {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            console.log('Authenticated, token:', token);
-            next();
-        } else {
-            console.log('Not authenticated');
-            next({ name: 'login' }); // Redirect to login instead of home when not authenticated
+// Create auth instance before router guards run to ensure authentication state is available
+const { checkAuth } = useAuth();
+
+// Global navigation guard to enforce authentication requirements
+router.beforeEach(async (to, from, next) => {
+    const isPublic = to.matched.some(record => record.meta.isPublic);
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
+    // Skip auth check for OAuth callback routes to prevent authentication loops
+    const isOidcCallback = to.path.includes('/oidc-callback');
+
+    // OIDC callbacks must proceed without auth checks
+    if (isOidcCallback) {
+        return next();
+    }
+
+    // Public routes don't need authentication verification
+    if (isPublic && !requiresAuth) {
+        return next();
+    }
+
+    try {
+        // For protected routes, verify user is authenticated
+        if (requiresAuth) {
+            const isAuthenticated = await checkAuth();
+
+            if (!isAuthenticated) {
+                // Redirect to login with return URL to bring user back after authentication
+                return next({
+                    path: '/login',
+                    query: { redirect: to.fullPath }
+                });
+            }
         }
-    } else {
-        next(); // Always call next() to resolve the hook
+
+        // Continue to requested route
+        next();
+    } catch (error) {
+        console.error('Navigation guard error:', error);
+
+        // Safely handle auth check failures
+        if (requiresAuth) {
+            next({
+                path: '/login',
+                query: { redirect: to.fullPath }
+            });
+        } else {
+            next();
+        }
     }
 });
 

@@ -3,6 +3,10 @@
 ## [0.6.0] - NOT YET RELEASED
 
 - Added: RPM package build. (GH-20)
+- Added: Backend-For-Frontend (BFF) pattern for secure authentication. (GH-19)
+- Added: HTTP-only cookie session management for improved security.  (GH-19)
+- Added: Server-side token refresh handling.  (GH-19)
+- Fixed: CORS implementation to properly support credentials.  (GH-19)
 
 ## [0.5.0] - 2024-10-02
 

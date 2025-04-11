@@ -1,10 +1,12 @@
-import { fileURLToPath, URL } from "node:url";
-
-import { defineConfig } from "vite";
-import vue from "@vitejs/plugin-vue";
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -17,23 +19,13 @@ export default defineConfig({
             resolvers: [ElementPlusResolver()],
         }),
     ],
-    resolve: {
-        alias: {
-            "@": fileURLToPath(new URL("./src", import.meta.url)),
-        },
-    },
-    css: {
-        preprocessorOptions: {
-            scss: {
-                // this resolves the warning: The legacy JS API is deprecated and will be removed in Dart Sass 2.0.0.
-                api: 'modern-compiler', // or 'modern'
-            },
-        },
-    },
+    // Use the sandbox's public directory
+    publicDir: path.resolve(__dirname, '../sandbox/public'),
+    // Configure the development server
     server: {
         port: 5173,
+        // Proxy API requests to your backend during development
         proxy: {
-            // Proxy all /api requests to backend server
             '/api': {
                 target: 'http://localhost:22000',
                 changeOrigin: true,
@@ -61,5 +53,20 @@ export default defineConfig({
                 },
             }
         }
+    },
+    // Add resolve aliases to match your main Vite config
+    resolve: {
+        alias: {
+            '@': path.resolve(__dirname, './src'),
+            // Add any other aliases your project might be using
+        }
+    },
+    css: {
+        preprocessorOptions: {
+            scss: {
+                // Resolve the warning: The legacy JS API is deprecated
+                api: 'modern-compiler',
+            },
+        },
     }
 });
