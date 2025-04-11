@@ -5,32 +5,33 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/AnarManafov/data_lake_ui/app/controller"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRegisterRoutes(t *testing.T) {
+	// Set up gin in test mode
 	gin.SetMode(gin.TestMode)
-	r := gin.Default()
+	r := gin.New()
 
+	// Register routes
 	RegisterRoutes(r)
 
-	tests := []struct {
-		method   string
-		endpoint string
-		handler  gin.HandlerFunc
-	}{
-		{"GET", "/health", controller.Health},
-		{"GET", "/initial_dir", controller.FetchInitialDir},
-		{"GET", "/host_name", controller.FetchHostName},
-	}
+	// Create test server
+	ts := httptest.NewServer(r)
+	defer ts.Close()
 
-	for _, tt := range tests {
-		req, _ := http.NewRequest(tt.method, tt.endpoint, nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+	// Test health endpoint
+	resp, err := http.Get(ts.URL + "/health")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-	}
+	// Test API endpoints with correct paths
+	resp, err = http.Get(ts.URL + "/api/xrd/initialDir")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	resp, err = http.Get(ts.URL + "/api/xrd/hostname")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
 }

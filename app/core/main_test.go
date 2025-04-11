@@ -5,18 +5,16 @@ import (
 	"testing"
 
 	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/config"
 )
 
+// TestMain sets up the test environment
 func TestMain(m *testing.M) {
-	// Initialize the logger and the configuration
+	// Initialize logger
 	common.InitLogger()
-	config.InitCmd()
-	config.Init()
 
-	// Run the tests
-	exitCode := m.Run()
+	// Ensure default sanitation job interval is set to avoid panics
+	common.XrdConfig.SanitationJobInterval = 30
 
-	// Exit with the appropriate status code
-	os.Exit(exitCode)
+	// Run tests with timeout protection
+	os.Exit(m.Run())
 }

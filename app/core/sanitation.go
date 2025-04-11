@@ -1,72 +1,88 @@
 package core
 
 import (
-	"path"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/AnarManafov/data_lake_ui/app/common"
-
-	"os"
-	"time"
 )
 
-// isOlderThanXHours checks if the given time is older than X hours.
-// It returns true if the time is older than X hours, otherwise false.
+// Helper function to determine if a file/directory exceeds the retention period
 func isOlderThanXHours(t time.Time, x uint) bool {
 	return time.Since(t) > (time.Duration(x) * time.Hour)
 }
 
-// NewSanitationScheduler creates a new sanitation scheduler.
-// It returns a ticker that runs the sanitation job every X minutes and a done channel.
+// NewSanitationScheduler creates a background process to prevent disk space exhaustion
+// by periodically cleaning up abandoned downloads and temporary files
 func NewSanitationScheduler() (*time.Ticker, chan bool) {
-	// Start the sanitation job
 	common.Logger.Info("Creating a sanitation check job...")
-	// The job runs every X minutes
-	ticker := time.NewTicker(time.Duration(common.XrdConfig.SanitationJobInterval) * time.Minute)
+
+	// Default to 30 minutes if not configured to prevent zero interval
+	interval := common.XrdConfig.SanitationJobInterval
+	if interval == 0 {
+		interval = 30
+	}
+
+	ticker := time.NewTicker(time.Duration(interval) * time.Minute)
 	done := make(chan bool)
 	return ticker, done
 }
 
-// CleanStagingDir cleans the staging directory by removing directories that are older than 2 hours.
-func CleanStagingDir() {
-	files, err := os.ReadDir(common.XrdConfig.StagingPath)
-	if err != nil {
-		common.Logger.Error(err)
+// CheckAndRemoveOldFiles cleans up the staging directory by removing files
+// older than 24 hours to prevent disk space exhaustion from abandoned transfers
+func CheckAndRemoveOldFiles() {
+	stagingPath := common.XrdConfig.StagingPath
+	if stagingPath == "" {
+		common.Logger.Warn("Staging path is not configured, skipping sanitation")
 		return
 	}
 
-	for _, file := range files {
-		if file.IsDir() {
-			common.Logger.Info("Check staging dir: " + file.Name())
-			fileInfo, err := file.Info()
-			if err == nil && strings.HasPrefix(file.Name(), common.XrdConfig.StagingTmpDirPrefix) && isOlderThanXHours(fileInfo.ModTime(), 2) {
-				dirToRemove := path.Join(common.XrdConfig.StagingPath, file.Name())
-				common.Logger.Info("Need to remove staging dir: " + dirToRemove)
-				if err := os.RemoveAll(dirToRemove); err != nil {
-					common.Logger.Error(err)
-				} else {
-					common.Logger.Info("Removed staging dir: " + dirToRemove)
-				}
+	entries, err := os.ReadDir(stagingPath)
+	if err != nil {
+		common.Logger.Error("Failed to read staging directory:", err)
+		return
+	}
+
+	for _, entry := range entries {
+		// Only process directories with our prefix to avoid removing unrelated files
+		if !entry.IsDir() || (common.XrdConfig.StagingTmpDirPrefix != "" &&
+			!strings.HasPrefix(entry.Name(), common.XrdConfig.StagingTmpDirPrefix)) {
+			continue
+		}
+
+		fullPath := filepath.Join(stagingPath, entry.Name())
+
+		info, err := entry.Info()
+		if err != nil {
+			common.Logger.Error("Failed to get info for directory:", err)
+			continue
+		}
+
+		// 24 hours threshold for cleaning up staged files
+		if time.Since(info.ModTime()) > 24*time.Hour {
+			common.Logger.Infof("Removing old staged directory: %s", fullPath)
+			err := os.RemoveAll(fullPath)
+			if err != nil {
+				common.Logger.Errorf("Failed to remove staged directory: %s, error: %s", fullPath, err)
 			}
 		}
 	}
 }
 
-// SanitationJob runs the sanitation job at regular intervals.
-// It cleans the staging directory by removing directories that are older than 2 hours.
-// The job starts immediately and continues running until the done channel receives a signal.
+// SanitationJob runs in the background to manage disk space by periodically
+// cleaning up temporary files that may have been abandoned by client disconnects
 func SanitationJob(ticker *time.Ticker, done chan bool) {
-	// Since the Tick is not called immediately, we force the clean at the start
-	CleanStagingDir()
-
+	common.Logger.Info("Starting sanitation job...")
 	for {
 		select {
+		case <-ticker.C:
+			common.Logger.Info("Running sanitation job...")
+			CheckAndRemoveOldFiles()
 		case <-done:
-			common.Logger.Info("Sanitation check job - done")
+			common.Logger.Info("Stopping sanitation job...")
 			return
-		case t := <-ticker.C:
-			common.Logger.Info("Sanitation check of staging dir at ", t)
-			CleanStagingDir()
 		}
 	}
 }

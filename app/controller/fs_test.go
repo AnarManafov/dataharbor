@@ -9,8 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AnarManafov/data_lake_ui/app/common"
 	"github.com/AnarManafov/data_lake_ui/app/request"
 	"github.com/AnarManafov/data_lake_ui/app/response"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -44,17 +46,49 @@ func convertFieldsToInt(data gin.H, fields []string) {
 }
 
 func TestFetchInitialDir(t *testing.T) {
-	c, w := setupTestContext()
+	// Setup
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// Set the initial dir value for testing
+	common.XrdConfig.InitialDir = "/tmp/"
+
+	// Call the function
 	FetchInitialDir(c)
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"code":200,"data":"/tmp/","message":"success"}`, w.Body.String())
+
+	// Assert the response
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"code":    float64(200),
+		"data":    "/tmp/",
+		"message": "success",
+	}, resp)
 }
 
 func TestFetchHostName(t *testing.T) {
-	c, w := setupTestContext()
+	// Setup
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	// Set the host value for testing
+	common.XrdConfig.Host = "localhost"
+
+	// Call the function
 	FetchHostName(c)
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"code":200,"data":"localhost","message":"success"}`, w.Body.String())
+
+	// Assert the response
+	var resp map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.Nil(t, err)
+	assert.Equal(t, map[string]interface{}{
+		"code":    float64(200),
+		"data":    "localhost",
+		"message": "success",
+	}, resp)
 }
 
 func TestFetchDirItems(t *testing.T) {
@@ -299,87 +333,49 @@ func TestFetchDirItemsByPage(t *testing.T) {
 }
 
 func TestFetchFileStagedForDownload(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
 	tests := []struct {
-		name         string
-		requestBody  request.DirectoryItemsRequest
-		mockError    error
-		expectedCode int
-		expectedBody gin.H
+		name     string
+		reqPath  string
+		expected gin.H
 	}{
 		{
-			name: "valid request",
-			requestBody: request.DirectoryItemsRequest{
-				Path: "/valid/file",
-			},
-			expectedCode: http.StatusOK,
-			expectedBody: gin.H{
-				"code": 200,
-				"data": map[string]interface{}{
-					"path": "/staged/file",
-				},
-				"message": "success",
-			},
+			name:     "invalid request",
+			reqPath:  "",
+			expected: gin.H{"code": float64(400), "error": "empty file path for staging"},
 		},
 		{
-			name: "empty file path",
-			requestBody: request.DirectoryItemsRequest{
-				Path: "",
-			},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: gin.H{
-				"code":  400,
-				"error": "empty file path for staging",
-			},
+			name:     "valid request",
+			reqPath:  "/valid/file",
+			expected: gin.H{"code": float64(200), "data": map[string]interface{}{"path": "/staged/file"}, "message": "success"},
 		},
 		{
-			name: "staging error",
-			requestBody: request.DirectoryItemsRequest{
-				Path: "/valid/file",
-			},
-			mockError:    errors.New("staging error"),
-			expectedCode: http.StatusInternalServerError,
-			expectedBody: gin.H{
-				"code":  400,
-				"error": "staging error",
-			},
+			name:     "staging error",
+			reqPath:  "/error/file",
+			expected: gin.H{"code": float64(400), "error": "staging error"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Mock StageFile function
-			MockStageFile := func(host string, port uint, path string) (string, error) {
-				if tt.mockError != nil {
-					return "", tt.mockError
-				}
-				return "/staged/file", nil
-			}
+			// Setup
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
 
-			// Create a new gin context
-			c, w := setupTestContext()
-			// Create request body
-			body, _ := json.Marshal(tt.requestBody)
-			c.Request, _ = http.NewRequest(http.MethodPost, "/file-staged-for-download", bytes.NewBuffer(body))
+			// Set request body
+			req := request.DirectoryItemsRequest{Path: tt.reqPath}
+			reqBody, _ := json.Marshal(req)
+			c.Request = httptest.NewRequest("POST", "/", bytes.NewBuffer(reqBody))
 			c.Request.Header.Set("Content-Type", "application/json")
 
-			// Call the function
-			fetchFileStagedForDownload(c, MockStageFile, "host", 123)
+			// Call the function - we're already mocking stageFileLocal in TestMain
+			FetchFileStagedForDownload(c)
 
-			// Convert actual response to expected type
-			var actualBody gin.H
-			if err := json.Unmarshal(w.Body.Bytes(), &actualBody); err != nil {
-				t.Fatalf("Failed to unmarshal response body: %v", err)
-			}
-
-			// Convert code field to int
-			if code, ok := actualBody["code"].(float64); ok {
-				actualBody["code"] = int(code)
-			}
-
-			// Assert equality
-			assert.Equal(t, tt.expectedBody, actualBody)
+			// Assert the response
+			var resp gin.H
+			err := json.Unmarshal(w.Body.Bytes(), &resp)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expected, resp)
 		})
 	}
 }
