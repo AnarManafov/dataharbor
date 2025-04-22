@@ -1,36 +1,30 @@
 <!-- src/views/LoginView.vue -->
 <template>
     <div class="login-view">
-        <div class="container py-5">
-            <div class="row justify-content-center">
-                <div class="col-md-6">
-                    <div class="card shadow">
-                        <div class="card-header bg-primary text-white">
-                            <h3 class="mb-0">Login</h3>
-                        </div>
-                        <div class="card-body">
-                            <div v-if="loading" class="text-center py-3">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                <p class="mt-2">Authenticating...</p>
-                            </div>
-                            <div v-else>
-                                <p class="card-text">
-                                    Please login to access protected resources.
-                                </p>
-                                <button class="btn btn-primary w-100" @click="handleLogin" :disabled="loading">
-                                    Login with GSI Account
-                                </button>
-                                <div v-if="errorMessage" class="alert alert-danger mt-3">
-                                    {{ errorMessage }}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <el-card class="login-card">
+            <template #header>
+                <div class="card-header">
+                    <h3>Login</h3>
                 </div>
+            </template>
+
+            <div v-if="loading" class="text-center">
+                <el-icon class="loading-icon">
+                    <Loading />
+                </el-icon>
+                <p class="loading-text">Authenticating...</p>
             </div>
-        </div>
+            <div v-else>
+                <p class="card-text">
+                    Please login to access protected resources.
+                </p>
+                <el-button type="primary" :loading="loading" size="large" class="login-button" @click="handleLogin">
+                    Login with GSI Account
+                </el-button>
+                <el-alert v-if="errorMessage" title="" :description="errorMessage" type="error" show-icon
+                    class="mt-3" />
+            </div>
+        </el-card>
     </div>
 </template>
 
@@ -38,9 +32,13 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import useAuth from '../composables/useAuth';
+import { Loading } from '@element-plus/icons-vue';
 
 export default {
     name: 'LoginView',
+    components: {
+        Loading
+    },
     setup() {
         const { login, isAuthenticated, error, isLoading } = useAuth();
         const route = useRoute();
@@ -87,9 +85,53 @@ export default {
 <style scoped>
 .login-view {
     min-height: calc(100vh - 120px);
-    /* Account for header/footer space */
     padding: 40px 0;
     display: flex;
     align-items: center;
+    justify-content: center;
+}
+
+.login-card {
+    width: 400px;
+    max-width: 90%;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.loading-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    animation: rotating 2s linear infinite;
+}
+
+.loading-text {
+    margin-top: 1rem;
+}
+
+.login-button {
+    width: 100%;
+    margin-top: 1rem;
+}
+
+.mt-3 {
+    margin-top: 1rem;
+}
+
+@keyframes rotating {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 </style>

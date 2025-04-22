@@ -23,6 +23,7 @@ func GetCurrentUser(c *gin.Context) {
 	logger.Infof("GetCurrentUser called - Headers: %v", c.Request.Header)
 	logger.Infof("GetCurrentUser called - Cookies: %v", c.Request.Cookies())
 
+	// Get session
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err != nil {
 		logger.Error("Failed to get session", "error", err)
@@ -35,9 +36,10 @@ func GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	accessToken, ok := session.Values["access_token"].(string)
-	if !ok || accessToken == "" {
-		logger.Info("No access token in session")
+	// Get token ID from session
+	tokenID, ok := session.Values["token_id"].(string)
+	if !ok || tokenID == "" {
+		logger.Info("No token ID in session")
 
 		// CORS headers needed for cross-domain authentication flows
 		c.Header("Access-Control-Allow-Credentials", "true")
@@ -47,7 +49,63 @@ func GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	userInfo, err := fetchUserInfo(accessToken, cfg)
+	// Get tokens from token store
+	tokens, ok := getTokens(tokenID)
+	if !ok {
+		logger.Info("No tokens found for token ID")
+
+		// CORS headers needed for cross-domain authentication flows
+		c.Header("Access-Control-Allow-Credentials", "true")
+		c.Header("Access-Control-Allow-Origin", c.Request.Header.Get("Origin"))
+
+		response.Error(c, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	// Log whether we have a refresh token
+	logger.Infof("Refresh token available: %v", tokens.RefreshToken != "")
+
+	// Check token expiration and refresh if needed
+	currentTime := time.Now().Unix()
+	if tokens.ExpiresAt > 0 {
+		timeRemaining := tokens.ExpiresAt - currentTime
+
+		// Log token expiration details
+		logger.Infof("Token expires at: %s (Unix: %d), Current time: %s (Unix: %d), Time remaining: %d seconds",
+			time.Unix(tokens.ExpiresAt, 0).Format(time.RFC3339),
+			tokens.ExpiresAt,
+			time.Unix(currentTime, 0).Format(time.RFC3339),
+			currentTime,
+			timeRemaining)
+
+		// If token is expired or will expire soon (within 5 minutes)
+		refreshBuffer := int64(300) // 5 minutes in seconds
+
+		if currentTime > tokens.ExpiresAt || timeRemaining < refreshBuffer {
+			logger.Info("Token expired or expiring soon, attempting refresh")
+			if err := refreshToken(c); err != nil {
+				logger.Error("Failed to refresh token", "error", err)
+
+				// If token is actually expired, return unauthorized
+				if currentTime > tokens.ExpiresAt {
+					c.Header("Access-Control-Allow-Credentials", "true")
+					c.Header("Access-Control-Allow-Origin", c.Request.Header.Get("Origin"))
+					response.Error(c, http.StatusUnauthorized, "Session expired")
+					return
+				}
+				// Otherwise continue with existing token
+				logger.Warn("Using existing token despite failed refresh attempt")
+			} else {
+				// Get the updated tokens after refresh
+				tokens, _ = getTokens(tokenID)
+				logger.Info("Successfully refreshed token before user info fetch")
+			}
+		}
+	} else {
+		logger.Warn("No token expiration information available")
+	}
+
+	userInfo, err := fetchUserInfo(tokens.AccessToken, cfg)
 	if err != nil {
 		logger.Error("Failed to fetch user info", "error", err)
 
