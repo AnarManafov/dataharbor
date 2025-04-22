@@ -8,7 +8,7 @@
         "dev:with-config": "VITE_CONFIG_FILE_PATH='/config.json' vite",
         "build": "vite build",
         "preview": "vite preview",
-        "sandbox:serve": "vite --config vite.sandbox.config.js"
+        "sandbox": "vite --config vite.sandbox.config.js"
     },
     "dependencies": {
         "@element-plus/icons-vue": "^2.3.1",

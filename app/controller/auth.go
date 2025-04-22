@@ -34,6 +34,76 @@ const (
 // Will be initialized in init()
 var SessionStore *sessions.CookieStore
 
+// TokenStore stores tokens in memory with unique IDs to avoid cookie size limitations
+// In a production environment with multiple instances, this should be replaced with a distributed store
+//
+// IMPORTANT: We use an in-memory token store because:
+//  1. Cookie size limits (~4KB) prevent storing large tokens directly in cookies
+//     (our tokens are ~5KB+ in size)
+//  2. Browser localStorage/sessionStorage is not accessible to the backend
+//  3. Storing tokens server-side provides better security as tokens never leave the server
+//     except when making authorized API calls
+//
+// For high-availability deployments:
+// - This in-memory implementation will not work properly with multiple server instances
+// - Should be replaced with a distributed store like Redis or a database
+// - Each request might be routed to a different instance that doesn't have the tokens
+//
+// Token cleanup considerations:
+// - This implementation has no automatic cleanup mechanism for abandoned tokens
+// - In a production setting, implement a token cleanup routine to prevent memory leaks
+type TokenInfo struct {
+	AccessToken  string
+	RefreshToken string
+	IDToken      string
+	ExpiresAt    int64
+}
+
+var tokenStore = make(map[string]TokenInfo)
+
+// generateTokenID creates a unique ID for storing tokens
+func generateTokenID() string {
+	return uuid.New().String()
+}
+
+// storeTokens saves tokens in the token store and returns an ID
+func storeTokens(accessToken, refreshToken, idToken string, expiresAt int64) string {
+	tokenID := generateTokenID()
+	tokenStore[tokenID] = TokenInfo{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		IDToken:      idToken,
+		ExpiresAt:    expiresAt,
+	}
+	return tokenID
+}
+
+// getTokens retrieves tokens from the store
+func getTokens(tokenID string) (TokenInfo, bool) {
+	tokens, ok := tokenStore[tokenID]
+	return tokens, ok
+}
+
+// updateTokens updates tokens in the store
+func updateTokens(tokenID string, accessToken, refreshToken, idToken string, expiresAt int64) bool {
+	if _, exists := tokenStore[tokenID]; !exists {
+		return false
+	}
+
+	tokenStore[tokenID] = TokenInfo{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		IDToken:      idToken,
+		ExpiresAt:    expiresAt,
+	}
+	return true
+}
+
+// deleteTokens removes tokens from the store
+func deleteTokens(tokenID string) {
+	delete(tokenStore, tokenID)
+}
+
 func init() {
 	cfg := config.GetConfig()
 	logger := common.GetLogger()
@@ -379,14 +449,20 @@ func AuthCallback(c *gin.Context) {
 		return
 	}
 
-	// Store tokens in session for subsequent API calls without requiring re-authentication
-	session.Values["access_token"] = tokenResponse.AccessToken
-	session.Values["refresh_token"] = tokenResponse.RefreshToken
-	session.Values["id_token"] = tokenResponse.IDToken
-	session.Values["token_expires_at"] = time.Now().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second).Unix()
+	// Log token response details (excluding sensitive parts)
+	logger.Infof("Token response received: access_token present: %v, refresh_token present: %v, id_token present: %v, expires_in: %d",
+		tokenResponse.AccessToken != "",
+		tokenResponse.RefreshToken != "",
+		tokenResponse.IDToken != "",
+		tokenResponse.ExpiresIn)
+
+	// Store tokens in memory and save the token ID in the session
+	expiresAt := time.Now().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second).Unix()
+	tokenID := storeTokens(tokenResponse.AccessToken, tokenResponse.RefreshToken, tokenResponse.IDToken, expiresAt)
+	session.Values["token_id"] = tokenID
 
 	if err := session.Save(c.Request, c.Writer); err != nil {
-		logger.Error("Failed to save session with tokens", "error", err)
+		logger.Error("Failed to save session with token ID", "error", err)
 		response.Error(c, http.StatusInternalServerError, "Failed to complete authentication")
 		return
 	}
@@ -421,109 +497,20 @@ func AuthCallback(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL)
 }
 
-// GetUserInfo returns information about the currently authenticated user
-// Used by the frontend to display user info and determine access rights
-func GetUserInfo(c *gin.Context) {
-	logger := common.GetLogger()
-
-	// Log request details
-	logger.Infof("GetUserInfo called - Headers: %v", c.Request.Header)
-
-	session, err := SessionStore.Get(c.Request, sessionName)
-	if err != nil {
-		logger.Error("Failed to get session", "error", err)
-		response.Error(c, http.StatusUnauthorized, "Invalid session")
-		return
-	}
-
-	accessToken, ok := session.Values["access_token"].(string)
-	if !ok || accessToken == "" {
-		logger.Info("No access token in session")
-		response.Error(c, http.StatusUnauthorized, "Not authenticated")
-		return
-	}
-
-	// Auto-refresh tokens near expiry to maintain user session seamlessly
-	if expiresAt, ok := session.Values["token_expires_at"].(int64); ok {
-		if time.Now().Unix() > expiresAt {
-			// Token is expired, try to refresh
-			logger.Info("Token expired, attempting refresh")
-			if err := refreshToken(c); err != nil {
-				logger.Error("Failed to refresh token", "error", err)
-				response.Error(c, http.StatusUnauthorized, "Session expired")
-				return
-			}
-			// Get the new access token after refresh
-			accessToken, _ = session.Values["access_token"].(string)
-		}
-	}
-
-	// Get user info from the userinfo endpoint
-	cfg := config.GetConfig()
-
-	// Try to load discovery document to get userinfo endpoint
-	issuerURL := cfg.Auth.OIDC.Issuer
-
-	discoveryDoc, err := fetchOIDCDiscoveryDocument(issuerURL)
-	if err != nil {
-		logger.Error("Failed to load discovery document", "error", err)
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch user information")
-		return
-	}
-
-	// Get userinfo_endpoint from discovery document
-	userinfoEndpoint, ok := discoveryDoc["userinfo_endpoint"].(string)
-	if !ok || userinfoEndpoint == "" {
-		logger.Error("No userinfo endpoint in discovery document")
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch user information")
-		return
-	}
-
-	logger.Infof("Using userinfo endpoint: %s", userinfoEndpoint)
-
-	req, err := http.NewRequest("GET", userinfoEndpoint, nil)
-	if err != nil {
-		logger.Error("Failed to create userinfo request", "error", err)
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch user information")
-		return
-	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-	client := &http.Client{Timeout: 10 * time.Second}
-	userInfoResp, err := client.Do(req)
-	if err != nil {
-		logger.Error("Failed to fetch userinfo", "error", err)
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch user information")
-		return
-	}
-	defer userInfoResp.Body.Close()
-
-	if userInfoResp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(userInfoResp.Body)
-		logger.Error("Userinfo endpoint returned error", "status", userInfoResp.StatusCode, "body", string(body))
-		response.Error(c, http.StatusInternalServerError, "Failed to fetch user information")
-		return
-	}
-
-	var userinfo map[string]interface{}
-	if err := json.NewDecoder(userInfoResp.Body).Decode(&userinfo); err != nil {
-		logger.Error("Failed to parse userinfo response", "error", err)
-		response.Error(c, http.StatusInternalServerError, "Failed to process user information")
-		return
-	}
-
-	// Add authentication status for frontend application awareness
-	userinfo["authenticated"] = true
-
-	c.JSON(http.StatusOK, userinfo)
-}
-
 // Logout handles user logout by invalidating the session
 func Logout(c *gin.Context) {
 	logger := common.GetLogger()
 
 	// Get session
-	session, _ := SessionStore.Get(c.Request, sessionName)
+	session, err := SessionStore.Get(c.Request, sessionName)
+	if err == nil {
+		// Get token ID to delete from store
+		if tokenID, ok := session.Values["token_id"].(string); ok && tokenID != "" {
+			// Delete tokens from the store for security
+			deleteTokens(tokenID)
+			logger.Info("Removed tokens from store during logout")
+		}
+	}
 
 	// Clear session values
 	session.Values = make(map[interface{}]interface{})
@@ -535,7 +522,7 @@ func Logout(c *gin.Context) {
 		return
 	}
 
-	// Redirect to home page
+	// Return success response
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logout successful"})
 }
 
@@ -555,10 +542,26 @@ func refreshToken(c *gin.Context) error {
 	logger := common.GetLogger()
 
 	// Get session
-	session, _ := SessionStore.Get(c.Request, sessionName)
+	session, err := SessionStore.Get(c.Request, sessionName)
+	if err != nil {
+		logger.Error("Failed to get session during token refresh", "error", err)
+		return fmt.Errorf("failed to get session: %w", err)
+	}
 
-	refreshToken, ok := session.Values["refresh_token"].(string)
-	if !ok || refreshToken == "" {
+	tokenID, ok := session.Values["token_id"].(string)
+	if !ok || tokenID == "" {
+		logger.Error("No token ID available in session")
+		return fmt.Errorf("no token ID available")
+	}
+
+	tokens, ok := getTokens(tokenID)
+	if !ok {
+		logger.Error("No tokens found for token ID")
+		return fmt.Errorf("no tokens found for token ID")
+	}
+
+	if tokens.RefreshToken == "" {
+		logger.Error("No refresh token available for token ID")
 		return fmt.Errorf("no refresh token available")
 	}
 
@@ -567,14 +570,14 @@ func refreshToken(c *gin.Context) error {
 
 	discoveryDoc, err := fetchOIDCDiscoveryDocument(issuerURL)
 	if err != nil {
-		logger.Error("Failed to load discovery document", "error", err)
+		logger.Error("Failed to load discovery document during token refresh", "error", err)
 		return fmt.Errorf("failed to load discovery document: %w", err)
 	}
 
 	// Get token_endpoint from discovery document
 	tokenEndpoint, ok := discoveryDoc["token_endpoint"].(string)
 	if !ok || tokenEndpoint == "" {
-		logger.Error("No token endpoint in discovery document")
+		logger.Error("No token endpoint in discovery document during refresh")
 		return fmt.Errorf("no token endpoint in discovery document")
 	}
 
@@ -583,12 +586,13 @@ func refreshToken(c *gin.Context) error {
 	// Exchange the refresh token for a new access token
 	data := url.Values{}
 	data.Set("grant_type", "refresh_token")
-	data.Set("refresh_token", refreshToken)
+	data.Set("refresh_token", tokens.RefreshToken)
 	data.Set("client_id", cfg.Auth.OIDC.ClientID)
 	data.Set("client_secret", cfg.Auth.OIDC.ClientSecret)
 
 	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
+		logger.Error("Failed to create refresh token request", "error", err)
 		return fmt.Errorf("failed to create refresh token request: %w", err)
 	}
 
@@ -596,36 +600,53 @@ func refreshToken(c *gin.Context) error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	refreshResp, err := client.Do(req)
 	if err != nil {
+		logger.Error("Failed to execute refresh token request", "error", err)
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
 	defer refreshResp.Body.Close()
 
 	if refreshResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(refreshResp.Body)
+		logger.Error("Token endpoint returned error during refresh",
+			"status", refreshResp.StatusCode,
+			"body", string(body))
 		return fmt.Errorf("token refresh failed with status %d: %s", refreshResp.StatusCode, string(body))
 	}
 
 	// Parse the token response
 	var tokenResponse TokenResponse
 	if err := json.NewDecoder(refreshResp.Body).Decode(&tokenResponse); err != nil {
+		logger.Error("Failed to parse refresh token response", "error", err)
 		return fmt.Errorf("failed to parse refresh token response: %w", err)
 	}
 
-	// Update session with new tokens
-	session.Values["access_token"] = tokenResponse.AccessToken
-	if tokenResponse.RefreshToken != "" {
-		session.Values["refresh_token"] = tokenResponse.RefreshToken
-	}
-	if tokenResponse.IDToken != "" {
-		session.Values["id_token"] = tokenResponse.IDToken
-	}
-	session.Values["token_expires_at"] = time.Now().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second).Unix()
-
-	// Save the session with the new values
-	if err := session.Save(c.Request, c.Writer); err != nil {
-		return fmt.Errorf("failed to save session with refreshed tokens: %w", err)
+	// Verify we received a valid access token
+	if tokenResponse.AccessToken == "" {
+		logger.Error("Refresh token response did not include access token")
+		return fmt.Errorf("refresh token response missing access token")
 	}
 
+	// Update tokens in the store
+	expiresAt := time.Now().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second).Unix()
+
+	// Keep the existing refresh token if the provider didn't send a new one
+	refreshTokenValue := tokenResponse.RefreshToken
+	if refreshTokenValue == "" {
+		refreshTokenValue = tokens.RefreshToken
+	}
+
+	// Keep the existing ID token if the provider didn't send a new one
+	idTokenValue := tokenResponse.IDToken
+	if idTokenValue == "" {
+		idTokenValue = tokens.IDToken
+	}
+
+	if !updateTokens(tokenID, tokenResponse.AccessToken, refreshTokenValue, idTokenValue, expiresAt) {
+		logger.Error("Failed to update tokens in store")
+		return fmt.Errorf("failed to update tokens in store")
+	}
+
+	logger.Info("Token refreshed successfully")
 	return nil
 }
 
@@ -674,41 +695,61 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Verify access token exists - the presence of a token indicates previous successful auth
-		accessToken, ok := session.Values["access_token"].(string)
-		if !ok || accessToken == "" {
-			logger.Info("No access token in session")
+		// Verify token ID exists - the presence of a token ID indicates previous successful auth
+		tokenID, ok := session.Values["token_id"].(string)
+		if !ok || tokenID == "" {
+			logger.Info("No token ID in session")
 			response.Error(c, http.StatusUnauthorized, "Not authenticated")
 			c.Abort()
 			return
 		}
 
-		// Automatically refresh expired tokens to maintain user sessions
-		// without requiring re-authentication
-		if expiresAt, ok := session.Values["token_expires_at"].(int64); ok {
-			if time.Now().Unix() > expiresAt {
-				// Token is expired, try to refresh
-				if err := refreshToken(c); err != nil {
-					logger.Error("Failed to refresh token", "error", err)
+		tokens, ok := getTokens(tokenID)
+		if !ok {
+			logger.Info("No tokens found for token ID")
+			response.Error(c, http.StatusUnauthorized, "Not authenticated")
+			c.Abort()
+			return
+		}
+
+		// Automatically refresh tokens to maintain user sessions
+		// Proactively refresh tokens that are about to expire (within 5 minutes)
+		// This prevents disruption of user experience due to token expiration
+		refreshBuffer := int64(300) // 5 minutes in seconds
+		currentTime := time.Now().Unix()
+
+		// If token is expired or will expire within buffer period
+		if currentTime > tokens.ExpiresAt || (tokens.ExpiresAt-currentTime) < refreshBuffer {
+			logger.Info("Token expired or expiring soon, refreshing")
+			if err := refreshToken(c); err != nil {
+				logger.Error("Failed to refresh token", "error", err)
+
+				// If token is already expired, return unauthorized
+				if currentTime > tokens.ExpiresAt {
 					response.Error(c, http.StatusUnauthorized, "Session expired")
 					c.Abort()
 					return
 				}
-				// Get the new access token after refresh
-				accessToken, _ = session.Values["access_token"].(string)
+				// Otherwise, continue with existing token even if refresh failed
+				// This gives user a chance to complete their current action
+				logger.Warn("Using existing token despite failed refresh attempt")
+			} else {
+				// Get the new tokens after successful refresh
+				tokens, _ = getTokens(tokenID)
+				logger.Info("Successfully refreshed token before expiration")
 			}
 		}
 
 		// Pass the access token to downstream handlers via request context
 		// This allows them to use the token for authorization
-		c.Set("access_token", accessToken)
+		c.Set("access_token", tokens.AccessToken)
 		c.Set("user_claims", map[string]interface{}{
 			"authenticated": true,
 		})
 
 		// Pass the access token to downstream services via Authorization header
 		// This allows microservices behind this app to validate the token independently
-		c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+		c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
 
 		c.Next()
 	}

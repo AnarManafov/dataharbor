@@ -29,7 +29,9 @@ type Config struct {
 
 // FrontendConfig represents the frontend configuration
 type FrontendConfig struct {
-	URL string `yaml:"url"` // URL where the frontend is hosted
+	URL        string   `yaml:"url"`         // URL where the frontend is hosted
+	AssetPaths []string `yaml:"asset_paths"` // Search paths for frontend assets, in order of priority
+	DistDir    string   `yaml:"dist_dir"`    // Distribution directory name (default: "dist")
 }
 
 // ServerConfig represents the server configuration
@@ -160,7 +162,9 @@ func LoadConfig(configFile string) (*Config, error) {
 					},
 				},
 				Frontend: FrontendConfig{
-					URL: "http://localhost:5173", // Default frontend URL for development
+					URL:        "http://localhost:5173", // Default frontend URL for development
+					AssetPaths: []string{},
+					DistDir:    "dist",
 				},
 			}
 			data, err := yaml.Marshal(defaultConfig)
@@ -215,7 +219,9 @@ func GetConfig() *Config {
 					},
 				},
 				Frontend: FrontendConfig{
-					URL: "http://localhost:5173", // Default frontend URL for development
+					URL:        "http://localhost:5173", // Default frontend URL for development
+					AssetPaths: []string{},
+					DistDir:    "dist",
 				},
 			}
 		}
@@ -259,6 +265,8 @@ func LoadViper(configFile string) error {
 
 	// Frontend defaults
 	viper.SetDefault("frontend.url", "http://localhost:5173")
+	viper.SetDefault("frontend.asset_paths", []string{})
+	viper.SetDefault("frontend.dist_dir", "dist")
 
 	return nil
 }
