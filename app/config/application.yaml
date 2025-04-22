@@ -1,0 +1,40 @@
+env: development
+server:
+    address: :8080
+    shutdown_timeout: ""
+    cors:
+        allow_origins: []
+        allow_methods: []
+        allow_headers: []
+        allow_credentials: false
+    ssl:
+        enabled: false
+        cert_file: ""
+        key_file: ""
+log:
+    format: text
+    level: info
+xrd:
+    url: root://localhost:1094
+    user: ""
+    usergroup: ""
+    userpwd: ""
+    user_required: false
+    tls: false
+    client_cert: ""
+    client_key: ""
+auth:
+    enabled: false
+    skip_auth_paths:
+        - /health
+    oidc:
+        issuer: ""
+        client_id: ""
+        client_secret: ""
+        discovery_url: ""
+        allowed_roles: []
+        session_secret: ""
+frontend:
+    url: http://localhost:5173
+    asset_paths: []
+    dist_dir: dist

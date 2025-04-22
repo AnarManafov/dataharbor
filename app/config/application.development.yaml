@@ -1,0 +1,85 @@
+env: development
+
+server:
+  address: ":22000"  # Match the port expected by the sandbox proxy
+  port: 22000
+  debug: true        # Enable debugging for development
+  shutdown_timeout: 30s
+  cors:
+    allow_credentials: true
+    allow_headers:
+      - Origin
+      - Content-Length
+      - Content-Type
+      - Authorization
+    allow_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allow_origins:
+      - http://localhost:5173  # Vite sandbox server
+      - http://localhost:8080  # Regular development server
+      - http://localhost:8081
+  ssl:
+    enabled: false
+
+log:
+  format: text  # Using text format for easier reading during development
+  level: debug  # More detailed logging for development
+
+xrd:
+  host: "localhost"
+  port: 1094
+  initial_dir: "/tmp"
+  xrd_client_bin_path: "/opt/homebrew/bin/"
+  process_timeout: 60           # In seconds
+  staging_path: "/tmp/delete_me"
+  staging_tmp_dir_prefix: "stg_"
+  sanitation_job_interval: 30   # In minutes
+  url: "root://localhost:1094"
+  user: ""
+  usergroup: ""
+  userpwd: ""
+  user_required: false
+  tls: false
+  client_cert: ""
+  client_key: ""
+
+# Frontend configuration for locating and serving UI assets
+frontend:
+  url: "http://localhost:5173"   # Vite sandbox development server URL
+  dist_dir: "dist"
+  asset_paths:
+    - "../sandbox/public"       # Primary: Sandbox public files when running with npm sandbox:serve
+    - "web"                     # Fallback: Standard path if sandbox is not used
+
+# Logger configuration for zap logger
+logger:
+  console:
+    level: "debug"              # More detailed logging for development
+    driver: "console"
+  file:
+    level: "debug"
+    driver: "file"
+    filename: "./log/data_lake_ui_app.log"
+    maxsize: 10
+    maxbackups: 2
+    maxage: 27
+    compress: true
+
+auth:
+  enabled: true
+  skip_auth_paths:
+    - "/health"
+    - "/api/auth/login"
+    - "/api/auth/callback"
+  oidc:
+    issuer: "https://id.gsi.de/realms/wl"
+    client_id: "xrootd"
+    client_secret: ""
+    discovery_url: "https://id.gsi.de/realms/wl/.well-known/openid-configuration"
+    allowed_roles:
+      - "xrootd-user"
+    session_secret: "5f9d7b8e-3a1c-4d86-9f2e-6b7c8d9e4f3a"

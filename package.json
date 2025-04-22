@@ -14,7 +14,7 @@
         "build:backend": "cd app && go build .",
         "sandbox:create": "mkdir -p sandbox/public && cp -r web/public/* sandbox/public/",
         "sandbox:clean": "rm -rf sandbox",
-        "sandbox:run": "cd web && npm run sandbox:serve"
+        "sandbox:run": "cd web && npm run sandbox"
     },
     "devDependencies": {
         "concurrently": "^9.1.2"

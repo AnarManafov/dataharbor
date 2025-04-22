@@ -5,8 +5,57 @@ import { fileURLToPath } from 'url';
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
+import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Function to ensure sandbox has all required files
+function ensureSandboxFiles() {
+    const publicDir = path.resolve(__dirname, 'public');
+    const sandboxDir = path.resolve(__dirname, '../sandbox/public');
+
+    // Create sandbox directory if it doesn't exist
+    if (!fs.existsSync(sandboxDir)) {
+        fs.mkdirSync(sandboxDir, { recursive: true });
+    }
+
+    // Create assets directory if it doesn't exist
+    const sandboxAssetsDir = path.join(sandboxDir, 'assets');
+    if (!fs.existsSync(sandboxAssetsDir)) {
+        fs.mkdirSync(sandboxAssetsDir, { recursive: true });
+    }
+
+    // Copy required files from public to sandbox if they don't exist
+    const filesToEnsure = [
+        'config.json',
+        'silent-renew.html',
+        'assets/brand.png',
+        'assets/favicon.ico',
+        'assets/norway-4970080_1280.jpg'
+    ];
+
+    filesToEnsure.forEach(file => {
+        const sourcePath = path.join(publicDir, file);
+        const destPath = path.join(sandboxDir, file);
+
+        if (fs.existsSync(sourcePath) && !fs.existsSync(destPath)) {
+            // Make sure the directory exists
+            const destDir = path.dirname(destPath);
+            if (!fs.existsSync(destDir)) {
+                fs.mkdirSync(destDir, { recursive: true });
+            }
+
+            // Copy the file
+            fs.copyFileSync(sourcePath, destPath);
+            console.log(`Copied ${file} to sandbox`);
+        }
+    });
+
+    console.log('Sandbox environment is ready');
+}
+
+// Ensure sandbox is prepared before starting the dev server
+ensureSandboxFiles();
 
 // https://vitejs.dev/config/
 export default defineConfig({

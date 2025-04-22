@@ -43,10 +43,15 @@
             <div class="navbar-end">
                 <div class="navbar-item">
                     <div class="buttons">
-                        <router-link v-if="!isAuthenticated" to="/login" class="button is-dark is-outlined">
+                        <el-button v-if="!isAuthenticated" type="primary" @click="handleLogin">
                             Log In
-                        </router-link>
-                        <span v-else>Welcome, {{ userName }}!</span>
+                        </el-button>
+                        <div v-else class="user-profile">
+                            <span class="welcome-message">Welcome, {{ userName }}!</span>
+                            <el-button type="danger" size="small" @click="showLogoutConfirmation">
+                                Logout
+                            </el-button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -57,43 +62,73 @@
 import { version } from '../../../package.json';
 import { useAuth } from '../../composables/useAuth';
 import { computed } from 'vue';
+import { ElMessageBox } from 'element-plus';
+import { useRouter } from 'vue-router';
 
 export default {
     name: 'Nav',
     setup() {
-        const { isAuthenticated, user } = useAuth();
+        const { isAuthenticated, user, logout, login } = useAuth();
+        const router = useRouter();
+
+        const handleLogin = () => {
+            router.push('/login');
+        };
+
+        const showLogoutConfirmation = () => {
+            ElMessageBox.confirm(
+                'Are you sure you want to log out?',
+                'Confirm Logout',
+                {
+                    confirmButtonText: 'Logout',
+                    cancelButtonText: 'Cancel',
+                    type: 'warning'
+                }
+            ).then(async () => {
+                try {
+                    await logout();
+                } catch (error) {
+                    console.error('Logout failed:', error);
+                }
+            }).catch(() => {
+                // User canceled the logout action, do nothing
+            });
+        };
+
         return {
             isAuthenticated,
+            showLogoutConfirmation,
+            handleLogin,
             // Try multiple standard OIDC claims for the user's name
             // Order of preference: given_name, name, preferred_username, email, sub
             userName: computed(() => {
                 if (!user.value) return 'User';
-                
+
                 // Check for given name first (first name)
                 if (user.value.given_name) {
                     return user.value.given_name;
                 }
-                
+
                 // Full name is next best option
                 if (user.value.name) {
                     return user.value.name;
                 }
-                
+
                 // Username is third choice
                 if (user.value.preferred_username) {
                     return user.value.preferred_username;
                 }
-                
+
                 // Email as a fallback
                 if (user.value.email) {
                     return user.value.email.split('@')[0]; // Just the part before @
                 }
-                
+
                 // Subject ID as last resort
                 if (user.value.sub) {
                     return user.value.sub;
                 }
-                
+
                 // If nothing is available, use "User"
                 return 'User';
             })
@@ -147,5 +182,14 @@ nav {
     /* Prevents background color change on hover */
     cursor: default;
     /* Changes cursor to default arrow */
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+}
+
+.welcome-message {
+    margin-right: 8px;
 }
 </style>
