@@ -1,8 +1,8 @@
-name: Publish Release
+name: Build and Publish Release
 
 on:
   workflow_run:
-    workflows: ["Auto Version Bump and Release"]
+    workflows: ["Auto Version Bump"]
     types:
       - completed
     branches: ["master"]
@@ -15,8 +15,7 @@ concurrency:
 env:
   NODE_VERSION: '23'
   GO_VERSION_FILE: "./app/go.mod"
-  RPM_OUTPUT_DIR_X86: "/home/runner/rpmbuild/RPMS/x86_64"
-  RPM_OUTPUT_DIR_NOARCH: "/home/runner/rpmbuild/RPMS/noarch"
+  RPM_OUTPUT_BASE_DIR: "/home/runner/rpmbuild/RPMS"
   ARTIFACT_RETENTION_DAYS: 30
 
 jobs:
@@ -30,6 +29,8 @@ jobs:
     outputs:
       global_tag: ${{ steps.latest_tag.outputs.global_tag }}
       version: ${{ steps.latest_tag.outputs.version }}
+      frontend_version: ${{ steps.latest_tag.outputs.frontend_version }}
+      backend_version: ${{ steps.latest_tag.outputs.backend_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,12 +42,33 @@ jobs:
         run: |
           # Get the latest version tags
           GLOBAL_TAG=$(git describe --tags --match "v*" --abbrev=0)
+          FRONTEND_TAG=$(git describe --tags --match "web/v*" --abbrev=0)
+          BACKEND_TAG=$(git describe --tags --match "app/v*" --abbrev=0)
           
-          # Set as output
+          # Set as outputs
           echo "global_tag=$GLOBAL_TAG" >> $GITHUB_OUTPUT
           echo "version=${GLOBAL_TAG#v}" >> $GITHUB_OUTPUT
+          echo "frontend_version=${FRONTEND_TAG#web/v}" >> $GITHUB_OUTPUT
+          echo "backend_version=${BACKEND_TAG#app/v}" >> $GITHUB_OUTPUT
           
-          echo "Latest tag is: $GLOBAL_TAG"
+          echo "Latest tags are:"
+          echo "- Global: $GLOBAL_TAG"
+          echo "- Frontend: $FRONTEND_TAG"
+          echo "- Backend: $BACKEND_TAG"
+      
+      - name: Download changelog from auto-version workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: auto-version.yml
+          name: version-changelog
+          path: /tmp/changelog
+      
+      - name: Upload changelog for this workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-changelog
+          path: /tmp/changelog
+          retention-days: 1
   
   # Job to build the frontend
   build-frontend:
@@ -131,13 +153,31 @@ jobs:
         run: python3 packaging/build_rpm.py -b -f -v ${{ needs.prepare-release.outputs.version }}
         timeout-minutes: 15
       
-      - name: Upload RPMs as artifacts
+      - name: Debug RPM directories
+        run: |
+          echo "Listing RPM directory structure:"
+          find ${{ env.RPM_OUTPUT_BASE_DIR }} -type f -name "*.rpm" | sort
+          
+          echo "x86_64 directory:"
+          ls -la ${{ env.RPM_OUTPUT_BASE_DIR }}/x86_64 || echo "Directory doesn't exist"
+          
+          echo "noarch directory:"
+          ls -la ${{ env.RPM_OUTPUT_BASE_DIR }}/noarch || echo "Directory doesn't exist"
+      
+      # Create a directory to collect all RPMs for easier upload
+      - name: Collect RPMs in single directory
+        run: |
+          mkdir -p /tmp/all-rpms
+          # Copy all RPM files to a single directory
+          find ${{ env.RPM_OUTPUT_BASE_DIR }} -name "*.rpm" -exec cp {} /tmp/all-rpms \;
+          echo "Found RPMs:"
+          ls -la /tmp/all-rpms/
+      
+      - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
         with:
           name: rpm-packages
-          path: |
-            ${{ env.RPM_OUTPUT_DIR_X86 }}/*.rpm
-            ${{ env.RPM_OUTPUT_DIR_NOARCH }}/*.rpm
+          path: /tmp/all-rpms/*.rpm
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
           if-no-files-found: error
       
@@ -145,8 +185,10 @@ jobs:
         id: rpm_names
         run: |
           mkdir -p /tmp/rpm-info
-          FRONTEND_RPM=$(find ${{ env.RPM_OUTPUT_DIR_NOARCH }} -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" | head -n 1 || echo "")
-          BACKEND_RPM=$(find ${{ env.RPM_OUTPUT_DIR_X86 }} -name "data-lake-ui-backend-*.rpm" -printf "%f\n" | head -n 1 || echo "")
+          
+          # Find RPMs and handle errors gracefully
+          FRONTEND_RPM=$(find ${{ env.RPM_OUTPUT_BASE_DIR }}/noarch -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
+          BACKEND_RPM=$(find ${{ env.RPM_OUTPUT_BASE_DIR }}/x86_64 -name "data-lake-ui-backend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
           
           if [ -z "$FRONTEND_RPM" ]; then
             echo "::warning::Frontend RPM not found in noarch directory"
@@ -195,72 +237,55 @@ jobs:
           name: rpm-info
           path: /tmp/rpm-info
       
-      - name: Read RPM info
-        id: rpm_info
+      - name: Download changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: version-changelog
+          path: /tmp/changelog
+      
+      - name: Read RPM info and changelog
+        id: info
         run: |
           FRONTEND_RPM=$(cat /tmp/rpm-info/frontend_rpm)
           BACKEND_RPM=$(cat /tmp/rpm-info/backend_rpm)
+          CHANGELOG=$(cat /tmp/changelog/changelog_content.md)
           
           echo "frontend_rpm=$FRONTEND_RPM" >> $GITHUB_OUTPUT
           echo "backend_rpm=$BACKEND_RPM" >> $GITHUB_OUTPUT
+          
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           
           echo "RPM Info:"
           echo "- Frontend: $FRONTEND_RPM"
           echo "- Backend: $BACKEND_RPM"
       
-      - name: Add RPMs to GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare-release.outputs.global_tag }}
-          files: /tmp/rpms/**/*.rpm
+          name: Release ${{ needs.prepare-release.outputs.global_tag }}
+          body: |
+            # Release ${{ needs.prepare-release.outputs.global_tag }}
+            
+            ## Version Information
+            - Global: ${{ needs.prepare-release.outputs.global_tag }}
+            - Frontend: web/v${{ needs.prepare-release.outputs.frontend_version }}
+            - Backend: app/v${{ needs.prepare-release.outputs.backend_version }}
+            
+            ## What's Changed
+            ${{ steps.info.outputs.content }}
+            
+            ## RPM Packages
+            
+            The following RPM packages are available for installation:
+            ${{ steps.info.outputs.frontend_rpm != 'not-found' && format('- **Frontend**: `{0}`', steps.info.outputs.frontend_rpm) || '' }}
+            ${{ steps.info.outputs.backend_rpm != 'not-found' && format('- **Backend**: `{0}`', steps.info.outputs.backend_rpm) || '' }}
+            
+            *RPM packages are attached to this release.*
+            
+            *This release was automatically created by GitHub Actions.*
+          files: /tmp/rpms/*.rpm
           fail_on_unmatched_files: false
           token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Update release notes with RPM information
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const releaseTag = "${{ needs.prepare-release.outputs.global_tag }}";
-            const frontendRpm = "${{ steps.rpm_info.outputs.frontend_rpm }}";
-            const backendRpm = "${{ steps.rpm_info.outputs.backend_rpm }}";
-            
-            // Get the existing release
-            const releases = await github.rest.repos.listReleases({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-            
-            const release = releases.data.find(r => r.tag_name === releaseTag);
-            
-            if (release) {
-              // Prepare RPM information
-              let rpmInfo = `
-              ## RPM Packages
-              
-              The following RPM packages are available for installation:
-              `;
-              
-              if (frontendRpm && frontendRpm !== "not-found") {
-                rpmInfo += `\n- **Frontend**: \`${frontendRpm}\``;
-              }
-              
-              if (backendRpm && backendRpm !== "not-found") {
-                rpmInfo += `\n- **Backend**: \`${backendRpm}\``;
-              }
-              
-              rpmInfo += `\n\n*RPM packages are attached to this release.*`;
-              
-              // Update the release with RPM information
-              await github.rest.repos.updateRelease({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: release.id,
-                body: release.body + "\n" + rpmInfo
-              });
-              
-              console.log("Successfully updated release notes with RPM information");
-            } else {
-              console.error(`Release with tag ${releaseTag} not found`);
-              process.exit(1);
-            }
