@@ -29,6 +29,8 @@ import os
 import platform
 import sys
 import json
+import glob
+import shutil
 
 
 def get_package_version(package_json_path):
@@ -45,15 +47,26 @@ def get_package_version(package_json_path):
 def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None):
     build_dir = os.path.expanduser("~/rpmbuild")
     release_notes_file = "RELEASE_NOTES.md"
+    # Create temp directory for final RPMs
+    tmp_rpm_dir = "/tmp/all-rpms"
+    os.makedirs(tmp_rpm_dir, exist_ok=True)
 
+    # Create RPM build directories if they don't exist
     os.makedirs(f"{build_dir}/BUILD", exist_ok=True)
     os.makedirs(f"{build_dir}/RPMS", exist_ok=True)
     os.makedirs(f"{build_dir}/SOURCES", exist_ok=True)
     os.makedirs(f"{build_dir}/SPECS", exist_ok=True)
     os.makedirs(f"{build_dir}/SRPMS", exist_ok=True)
 
-    print("Building the application...")
+    print(f"Building the {app_name} application...")
+
+    # Store current directory to return to it later
+    original_dir = os.getcwd()
+
+    # Change to the source directory
     os.chdir(source_dir)
+
+    # Build the application based on its type
     if os.path.isfile("package.json"):
         subprocess.run(["npm", "install"], check=True)
         subprocess.run(["npm", "run", "build"], check=True)
@@ -65,48 +78,83 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
         print("Unknown project type. Exiting.")
         return
 
-    os.chdir("..")
+    # Return to the original directory
+    os.chdir(original_dir)
 
-    print("Copying binaries to SOURCES directory...")
-    if os.path.isdir(f"{source_dir}/dist"):
-        subprocess.run(["cp", "-r", f"{source_dir}/dist",
-                       f"{build_dir}/SOURCES/{app_name}-{version}"], check=True)
-    else:
-        subprocess.run(["cp", f"{source_dir}/{app_name}",
-                       f"{build_dir}/SOURCES/"], check=True)
+    print(f"Preparing source files for {app_name}...")
 
-    print("Copying nginx.conf to SOURCES directory...")
-    if nginx_conf_path:
-        subprocess.run(["cp", nginx_conf_path,
-                        f"{build_dir}/SOURCES/"], check=True)
+    # Handle frontend (with dist directory)
+    if "frontend" in app_name and os.path.isdir(f"{source_dir}/dist"):
+        # Create version directory in SOURCES
+        dest_dir = f"{build_dir}/SOURCES/{app_name}-{version}"
+        os.makedirs(dest_dir, exist_ok=True)
 
-    print("Creating source tarballs...")
-    if os.path.isdir(f"{source_dir}/dist"):
-        subprocess.run(["tar", "czvf", f"{build_dir}/SOURCES/{app_name}-{version}.tar.gz",
-                       "-C", f"{build_dir}/SOURCES", f"{app_name}-{version}"], check=True)
-    else:
+        # Copy the dist contents
         subprocess.run(
-            ["tar", "czvf", f"{build_dir}/SOURCES/{app_name}-{version}.tar.gz", "-C", source_dir, app_name], check=True)
+            ["cp", "-r", f"{source_dir}/dist/.", dest_dir], check=True)
 
-    print("Copying spec file...")
+        # Copy nginx.conf to SOURCES directory if provided
+        if nginx_conf_path and os.path.exists(nginx_conf_path):
+            print("Copying nginx.conf to SOURCES directory...")
+            subprocess.run(
+                ["cp", nginx_conf_path, f"{build_dir}/SOURCES/"], check=True)
+
+        # Create source tarball
+        orig_dir = os.getcwd()
+        os.chdir(f"{build_dir}/SOURCES")
+        subprocess.run(
+            ["tar", "czvf", f"{app_name}-{version}.tar.gz", f"{app_name}-{version}"], check=True)
+        os.chdir(orig_dir)
+
+    # Handle backend (with binary)
+    elif "backend" in app_name:
+        # For backend, we need to create our own source directory structure
+        dest_dir = f"{build_dir}/SOURCES/{app_name}-{version}"
+        os.makedirs(dest_dir, exist_ok=True)
+
+        # Copy the binary to SOURCES
+        if os.path.exists(f"{source_dir}/{app_name}"):
+            shutil.copy(f"{source_dir}/{app_name}", f"{build_dir}/SOURCES/")
+            # Create source tarball for backend
+            orig_dir = os.getcwd()
+            os.chdir(f"{build_dir}/SOURCES")
+            subprocess.run(
+                ["tar", "czvf", f"{app_name}-{version}.tar.gz", f"{app_name}"], check=True)
+            os.chdir(orig_dir)
+        else:
+            print(f"Error: Binary {app_name} not found in {source_dir}")
+            return False
+
+    # Copy the spec file to the SPECS directory
     subprocess.run(["cp", spec_file, f"{build_dir}/SPECS/"], check=True)
 
     print("Generating changelog...")
-    changelog_script_path = os.path.join(
-        os.path.dirname(__file__), "generate_changelog.py")
-    subprocess.run(["python3", changelog_script_path,
-                   f"{build_dir}/SPECS/{os.path.basename(spec_file)}", f"{source_dir}/{release_notes_file}"], check=True)
+    # Generate changelog
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    changelog_script = os.path.join(script_dir, "generate_changelog.py")
+    subprocess.run(["python3", changelog_script, "--spec",
+                   os.path.basename(spec_file), "--version", version], check=True)
 
     print(f"Building the RPM package for version {version}...")
-    arch = platform.machine()
-    result = subprocess.run(
-        ["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}",
-         f"--target={arch}", f"--define='_version {version}'"])
-    if result.returncode == 0:
-        print("RPM package created successfully.")
-    else:
-        print("Failed to create RPM package.")
-        return
+    try:
+        subprocess.run(["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}",
+                        f"--define", f"_version {version}"], check=True)
+
+        # Copy built RPMs to /tmp/all-rpms directory
+        for rpm_path in glob.glob(f"{build_dir}/RPMS/*/{app_name}-*.rpm"):
+            print(f"Copying {rpm_path} to {tmp_rpm_dir}")
+            shutil.copy(rpm_path, tmp_rpm_dir)
+        for rpm_path in glob.glob(f"{build_dir}/RPMS/{app_name}-*.rpm"):
+            print(f"Copying {rpm_path} to {tmp_rpm_dir}")
+            shutil.copy(rpm_path, tmp_rpm_dir)
+
+        print(
+            f"Successfully built RPM package for {app_name} version {version}")
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to create RPM package. Error: {e}")
+        return False
+
+    return True
 
 
 def main():
@@ -139,15 +187,23 @@ def main():
         args.backend = True
         args.frontend = True
 
+    success = True
+
     if args.backend:
         print(f"Building backend RPM with version {version}")
-        build_package(app_name_backend, source_dir_backend,
-                      spec_file_backend, version)
+        if not build_package(app_name_backend, source_dir_backend,
+                             spec_file_backend, version):
+            success = False
 
     if args.frontend:
         print(f"Building frontend RPM with version {version}")
-        build_package(app_name_frontend, source_dir_frontend,
-                      spec_file_frontend, version, nginx_conf_path)
+        if not build_package(app_name_frontend, source_dir_frontend,
+                             spec_file_frontend, version, nginx_conf_path):
+            success = False
+
+    # If no RPMs were built successfully, exit with an error code
+    if not success:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
