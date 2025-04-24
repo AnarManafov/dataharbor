@@ -1,0 +1,188 @@
+name: Auto Version Bump and Release
+
+on:
+  push:
+    branches: ["master"]  # Keep master as the main branch
+
+# Prevent concurrent workflow runs to avoid versioning conflicts
+concurrency:
+  group: auto-version-${{ github.ref }}
+  cancel-in-progress: false  # Don't cancel in-progress runs to avoid inconsistent states
+
+env:
+  NODE_VERSION: '23'  # Updated to match local Node.js 23 version
+
+jobs:
+  version-bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent hung workflows
+    permissions:
+      contents: write  # For tag creation and release publishing
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Use latest v4
+        with:
+          fetch-depth: 0  # Fetch all history for versioning
+          
+      - name: Set up Node.js
+        uses: actions/setup-node@v4  # Use latest v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'  # Enable npm caching
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Extract current version info
+        id: versions
+        run: |
+          # Get the latest version tags
+          GLOBAL_TAG=$(git describe --tags --match "v*" --abbrev=0 2>/dev/null || echo "v0.1.0")
+          FRONTEND_TAG=$(git describe --tags --match "web/v*" --abbrev=0 2>/dev/null || echo "web/v0.1.0")
+          BACKEND_TAG=$(git describe --tags --match "app/v*" --abbrev=0 2>/dev/null || echo "app/v0.1.0")
+          
+          # Extract version numbers without prefix
+          GLOBAL_VERSION=${GLOBAL_TAG#v}
+          FRONTEND_VERSION=${FRONTEND_TAG#web/v}
+          BACKEND_VERSION=${BACKEND_TAG#app/v}
+          
+          # Parse and increment the minor version (X.Y+1.Z)
+          function increment_minor() {
+            local version=$1
+            local major=$(echo $version | cut -d. -f1)
+            local minor=$(echo $version | cut -d. -f2)
+            local patch=$(echo $version | cut -d. -f3)
+            local new_minor=$((minor + 1))
+            echo "$major.$new_minor.0"
+          }
+          
+          NEW_GLOBAL_VERSION=$(increment_minor $GLOBAL_VERSION)
+          NEW_FRONTEND_VERSION=$(increment_minor $FRONTEND_VERSION)
+          NEW_BACKEND_VERSION=$(increment_minor $BACKEND_VERSION)
+          
+          # Set output for next steps
+          echo "global_current_tag=$GLOBAL_TAG" >> $GITHUB_OUTPUT
+          echo "frontend_current_tag=$FRONTEND_TAG" >> $GITHUB_OUTPUT
+          echo "backend_current_tag=$BACKEND_TAG" >> $GITHUB_OUTPUT
+          
+          echo "global_new_version=$NEW_GLOBAL_VERSION" >> $GITHUB_OUTPUT
+          echo "frontend_new_version=$NEW_FRONTEND_VERSION" >> $GITHUB_OUTPUT
+          echo "backend_new_version=$NEW_BACKEND_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Create and push tags
+        id: create_tags
+        run: |
+          # Create new tags
+          git tag v${{ steps.versions.outputs.global_new_version }}
+          git tag web/v${{ steps.versions.outputs.frontend_new_version }}
+          git tag app/v${{ steps.versions.outputs.backend_new_version }}
+          
+          # Push the new tags
+          git push origin v${{ steps.versions.outputs.global_new_version }}
+          git push origin web/v${{ steps.versions.outputs.frontend_new_version }}
+          git push origin app/v${{ steps.versions.outputs.backend_new_version }}
+          
+          echo "Created and pushed new tags:"
+          echo "- v${{ steps.versions.outputs.global_new_version }}"
+          echo "- web/v${{ steps.versions.outputs.frontend_new_version }}"
+          echo "- app/v${{ steps.versions.outputs.backend_new_version }}"
+      
+      - name: Sync versions with package.json
+        id: sync_versions
+        run: npm run sync-versions
+      
+      - name: Run prepare-release
+        id: prepare_release
+        run: npm run prepare-release
+        timeout-minutes: 10  # Separate timeout for potentially long-running build
+      
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Make the changelog script executable
+          chmod +x tools/generate-changelog.js
+          
+          # Generate changelog between the previous and new global tags
+          CHANGELOG=$(node tools/generate-changelog.js v${{ steps.versions.outputs.global_new_version }} ${{ steps.versions.outputs.global_current_tag }})
+          
+          # Extract the actual changelog content using the delimiters
+          CHANGELOG_CONTENT=$(echo "$CHANGELOG" | awk '/GENERATED_CHANGELOG<<EOF/{flag=1;next}/EOF/{flag=0}flag')
+          
+          # Save changelog to a file for the release
+          echo "$CHANGELOG_CONTENT" > changelog_content.md
+          
+          # Set as output (with proper escaping for GitHub Actions)
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Update RELEASE_NOTES.md files
+        run: |
+          # Global RELEASE_NOTES.md
+          cat > RELEASE_NOTES.md << EOL
+          # Release v${{ steps.versions.outputs.global_new_version }}
+          
+          ## Version Information
+          - Global: v${{ steps.versions.outputs.global_new_version }}
+          - Frontend: v${{ steps.versions.outputs.frontend_new_version }}
+          - Backend: v${{ steps.versions.outputs.backend_new_version }}
+          
+          ## What's Changed
+          $(cat changelog_content.md)
+          
+          *This release was automatically generated by GitHub Actions.*
+          EOL
+          
+          # Create separate frontend and backend release notes
+          cp RELEASE_NOTES.md web/RELEASE_NOTES.md
+          cp RELEASE_NOTES.md app/RELEASE_NOTES.md
+      
+      - name: Commit package.json and release notes updates
+        run: |
+          # Check if there are changes to commit
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add package.json web/package.json RELEASE_NOTES.md web/RELEASE_NOTES.md app/RELEASE_NOTES.md
+            git commit -m "chore: Update version to v${{ steps.versions.outputs.global_new_version }} and release notes"
+            git push
+          else
+            echo "No changes to commit"
+          fi
+      
+      - name: Create GitHub Release
+        uses: actions/github-script@v7  # Use latest v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const globalVersion = "${{ steps.versions.outputs.global_new_version }}";
+            const frontendVersion = "${{ steps.versions.outputs.frontend_new_version }}";
+            const backendVersion = "${{ steps.versions.outputs.backend_new_version }}";
+            
+            // Read the changelog content
+            const changelogContent = fs.readFileSync('changelog_content.md', 'utf8');
+            
+            // Create release notes
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${globalVersion}`,
+              name: `Release v${globalVersion}`,
+              body: `
+            # Release v${globalVersion}
+            
+            ## Version Information
+            - Global: v${globalVersion}
+            - Frontend: v${frontendVersion}
+            - Backend: v${backendVersion}
+            
+            ## What's Changed
+            ${changelogContent}
+            
+            *This release was automatically created by GitHub Actions.*
+            `,
+              draft: false,
+              prerelease: false
+            });

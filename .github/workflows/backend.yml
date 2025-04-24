@@ -1,98 +1,155 @@
-name: backend
+name: Backend CI
+
 on:
   push:
-    branches: ["master"]
+    branches-ignore: ["master"]  # Already handled by auto-version workflow
   pull_request:
     branches: ["master"]
+
+# Prevent concurrent workflow runs on the same branch/PR
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true  # Cancel in-progress runs on new pushes
+
+env:
+  GO_VERSION_FILE: "./app/go.mod"
+  GO_SUM_FILE: "./app/go.sum"
+  RPM_OUTPUT_DIR: "/home/runner/rpmbuild/RPMS/x86_64"
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent hung workflows
     defaults:
       run:
         working-directory: ./app
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Use latest v4
+        
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5  # Use latest v5
         with:
-          go-version-file: "./app/go.mod"
-          cache-dependency-path: "./app/go.sum"
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: ${{ env.GO_SUM_FILE }}
+          cache: true  # Enable Go module caching
+          
       - name: Build
         run: go build -v ./...
+      
+      - name: Verify executable
+        run: |
+          if [[ ! -f "data-lake-ui-backend" && ! -f "app" ]]; then
+            echo "::error::No executable was produced by the build"
+            exit 1
+          fi
+
   test-and-coverage:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent hung workflows
     defaults:
       run:
         working-directory: ./app
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Use latest v4
+        
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v5  # Use latest v5
         with:
-          go-version-file: "./app/go.mod"
-          cache-dependency-path: "./app/go.sum"
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: ${{ env.GO_SUM_FILE }}
+          cache: true
+          
       - name: Vet
         run: go vet ./...
+        
       - name: Test and Coverage
+        id: test_coverage
         run: |
           go test -v ./... -covermode=count -coverprofile=coverage.out
           go tool cover -func=coverage.out -o=coverage.out
+      
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4  # Use latest v4
         with:
           name: coverage-report
           path: "./app/coverage.out"
+          retention-days: 14
+          
       - name: Generate Coverage Badge
         if: github.event_name != 'pull_request'
-        uses: tj-actions/coverage-badge-go@v2
+        uses: tj-actions/coverage-badge-go@v2  # Use latest v2
         with:
           filename: "./app/coverage.out"
+          
       - name: Verify Changed files
         if: github.event_name != 'pull_request'
-        uses: tj-actions/verify-changed-files@v20
+        uses: tj-actions/verify-changed-files@v20  # Use latest v20
         id: verify-changed-files
         with:
           files: README.md
+          
       - name: Commit changes
         if: steps.verify-changed-files.outputs.files_changed == 'true'
         run: |
-          git config --local user.email "action@github.com"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "GitHub Action"
           git add ../README.md
           git commit -m "chore: Updated coverage badge."
+          
       - name: Push changes
         if: steps.verify-changed-files.outputs.files_changed == 'true'
-        uses: ad-m/github-push-action@master
+        uses: ad-m/github-push-action@master  # Use master branch
         with:
-          github_token: ${{ github.token }}
-          branch: ${{ github.head_ref }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.head_ref || github.ref_name }}
+
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10  # Separate timeout for linting
     defaults:
       run:
         working-directory: ./app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Use latest v4
+        
+      - name: Set up Go
+        uses: actions/setup-go@v5  # Use latest v5
         with:
-          go-version-file: "./app/go.mod"
-          cache-dependency-path: "./app/go.sum"
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: ${{ env.GO_SUM_FILE }}
+          cache: true
+          
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v6  # Use latest v6
         with:
           version: latest
           working-directory: "./app/"
+          args: --timeout=5m  # Add timeout to avoid linting getting stuck
+
   build-rpm:
+    # Only build RPM on pull requests or non-master branches
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
     runs-on: ubuntu-latest
+    timeout-minutes: 20  # Longer timeout for RPM building
+    needs: [build, test-and-coverage, lint]  # Only build RPM if other jobs succeed
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Use latest v4
+        
       - name: Install RPM build dependencies
-        run: sudo apt-get install -y rpm python3
+        run: sudo apt-get update && sudo apt-get install -y rpm python3
+        
       - name: Run RPM build script
         run: python3 packaging/build_rpm.py -b
+        
       - name: Upload RPM artifact
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4  # Use latest v4
         with:
           name: rpm-package
-          path: /home/runner/rpmbuild/RPMS/x86_64/*.rpm
+          path: ${{ env.RPM_OUTPUT_DIR }}/*.rpm
+          retention-days: 14
+          if-no-files-found: warn  # Warn instead of failing if no RPMs are found

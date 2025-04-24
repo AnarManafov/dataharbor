@@ -1,0 +1,164 @@
+name: Publish Release
+
+on:
+  workflow_run:
+    workflows: ["Auto Version Bump and Release"]
+    types:
+      - completed
+    branches: ["master"]  # Keep master as the main branch
+
+# Prevent concurrent deployments
+concurrency:
+  group: publish-release-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false  # Don't cancel in-progress releases
+
+env:
+  NODE_VERSION: '23'  # Updated to match local Node.js 23 version
+  GO_VERSION_FILE: "./app/go.mod"
+  RPM_OUTPUT_DIR: "/home/runner/rpmbuild/RPMS/x86_64"
+  ARTIFACT_RETENTION_DAYS: 30
+
+jobs:
+  build-and-publish:
+    # Only run if the auto-version workflow was successful
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # Prevent hung workflows
+    permissions:
+      contents: write  # For release publishing
+      packages: write  # For package publishing if needed
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Use latest v4
+        with:
+          # Fetch all history and tags
+          fetch-depth: 0
+      
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          # Get the latest version tags
+          GLOBAL_TAG=$(git describe --tags --match "v*" --abbrev=0)
+          
+          # Set as output
+          echo "global_tag=$GLOBAL_TAG" >> $GITHUB_OUTPUT
+          echo "version=${GLOBAL_TAG#v}" >> $GITHUB_OUTPUT
+          
+          echo "Latest tag is: $GLOBAL_TAG"
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4  # Use latest v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'  # Enable npm caching
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build frontend
+        id: build_frontend
+        run: npm run build:frontend
+        timeout-minutes: 10  # Separate timeout for build
+      
+      - name: Set up Go
+        uses: actions/setup-go@v5  # Use latest v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: "./app/go.sum"
+      
+      - name: Build backend
+        id: build_backend
+        run: npm run build:backend
+        timeout-minutes: 10  # Separate timeout for build
+      
+      - name: Install RPM build dependencies
+        run: sudo apt-get update && sudo apt-get install -y rpm python3
+      
+      - name: Build RPM packages
+        id: build_rpm
+        run: python3 packaging/build_rpm.py -b -v ${{ steps.latest_tag.outputs.version }}
+        timeout-minutes: 10  # Separate timeout for RPM build
+      
+      - name: Upload RPMs as artifacts
+        uses: actions/upload-artifact@v4  # Use latest v4
+        with:
+          name: rpm-packages
+          path: ${{ env.RPM_OUTPUT_DIR }}/*.rpm
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+          if-no-files-found: error  # Fail if no RPMs are found
+      
+      - name: Add RPMs to GitHub Release
+        uses: softprops/action-gh-release@v2  # Use latest v2
+        with:
+          tag_name: ${{ steps.latest_tag.outputs.global_tag }}
+          files: ${{ env.RPM_OUTPUT_DIR }}/*.rpm
+          fail_on_unmatched_files: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract RPM names
+        id: rpm_names
+        run: |
+          FRONTEND_RPM=$(find ${{ env.RPM_OUTPUT_DIR }} -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" | head -n 1)
+          BACKEND_RPM=$(find ${{ env.RPM_OUTPUT_DIR }} -name "data-lake-ui-backend-*.rpm" -printf "%f\n" | head -n 1)
+          
+          if [ -z "$FRONTEND_RPM" ]; then
+            echo "::error::Frontend RPM not found"
+            exit 1
+          fi
+          
+          if [ -z "$BACKEND_RPM" ]; then
+            echo "::error::Backend RPM not found"
+            exit 1
+          fi
+          
+          echo "frontend_rpm=$FRONTEND_RPM" >> $GITHUB_OUTPUT
+          echo "backend_rpm=$BACKEND_RPM" >> $GITHUB_OUTPUT
+          
+          echo "Found RPMs:"
+          echo "- Frontend: $FRONTEND_RPM"
+          echo "- Backend: $BACKEND_RPM"
+      
+      - name: Update release notes with RPM information
+        uses: actions/github-script@v7  # Use latest v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const releaseTag = "${{ steps.latest_tag.outputs.global_tag }}";
+            const frontendRpm = "${{ steps.rpm_names.outputs.frontend_rpm }}";
+            const backendRpm = "${{ steps.rpm_names.outputs.backend_rpm }}";
+            
+            // Get the existing release
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const release = releases.data.find(r => r.tag_name === releaseTag);
+            
+            if (release) {
+              // Prepare RPM information
+              const rpmInfo = `
+              ## RPM Packages
+              
+              The following RPM packages are available for installation:
+              
+              - **Frontend**: \`${frontendRpm}\`
+              - **Backend**: \`${backendRpm}\`
+              
+              *RPM packages are attached to this release.*
+              `;
+              
+              // Update the release with RPM information
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id,
+                body: release.body + "\n" + rpmInfo
+              });
+              
+              console.log("Successfully updated release notes with RPM information");
+            } else {
+              console.error(`Release with tag ${releaseTag} not found`);
+              process.exit(1);
+            }

@@ -1,6 +1,7 @@
 {
     "name": "data-lake-ui",
     "version": "0.6.0",
+    "type": "module",
     "workspaces": [
         ".",
         "web"
@@ -14,7 +15,9 @@
         "build:backend": "cd app && go build .",
         "sandbox:create": "mkdir -p sandbox/public && cp -r web/public/* sandbox/public/",
         "sandbox:clean": "rm -rf sandbox",
-        "sandbox:run": "cd web && npm run sandbox"
+        "sandbox:run": "cd web && npm run sandbox",
+        "sync-versions": "node tools/sync-versions.js",
+        "prepare-release": "npm run sync-versions && npm run build"
     },
     "devDependencies": {
         "concurrently": "^9.1.2"

@@ -96,17 +96,48 @@ Each release is tagged according to the following rules:
 * **Frontend Versions**: Use a prefix `web/vX.Y.Z` (e.g., `web/v1.0.0`) to distinguish Frontend versions.
 * **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to distinguish global versions.
 
+### Dynamic Versioning
+
+```shell
+# During development, use Git tags for displaying versions in your app
+npm run dev
+
+# When preparing a release (after tagging)
+npm run prepare-release
+
+# Just to check or update package.json versions 
+npm run sync-versions
+```
+
 ### Release process
 
-* Frontend:
-  * Update the top level version in the [package.json](./web/package.json) to reflect the frontend version.
-  * Update [RELEASE_NOTES](./web/RELEASE_NOTES.md)
-* Backend:
-  * * Update [RELEASE_NOTES](./app/RELEASE_NOTES.md)
-* Global:
-  * Update the top level version in the [package.json](./package.json) to reflect the global versions number.
-  * Update [RELEASE_NOTES](./RELEASE_NOTES.md)
-* Apply git tags according to [Versioning rules](#versioning)
+1. Release notes
+
+   * Frontend: Update its [RELEASE_NOTES](./web/RELEASE_NOTES.md)
+   * Backend:  Update its [RELEASE_NOTES](./app/RELEASE_NOTES.md)
+   * Global: Update its [RELEASE_NOTES](./RELEASE_NOTES.md)
+  
+1. Dynamic versioning
+
+   * Create Git tags for a new release:
+
+     ```shell
+     git tag v0.6.0         # Global version
+     git tag web/v0.6.0     # Frontend version
+     git tag app/v0.6.0     # Backend version
+     ```
+
+   * Push the tags:
+  
+      ```shell
+      git push origin v0.6.0 web/v0.6.0 app/v0.6.0
+      ```
+
+   * Run the prepare-release script:
+
+     ```shell
+     npm run prepare-release
+     ```
 
 ## How to run locally
 

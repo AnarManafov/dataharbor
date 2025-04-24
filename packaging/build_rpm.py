@@ -14,11 +14,12 @@ Functions:
         Parses command-line arguments and builds the specified packages.
 
 Usage:
-    python build_rpm.py [-b] [-f]
+    python build_rpm.py [-b] [-f] [-v VERSION]
 
     Options:
         -b, --backend   Build backend package.
         -f, --frontend  Build frontend package.
+        -v, --version   Specify the version to use for the package.
 
 If no options are specified, both backend and frontend packages will be built.
 """
@@ -26,6 +27,19 @@ import argparse
 import subprocess
 import os
 import platform
+import sys
+import json
+
+
+def get_package_version(package_json_path):
+    """Get the version from a package.json file."""
+    try:
+        with open(package_json_path, 'r') as f:
+            package_data = json.load(f)
+            return package_data.get('version', '0.1.0')
+    except Exception as e:
+        print(f"Failed to read package.json at {package_json_path}: {e}")
+        return '0.1.0'
 
 
 def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None):
@@ -83,10 +97,11 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
     subprocess.run(["python3", changelog_script_path,
                    f"{build_dir}/SPECS/{os.path.basename(spec_file)}", f"{source_dir}/{release_notes_file}"], check=True)
 
-    print("Building the RPM package...")
+    print(f"Building the RPM package for version {version}...")
     arch = platform.machine()
     result = subprocess.run(
-        ["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}", f"--target={arch}"])
+        ["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}",
+         f"--target={arch}", f"--define='_version {version}'"])
     if result.returncode == 0:
         print("RPM package created successfully.")
     else:
@@ -100,14 +115,21 @@ def main():
                         help="Build backend package")
     parser.add_argument("-f", "--frontend", action="store_true",
                         help="Build frontend package")
+    parser.add_argument("-v", "--version",
+                        help="Version to use for the package")
     args = parser.parse_args()
 
-    version_backend = "0.6.0"
+    # Get version from command line or package.json
+    if args.version:
+        version = args.version
+    else:
+        # Try to get from root package.json
+        version = get_package_version("package.json")
+
     app_name_backend = "data-lake-ui-backend"
     source_dir_backend = "app"
     spec_file_backend = f"packaging/{app_name_backend}.spec"
 
-    version_frontend = "0.6.0"
     app_name_frontend = "data-lake-ui-frontend"
     source_dir_frontend = "web"
     spec_file_frontend = f"packaging/{app_name_frontend}.spec"
@@ -118,12 +140,14 @@ def main():
         args.frontend = True
 
     if args.backend:
+        print(f"Building backend RPM with version {version}")
         build_package(app_name_backend, source_dir_backend,
-                      spec_file_backend, version_backend)
+                      spec_file_backend, version)
 
     if args.frontend:
+        print(f"Building frontend RPM with version {version}")
         build_package(app_name_frontend, source_dir_frontend,
-                      spec_file_frontend, version_frontend, nginx_conf_path)
+                      spec_file_frontend, version, nginx_conf_path)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 Name:           data-lake-ui-backend
-Version:        0.6.0
+%{!?_version: %define _version 0.6.0}
+Version:        %{_version}
 Release:        1%{?dist}
 Summary:        data-lake-ui Go Backend Application
 
