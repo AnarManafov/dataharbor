@@ -1,37 +1,67 @@
-# Frontend Release Notes
+# Release v0.6.0
 
-## [0.6.0] - NOT YET RELEASED
+## Version Information
+- Global: v0.6.0
+- Frontend: v0.6.0
+- Backend: v0.6.0
 
-- Added: RPM package build. (GH-21)
-- Added: Keycloak OIDC authentication integration with vuex-oidc. (GH-19)
-- Added: Enhanced user interface for login/logout functionality. (GH-19)
-- Added: User profile display with logout confirmation dialog. (GH-19)
-- Added: Standardized API request handling with Axios. (GH-19)
-- Added: Token handling and silent refresh functionality. (GH-19)
-- Added: Environment-specific configurations for development and production. (GH-19)
-- Added: Improved cross-domain cookie handling in Vite configuration. (GH-19)
+## What's Changed
+## ✨ New Features
 
-## [0.5.0] - 2024-10-02
+- feat: Add release publishing workflow & version management ([9d9e7dc](https://github.com/AnarManafov/data-lake-ui/commit/9d9e7dc))
+- feat(Nav): enhance auth UI and logout handling ([cb0490d](https://github.com/AnarManafov/data-lake-ui/commit/cb0490d))
 
-- Modified: Split `BrowseXrdView.vue` into multiple components.
-- Modified: Refactored the toolbar component of the File Browser.
-- Added: Enhanced route handling to prevent redundant navigation and ensure proper directory loading.
-- Added: Users can now navigate in the File Browser via the web browser URL bar and navigation buttons.
-- Added: Display of folder and file counts, as well as cumulative file size in the toolbar.
-- Added: Support pagination for directory listings. (GH-15)
-- Added: Show loading feedback when receiving big data. (GH-17)
-- Added: A back to top button when the file browser gets too many entries.
 
-## [0.4.0] - 2024-09-09
+## 🔨 Chores and Maintenance
 
-- Modified: Refactored the Browse Files view.
-- Added: Users can now download the selected file.
-- Added: Show corresponding icons for files and folders in the File Browser.
-- Added: Use session storage to save the state of the File Browser.
-- Added: Containerization of the frontend with an Nginx server.
-- Added: Periodic backend service health checks and corresponding UI updates based on service status. (GH-7)
-- Added: Clean the table and highlight the home icon in red if the backend appears offline. (GH-7)
-- Added: Error handling of protocol errors. (GH-6)
-- Added: A filter to convert file size to a human-readable format with kBytes, MB, GB, etc.
-- Added: Runtime config file support.
-- Fixed: If the user can't enter the directory, it should not be added to the current path. (GH-14)
+- chore: Updated coverage badge. ([83e4762](https://github.com/AnarManafov/data-lake-ui/commit/83e4762))
+- chore: Updated coverage badge. ([621e46d](https://github.com/AnarManafov/data-lake-ui/commit/621e46d))
+- chore: Updated coverage badge. ([09d45c7](https://github.com/AnarManafov/data-lake-ui/commit/09d45c7))
+- chore: Updated coverage badge. ([92496b7](https://github.com/AnarManafov/data-lake-ui/commit/92496b7))
+- chore: Updated coverage badge. ([ec06a57](https://github.com/AnarManafov/data-lake-ui/commit/ec06a57))
+- chore: Updated coverage badge. ([98b3138](https://github.com/AnarManafov/data-lake-ui/commit/98b3138))
+- chore: Updated coverage badge. ([da3489d](https://github.com/AnarManafov/data-lake-ui/commit/da3489d))
+- chore: Updated coverage badge. ([517733f](https://github.com/AnarManafov/data-lake-ui/commit/517733f))
+- chore: Updated coverage badge. ([4526287](https://github.com/AnarManafov/data-lake-ui/commit/4526287))
+- chore: Updated coverage badge. ([eceaa0d](https://github.com/AnarManafov/data-lake-ui/commit/eceaa0d))
+- chore: Updated coverage badge. ([917af15](https://github.com/AnarManafov/data-lake-ui/commit/917af15))
+- chore: Updated coverage badge. ([0f23979](https://github.com/AnarManafov/data-lake-ui/commit/0f23979))
+- chore: Updated coverage badge. ([8a82a47](https://github.com/AnarManafov/data-lake-ui/commit/8a82a47))
+- chore: Updated coverage badge. ([10edf08](https://github.com/AnarManafov/data-lake-ui/commit/10edf08))
+- chore: Updated coverage badge. ([ff0e1bd](https://github.com/AnarManafov/data-lake-ui/commit/ff0e1bd))
+- chore: Updated coverage badge. ([09d6af4](https://github.com/AnarManafov/data-lake-ui/commit/09d6af4))
+- chore: Updated coverage badge. ([2b1e1d9](https://github.com/AnarManafov/data-lake-ui/commit/2b1e1d9))
+- chore: Updated coverage badge. ([d5bc135](https://github.com/AnarManafov/data-lake-ui/commit/d5bc135))
+
+
+## 🔄 Other Changes
+
+- GH-19: Implement Keycloak OIDC authentication ([8ef3d07](https://github.com/AnarManafov/data-lake-ui/commit/8ef3d07))
+- Update dependencies ([08f4555](https://github.com/AnarManafov/data-lake-ui/commit/08f4555))
+- Improve UI components and error handling ([b3cbce7](https://github.com/AnarManafov/data-lake-ui/commit/b3cbce7))
+- Update doc ([5d6615c](https://github.com/AnarManafov/data-lake-ui/commit/5d6615c))
+- update dependencies ([cd7f739](https://github.com/AnarManafov/data-lake-ui/commit/cd7f739))
+- Relocate asset files to work on prod and dev env ([b5a1c3f](https://github.com/AnarManafov/data-lake-ui/commit/b5a1c3f))
+- Fix frontend packaging ([be1c9a4](https://github.com/AnarManafov/data-lake-ui/commit/be1c9a4))
+- Update frontend package ([98d94e8](https://github.com/AnarManafov/data-lake-ui/commit/98d94e8))
+- Update dependencies ([c6ce6a7](https://github.com/AnarManafov/data-lake-ui/commit/c6ce6a7))
+- Update dependencies ([0dcba13](https://github.com/AnarManafov/data-lake-ui/commit/0dcba13))
+- Update dependencies ([638f99e](https://github.com/AnarManafov/data-lake-ui/commit/638f99e))
+- backend RPM to use host arch as target ([efacc0d](https://github.com/AnarManafov/data-lake-ui/commit/efacc0d))
+- Update documentation ([671d7ba](https://github.com/AnarManafov/data-lake-ui/commit/671d7ba))
+- Fix nginx package conflict. ([82f4d4f](https://github.com/AnarManafov/data-lake-ui/commit/82f4d4f))
+- Fix RPM build with nginx ([6dcd9c7](https://github.com/AnarManafov/data-lake-ui/commit/6dcd9c7))
+- Fix RPM build with nginx ([6bc6515](https://github.com/AnarManafov/data-lake-ui/commit/6bc6515))
+- Add ngingx for RPM spec of frontend ([b6b156e](https://github.com/AnarManafov/data-lake-ui/commit/b6b156e))
+- Update backend dependencies ([756df39](https://github.com/AnarManafov/data-lake-ui/commit/756df39))
+- Fix backend packaging ([8314038](https://github.com/AnarManafov/data-lake-ui/commit/8314038))
+- RPM packaging improvment ([503a892](https://github.com/AnarManafov/data-lake-ui/commit/503a892))
+- RPM changelog fix ([3a20710](https://github.com/AnarManafov/data-lake-ui/commit/3a20710))
+- RPM: generate change log at build time ([729faa8](https://github.com/AnarManafov/data-lake-ui/commit/729faa8))
+- GH-21: RPM packaging for frontend ([8f5dcaf](https://github.com/AnarManafov/data-lake-ui/commit/8f5dcaf))
+- CI fix for RPM artifacts ([b9482fb](https://github.com/AnarManafov/data-lake-ui/commit/b9482fb))
+- Fix backend CI ([f672ef3](https://github.com/AnarManafov/data-lake-ui/commit/f672ef3))
+- Add debug log to RPM build ([bd75f25](https://github.com/AnarManafov/data-lake-ui/commit/bd75f25))
+- GH-20: RPM packaging for backend ([b9b7d58](https://github.com/AnarManafov/data-lake-ui/commit/b9b7d58))
+
+*This release was automatically generated by GitHub Actions.*
