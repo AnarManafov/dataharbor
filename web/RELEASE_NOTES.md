@@ -3,6 +3,13 @@
 ## [0.6.0] - NOT YET RELEASED
 
 - Added: RPM package build. (GH-21)
+- Added: Keycloak OIDC authentication integration with vuex-oidc. (GH-19)
+- Added: Enhanced user interface for login/logout functionality. (GH-19)
+- Added: User profile display with logout confirmation dialog. (GH-19)
+- Added: Standardized API request handling with Axios. (GH-19)
+- Added: Token handling and silent refresh functionality. (GH-19)
+- Added: Environment-specific configurations for development and production. (GH-19)
+- Added: Improved cross-domain cookie handling in Vite configuration. (GH-19)
 
 ## [0.5.0] - 2024-10-02
 

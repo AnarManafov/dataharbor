@@ -1,10 +1,60 @@
 import { fileURLToPath, URL } from "node:url";
+import path from "node:path";
+import { execSync } from "child_process";
+import fs from "fs";
 
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
+
+// Helper functions to get version information directly (no external imports)
+function getVersion(tagPattern, fallbackPath) {
+    try {
+        const gitDescribe = execSync(`git describe --tags --match "${tagPattern}" --abbrev=7`, {
+            encoding: 'utf8',
+            stdio: ['pipe', 'pipe', 'ignore']
+        }).trim();
+
+        // Parse the git describe output
+        const prefix = tagPattern.replace('*', '');
+        const pattern = new RegExp(`^${prefix}?([0-9]+\\.[0-9]+\\.[0-9]+)(?:-([0-9]+)-g([a-f0-9]+))?$`);
+        const match = gitDescribe.match(pattern);
+
+        if (match) {
+            const [, version, commits, hash] = match;
+            return commits && hash ? `${version}-${hash}` : version;
+        }
+
+        console.warn(`Could not parse version from: ${gitDescribe}`);
+        return getPackageVersion(fallbackPath);
+    } catch (error) {
+        console.warn(`Failed to get version for ${tagPattern}: ${error.message}`);
+        return getPackageVersion(fallbackPath);
+    }
+}
+
+function getPackageVersion(packagePath) {
+    try {
+        const packageJsonPath = path.resolve(process.cwd(), packagePath);
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        return packageJson.version || '0.0.0';
+    } catch (error) {
+        console.warn(`Failed to read ${packagePath}: ${error.message}`);
+        return '0.0.0';
+    }
+}
+
+// Get versions
+const globalVersion = getVersion("v*", "../package.json");
+const frontendVersion = getVersion("web/v*", "./package.json");
+const backendVersion = getVersion("app/v*", "../app/package.json");
+
+console.log(`Building with versions:
+- Global: ${globalVersion}
+- Frontend: ${frontendVersion}
+- Backend: ${backendVersion}`);
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -29,6 +79,11 @@ export default defineConfig({
                 api: 'modern-compiler', // or 'modern'
             },
         },
+    },
+    define: {
+        '__APP_VERSION__': JSON.stringify(frontendVersion),
+        '__GLOBAL_VERSION__': JSON.stringify(globalVersion),
+        '__BACKEND_VERSION__': JSON.stringify(backendVersion),
     },
     server: {
         port: 5173,
