@@ -145,8 +145,10 @@ jobs:
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
             
-            # Pull latest changes to avoid rejection
-            git pull --rebase origin master
+            # Stash changes, pull latest changes, then apply stashed changes
+            git stash
+            git pull origin master
+            git stash pop
             
             git add package.json web/package.json
             git commit -m "chore: Update version to v${{ needs.determine-versions.outputs.global_new_version }} in package.json files"
@@ -253,8 +255,10 @@ jobs:
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
             
-            # Pull latest changes to avoid rejection
-            git pull --rebase origin master
+            # Stash changes, pull latest changes, then apply stashed changes
+            git stash
+            git pull origin master
+            git stash pop
             
             git add RELEASE_NOTES.md
             git commit -m "chore: Update release notes for v${{ needs.determine-versions.outputs.global_new_version }}"
