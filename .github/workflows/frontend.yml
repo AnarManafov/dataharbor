@@ -14,7 +14,7 @@ concurrency:
 env:
   NODE_VERSION: '23'  # Updated to match local Node.js 23 version
   FRONTEND_DIR: './web'
-  CACHE_NPM_DEPS: 'npm-cache-${{ hashFiles(''**/package-lock.json'') }}'
+  CACHE_NPM_DEPS: npm-cache-${{ github.sha }}
 
 jobs:
   build:
