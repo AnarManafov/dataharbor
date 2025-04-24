@@ -1,5 +1,4 @@
 Name:           data-lake-ui-frontend
-%{!?_version: %define _version 0.6.0}
 Version:        %{_version}
 Release:        1%{?dist}
 Summary:        data-lake-ui Vue.js Frontend Application
