@@ -1,4 +1,4 @@
-name: Auto Version Bump and Release
+name: Auto Version Bump
 
 on:
   push:
@@ -10,30 +10,27 @@ concurrency:
   cancel-in-progress: false  # Don't cancel in-progress runs to avoid inconsistent states
 
 env:
-  NODE_VERSION: '23'  # Updated to match local Node.js 23 version
+  NODE_VERSION: '23'
 
 jobs:
-  version-bump:
+  # Job to extract and calculate new versions
+  determine-versions:
+    name: Determine New Versions
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Prevent hung workflows
-    permissions:
-      contents: write  # For tag creation and release publishing
-      
+    timeout-minutes: 5
+    outputs:
+      global_current_tag: ${{ steps.versions.outputs.global_current_tag }}
+      frontend_current_tag: ${{ steps.versions.outputs.frontend_current_tag }}
+      backend_current_tag: ${{ steps.versions.outputs.backend_current_tag }}
+      global_new_version: ${{ steps.versions.outputs.global_new_version }}
+      frontend_new_version: ${{ steps.versions.outputs.frontend_new_version }}
+      backend_new_version: ${{ steps.versions.outputs.backend_new_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # Use latest v4
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch all history for versioning
           
-      - name: Set up Node.js
-        uses: actions/setup-node@v4  # Use latest v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'  # Enable npm caching
-          
-      - name: Install dependencies
-        run: npm ci
-        
       - name: Extract current version info
         id: versions
         run: |
@@ -69,24 +66,68 @@ jobs:
           echo "global_new_version=$NEW_GLOBAL_VERSION" >> $GITHUB_OUTPUT
           echo "frontend_new_version=$NEW_FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "backend_new_version=$NEW_BACKEND_VERSION" >> $GITHUB_OUTPUT
+          
+          echo "Current versions:"
+          echo "- Global: $GLOBAL_TAG -> v$NEW_GLOBAL_VERSION"
+          echo "- Frontend: $FRONTEND_TAG -> web/v$NEW_FRONTEND_VERSION"
+          echo "- Backend: $BACKEND_TAG -> app/v$NEW_BACKEND_VERSION"
+  
+  # Job to create and push tags
+  create-tags:
+    name: Create and Push Tags
+    needs: determine-versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # For tag creation and pushing
+    outputs:
+      tags_created: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
       - name: Create and push tags
         id: create_tags
         run: |
           # Create new tags
-          git tag v${{ steps.versions.outputs.global_new_version }}
-          git tag web/v${{ steps.versions.outputs.frontend_new_version }}
-          git tag app/v${{ steps.versions.outputs.backend_new_version }}
+          git tag v${{ needs.determine-versions.outputs.global_new_version }}
+          git tag web/v${{ needs.determine-versions.outputs.frontend_new_version }}
+          git tag app/v${{ needs.determine-versions.outputs.backend_new_version }}
           
           # Push the new tags
-          git push origin v${{ steps.versions.outputs.global_new_version }}
-          git push origin web/v${{ steps.versions.outputs.frontend_new_version }}
-          git push origin app/v${{ steps.versions.outputs.backend_new_version }}
+          git push origin v${{ needs.determine-versions.outputs.global_new_version }}
+          git push origin web/v${{ needs.determine-versions.outputs.frontend_new_version }}
+          git push origin app/v${{ needs.determine-versions.outputs.backend_new_version }}
           
           echo "Created and pushed new tags:"
-          echo "- v${{ steps.versions.outputs.global_new_version }}"
-          echo "- web/v${{ steps.versions.outputs.frontend_new_version }}"
-          echo "- app/v${{ steps.versions.outputs.backend_new_version }}"
+          echo "- v${{ needs.determine-versions.outputs.global_new_version }}"
+          echo "- web/v${{ needs.determine-versions.outputs.frontend_new_version }}"
+          echo "- app/v${{ needs.determine-versions.outputs.backend_new_version }}"
+  
+  # Job to synchronize version info across projects
+  sync-versions:
+    name: Synchronize Version Files
+    needs: [determine-versions, create-tags]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # For committing changes
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
       
       - name: Sync versions with package.json
         id: sync_versions
@@ -95,7 +136,30 @@ jobs:
       - name: Run prepare-release
         id: prepare_release
         run: npm run prepare-release
-        timeout-minutes: 10  # Separate timeout for potentially long-running build
+        timeout-minutes: 10
+  
+  # Job to generate changelog and release notes
+  generate-changelog:
+    name: Generate Changelog
+    needs: [determine-versions, create-tags]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      changelog_content: ${{ steps.changelog.outputs.content }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
       
       - name: Generate changelog
         id: changelog
@@ -104,7 +168,7 @@ jobs:
           chmod +x tools/generate-changelog.js
           
           # Generate changelog between the previous and new global tags
-          CHANGELOG=$(node tools/generate-changelog.js v${{ steps.versions.outputs.global_new_version }} ${{ steps.versions.outputs.global_current_tag }})
+          CHANGELOG=$(node tools/generate-changelog.js v${{ needs.determine-versions.outputs.global_new_version }} ${{ needs.determine-versions.outputs.global_current_tag }})
           
           # Extract the actual changelog content using the delimiters
           CHANGELOG_CONTENT=$(echo "$CHANGELOG" | awk '/GENERATED_CHANGELOG<<EOF/{flag=1;next}/EOF/{flag=0}flag')
@@ -112,21 +176,52 @@ jobs:
           # Save changelog to a file for the release
           echo "$CHANGELOG_CONTENT" > changelog_content.md
           
+          # Save version information for publish workflow
+          echo "${{ needs.determine-versions.outputs.global_new_version }}" > version_info.txt
+          
           # Set as output (with proper escaping for GitHub Actions)
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG_CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
+      - name: Upload changelog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-changelog
+          path: |
+            changelog_content.md
+            version_info.txt
+          retention-days: 7  # Keep for longer since publish workflow needs it
+  
+  # Job to update release notes
+  update-release-notes:
+    name: Update Release Notes
+    needs: [determine-versions, generate-changelog]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write  # For committing changes
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: version-changelog
+      
       - name: Update RELEASE_NOTES.md files
         run: |
           # Global RELEASE_NOTES.md
           cat > RELEASE_NOTES.md << EOL
-          # Release v${{ steps.versions.outputs.global_new_version }}
+          # Release v${{ needs.determine-versions.outputs.global_new_version }}
           
           ## Version Information
-          - Global: v${{ steps.versions.outputs.global_new_version }}
-          - Frontend: v${{ steps.versions.outputs.frontend_new_version }}
-          - Backend: v${{ steps.versions.outputs.backend_new_version }}
+          - Global: v${{ needs.determine-versions.outputs.global_new_version }}
+          - Frontend: v${{ needs.determine-versions.outputs.frontend_new_version }}
+          - Backend: v${{ needs.determine-versions.outputs.backend_new_version }}
           
           ## What's Changed
           $(cat changelog_content.md)
@@ -145,44 +240,8 @@ jobs:
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
             git add package.json web/package.json RELEASE_NOTES.md web/RELEASE_NOTES.md app/RELEASE_NOTES.md
-            git commit -m "chore: Update version to v${{ steps.versions.outputs.global_new_version }} and release notes"
+            git commit -m "chore: Update version to v${{ needs.determine-versions.outputs.global_new_version }} and release notes"
             git push
           else
             echo "No changes to commit"
           fi
-      
-      - name: Create GitHub Release
-        uses: actions/github-script@v7  # Use latest v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const globalVersion = "${{ steps.versions.outputs.global_new_version }}";
-            const frontendVersion = "${{ steps.versions.outputs.frontend_new_version }}";
-            const backendVersion = "${{ steps.versions.outputs.backend_new_version }}";
-            
-            // Read the changelog content
-            const changelogContent = fs.readFileSync('changelog_content.md', 'utf8');
-            
-            // Create release notes
-            await github.rest.repos.createRelease({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag_name: `v${globalVersion}`,
-              name: `Release v${globalVersion}`,
-              body: `
-            # Release v${globalVersion}
-            
-            ## Version Information
-            - Global: v${globalVersion}
-            - Frontend: v${frontendVersion}
-            - Backend: v${backendVersion}
-            
-            ## What's Changed
-            ${changelogContent}
-            
-            *This release was automatically created by GitHub Actions.*
-            `,
-              draft: false,
-              prerelease: false
-            });
