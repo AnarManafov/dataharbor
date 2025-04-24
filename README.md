@@ -109,35 +109,19 @@ npm run prepare-release
 npm run sync-versions
 ```
 
-### Release process
+### Release Process
 
-1. Release notes
+The release process is fully automated via GitHub Actions and triggers on pushes to the `master` branch.
 
-   * Frontend: Update its [RELEASE_NOTES](./web/RELEASE_NOTES.md)
-   * Backend:  Update its [RELEASE_NOTES](./app/RELEASE_NOTES.md)
-   * Global: Update its [RELEASE_NOTES](./RELEASE_NOTES.md)
-  
-1. Dynamic versioning
+The automation workflow performs the following tasks:
 
-   * Create Git tags for a new release:
+1. **Version Determination** - Automatically calculates the next version numbers based on existing tags
+2. **Tag Creation** - Creates and pushes new version tags for global, frontend, and backend components 
+3. **Package.json Updates** - Updates version information in package.json files
+4. **Changelog Generation** - Automatically generates a changelog from commit messages
+5. **Release Notes** - Updates the central RELEASE_NOTES.md file with the new version information
 
-     ```shell
-     git tag v0.6.0         # Global version
-     git tag web/v0.6.0     # Frontend version
-     git tag app/v0.6.0     # Backend version
-     ```
-
-   * Push the tags:
-  
-      ```shell
-      git push origin v0.6.0 web/v0.6.0 app/v0.6.0
-      ```
-
-   * Run the prepare-release script:
-
-     ```shell
-     npm run prepare-release
-     ```
+There is no need for manual version management or release note updates - everything is handled by the CI/CD pipeline.
 
 ## How to run locally
 
