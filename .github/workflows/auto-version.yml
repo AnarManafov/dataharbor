@@ -137,6 +137,19 @@ jobs:
         id: prepare_release
         run: npm run prepare-release
         timeout-minutes: 10
+        
+      - name: Commit package.json updates
+        run: |
+          # Check if there are changes to commit
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add package.json web/package.json
+            git commit -m "chore: Update version to v${{ needs.determine-versions.outputs.global_new_version }} in package.json files"
+            git push
+          else
+            echo "No package.json changes to commit"
+          fi
   
   # Job to generate changelog and release notes
   generate-changelog:
@@ -196,7 +209,7 @@ jobs:
   # Job to update release notes
   update-release-notes:
     name: Update Release Notes
-    needs: [determine-versions, generate-changelog]
+    needs: [determine-versions, generate-changelog, sync-versions]  # Added dependency on sync-versions
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -233,15 +246,15 @@ jobs:
           cp RELEASE_NOTES.md web/RELEASE_NOTES.md
           cp RELEASE_NOTES.md app/RELEASE_NOTES.md
       
-      - name: Commit package.json and release notes updates
+      - name: Commit release notes updates
         run: |
           # Check if there are changes to commit
           if [[ -n "$(git status --porcelain)" ]]; then
             git config --local user.email "github-actions[bot]@users.noreply.github.com"
             git config --local user.name "github-actions[bot]"
-            git add package.json web/package.json RELEASE_NOTES.md web/RELEASE_NOTES.md app/RELEASE_NOTES.md
-            git commit -m "chore: Update version to v${{ needs.determine-versions.outputs.global_new_version }} and release notes"
+            git add RELEASE_NOTES.md web/RELEASE_NOTES.md app/RELEASE_NOTES.md
+            git commit -m "chore: Update release notes for v${{ needs.determine-versions.outputs.global_new_version }}"
             git push
           else
-            echo "No changes to commit"
+            echo "No release notes changes to commit"
           fi
