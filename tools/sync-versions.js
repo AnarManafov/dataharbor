@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
- * This script synchronizes versions from Git tags to package.json files
- * when there are no commits after the last tag.
+ * This script synchronizes versions from Git tags to package.json files.
  * 
  * It will:
- * 1. Check if there are commits after the last tag
- * 2. If not, update the respective package.json files with versions from tags
+ * 1. Get version information from Git tags
+ * 2. Update the respective package.json files with versions from tags
  * 
  * Usage: node sync-versions.js
  */
@@ -76,13 +75,10 @@ function updatePackageJson(packagePath, version) {
             return false;
         }
 
-        console.log(`Updating ${packagePath} version from ${packageJson.version} to ${version}`);
+        // Update version and write to file
         packageJson.version = version;
-
-        fs.writeFileSync(
-            packageJsonPath,
-            JSON.stringify(packageJson, null, 4) + '\n'
-        );
+        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
+        console.log(`Updated ${packagePath} to version ${version}`);
         return true;
     } catch (error) {
         console.error(`Failed to update ${packagePath}: ${error.message}`);
@@ -90,39 +86,40 @@ function updatePackageJson(packagePath, version) {
     }
 }
 
-// Main execution
+/**
+ * Main execution function
+ */
 function main() {
-    console.log('Checking Git versions and package.json files...');
-
     // Get version info for different components
     const globalVersionInfo = getVersionInfo('v*');
     const frontendVersionInfo = getVersionInfo('web/v*');
     const backendVersionInfo = getVersionInfo('app/v*');
 
     console.log('\nVersion information:');
-    console.log(`- Global: ${globalVersionInfo.version || 'N/A'} (${globalVersionInfo.hasCommitsAfterTag ? 'has commits after tag' : 'clean tag'})`);
-    console.log(`- Frontend: ${frontendVersionInfo.version || 'N/A'} (${frontendVersionInfo.hasCommitsAfterTag ? 'has commits after tag' : 'clean tag'})`);
-    console.log(`- Backend: ${backendVersionInfo.version || 'N/A'} (${backendVersionInfo.hasCommitsAfterTag ? 'has commits after tag' : 'clean tag'})`);
+    console.log(`- Global: ${globalVersionInfo.version || 'unknown'}${globalVersionInfo.hasCommitsAfterTag ? '' : ' (clean tag)'}`);
+    console.log(`- Frontend: ${frontendVersionInfo.version || 'unknown'}${frontendVersionInfo.hasCommitsAfterTag ? '' : ' (clean tag)'}`);
+    console.log(`- Backend: ${backendVersionInfo.version || 'unknown'}${backendVersionInfo.hasCommitsAfterTag ? '' : ' (clean tag)'}`);
 
-    // Only update if there are no commits after tags
     const updates = [];
 
-    if (!globalVersionInfo.hasCommitsAfterTag && globalVersionInfo.version) {
+    // Always update package.json files if we have a valid version, regardless of commits after tag
+    if (globalVersionInfo.version) {
         const updated = updatePackageJson('package.json', globalVersionInfo.version);
         if (updated) updates.push('Root package.json');
     }
 
-    if (!frontendVersionInfo.hasCommitsAfterTag && frontendVersionInfo.version) {
+    if (frontendVersionInfo.version) {
         const updated = updatePackageJson('web/package.json', frontendVersionInfo.version);
         if (updated) updates.push('Frontend package.json');
     }
 
-    if (updates.length > 0) {
-        console.log(`\n✅ Successfully updated versions in: ${updates.join(', ')}`);
+    // Print summary
+    if (updates.length) {
+        console.log(`\n🔄 Updated ${updates.length} package.json files: ${updates.join(', ')}`);
     } else {
-        console.log('\n🔄 No package.json files needed updating.');
+        console.log(`\n🔄 No package.json files needed updating.`);
     }
 }
 
-// Execute the main function
+// Run the main function
 main();

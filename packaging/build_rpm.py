@@ -132,8 +132,10 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
     # Generate changelog
     script_dir = os.path.dirname(os.path.realpath(__file__))
     changelog_script = os.path.join(script_dir, "generate_changelog.py")
-    subprocess.run(["python3", changelog_script, "--spec",
-                   os.path.basename(spec_file), "--version", version], check=True)
+    release_notes_path = os.path.join(source_dir, release_notes_file)
+    spec_path = os.path.join(build_dir, "SPECS", os.path.basename(spec_file))
+    subprocess.run(["python3", changelog_script, spec_path,
+                   release_notes_path], check=True)
 
     print(f"Building the RPM package for version {version}...")
     try:
