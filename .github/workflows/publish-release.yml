@@ -6,15 +6,15 @@ on:
     types:
       - completed
     branches:
-      - master  # Only run on master branch
+      - master # Only run on master branch
 
 # Prevent concurrent deployments
 concurrency:
   group: publish-release-${{ github.event.workflow_run.id }}
-  cancel-in-progress: false  # Don't cancel in-progress releases
+  cancel-in-progress: false # Don't cancel in-progress releases
 
 env:
-  NODE_VERSION: '23'
+  NODE_VERSION: "23"
   GO_VERSION_FILE: "./app/go.mod"
   RPM_OUTPUT_BASE_DIR: "/home/runner/rpmbuild/RPMS"
   ARTIFACT_RETENTION_DAYS: 30
@@ -28,53 +28,99 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      global_tag: ${{ steps.latest_tag.outputs.global_tag }}
-      version: ${{ steps.latest_tag.outputs.version }}
-      frontend_version: ${{ steps.latest_tag.outputs.frontend_version }}
-      backend_version: ${{ steps.latest_tag.outputs.backend_version }}
+      global_tag: ${{ steps.get_versions.outputs.global_tag }}
+      version: ${{ steps.get_versions.outputs.version }}
+      frontend_version: ${{ steps.get_versions.outputs.frontend_version }}
+      backend_version: ${{ steps.get_versions.outputs.backend_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history and tags
-      
-      - name: Get latest tag
-        id: latest_tag
+          fetch-depth: 0 # Fetch all history and tags
+
+      - name: Download version info from previous workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: version-tag-processor.yml
+          name: version-info
+          path: /tmp/version-info
+
+      - name: Get version information
+        id: get_versions
         run: |
-          # Get the latest version tags
-          GLOBAL_TAG=$(git describe --tags --match "v*" --abbrev=0)
-          FRONTEND_TAG=$(git describe --tags --match "web/v*" --abbrev=0)
-          BACKEND_TAG=$(git describe --tags --match "app/v*" --abbrev=0)
-          
-          # Set as outputs
+          # Read version information from files
+          GLOBAL_TAG=$(cat /tmp/version-info/global_tag.txt)
+          GLOBAL_VERSION=$(cat /tmp/version-info/global_version.txt)
+          FRONTEND_VERSION=$(cat /tmp/version-info/frontend_version.txt)
+          BACKEND_VERSION=$(cat /tmp/version-info/backend_version.txt)
+
+          # Set outputs for next steps
           echo "global_tag=$GLOBAL_TAG" >> $GITHUB_OUTPUT
-          echo "version=${GLOBAL_TAG#v}" >> $GITHUB_OUTPUT
-          echo "frontend_version=${FRONTEND_TAG#web/v}" >> $GITHUB_OUTPUT
-          echo "backend_version=${BACKEND_TAG#app/v}" >> $GITHUB_OUTPUT
-          
-          echo "Latest tags are:"
+          echo "version=$GLOBAL_VERSION" >> $GITHUB_OUTPUT
+          echo "frontend_version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
+          echo "backend_version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
+
+          echo "Version information:"
           echo "- Global: $GLOBAL_TAG"
-          echo "- Frontend: $FRONTEND_TAG"
-          echo "- Backend: $BACKEND_TAG"
-      
+          echo "- Frontend: web/v$FRONTEND_VERSION"
+          echo "- Backend: app/v$BACKEND_VERSION"
+
       - name: Download changelog from version-tag-processor workflow
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: version-tag-processor.yml
           name: version-changelog
           path: /tmp/changelog
-      
+
       - name: Upload changelog for this workflow
         uses: actions/upload-artifact@v4
         with:
           name: version-changelog
           path: /tmp/changelog
           retention-days: 1
-  
+
+  # New job to create component tags
+  #
+  # NOTE: Component tag creation was moved here from the version-tag-processor workflow
+  # WHY: GitHub enforces stricter permission restrictions on tag creation when a workflow
+  # is triggered by a tag push. This can cause failures when trying to push new tags that
+  # might trigger other workflows. Since this workflow is triggered by a workflow_run event
+  # rather than a tag push, it doesn't face the same permission restrictions, allowing
+  # component tags to be created and pushed without issues.
+  create-component-tags:
+    name: Create Component Tags
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # For tag creation and pushing
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push component tags
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+
+          # Create component tags
+          git tag web/v${{ needs.prepare-release.outputs.frontend_version }}
+          git tag app/v${{ needs.prepare-release.outputs.backend_version }}
+
+          # Push the component tags
+          git push origin web/v${{ needs.prepare-release.outputs.frontend_version }}
+          git push origin app/v${{ needs.prepare-release.outputs.backend_version }}
+
+          echo "Created and pushed component tags:"
+          echo "- web/v${{ needs.prepare-release.outputs.frontend_version }}"
+          echo "- app/v${{ needs.prepare-release.outputs.backend_version }}"
+
   # Job to build the frontend
   build-frontend:
     name: Build Frontend
-    needs: prepare-release
+    needs: [prepare-release, create-component-tags]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -82,28 +128,28 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-      
+          cache: "npm"
+
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Build frontend
         id: build_frontend
         run: npm run build:frontend
         timeout-minutes: 10
-      
+
       - name: Upload frontend build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
           path: web/dist
-          retention-days: 1  # Short retention since it's just for the workflow
-  
+          retention-days: 1 # Short retention since it's just for the workflow
+
   # Job to build the backend
   build-backend:
     name: Build Backend
@@ -115,25 +161,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: "./app/go.sum"
-      
+
       - name: Build backend
         id: build_backend
         run: cd app && go build -o data-lake-ui-backend
         timeout-minutes: 10
-      
+
       - name: Upload backend build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: backend-build
           path: app/data-lake-ui-backend
-          retention-days: 1  # Short retention since it's just for the workflow
-  
+          retention-days: 1 # Short retention since it's just for the workflow
+
   # Job to build RPM packages
   build-rpms:
     name: Build RPM Packages
@@ -145,26 +191,26 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Install RPM build dependencies
         run: sudo apt-get update && sudo apt-get install -y rpm python3
-      
+
       - name: Build RPM packages
         id: build_rpm
         run: python3 packaging/build_rpm.py -b -f -v ${{ needs.prepare-release.outputs.version }}
         timeout-minutes: 15
-      
+
       - name: Debug RPM directories
         run: |
           echo "Listing RPM directory structure:"
           find ${{ env.RPM_OUTPUT_BASE_DIR }} -type f -name "*.rpm" | sort
-          
+
           echo "x86_64 directory:"
           ls -la ${{ env.RPM_OUTPUT_BASE_DIR }}/x86_64 || echo "Directory doesn't exist"
-          
+
           echo "noarch directory:"
           ls -la ${{ env.RPM_OUTPUT_BASE_DIR }}/noarch || echo "Directory doesn't exist"
-      
+
       # Create a directory to collect all RPMs for easier upload
       - name: Collect RPMs in single directory
         run: |
@@ -173,7 +219,7 @@ jobs:
           find ${{ env.RPM_OUTPUT_BASE_DIR }} -name "*.rpm" -exec cp {} /tmp/all-rpms \;
           echo "Found RPMs:"
           ls -la /tmp/all-rpms/
-      
+
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -181,40 +227,40 @@ jobs:
           path: /tmp/all-rpms/*.rpm
           retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
           if-no-files-found: error
-      
+
       - name: Extract RPM names
         id: rpm_names
         run: |
           mkdir -p /tmp/rpm-info
-          
+
           # Find RPMs and handle errors gracefully
           FRONTEND_RPM=$(find ${{ env.RPM_OUTPUT_BASE_DIR }}/noarch -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
           BACKEND_RPM=$(find ${{ env.RPM_OUTPUT_BASE_DIR }}/x86_64 -name "data-lake-ui-backend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
-          
+
           if [ -z "$FRONTEND_RPM" ]; then
             echo "::warning::Frontend RPM not found in noarch directory"
             FRONTEND_RPM="not-found"
           fi
-          
+
           if [ -z "$BACKEND_RPM" ]; then
             echo "::warning::Backend RPM not found in x86_64 directory"
             BACKEND_RPM="not-found"
           fi
-          
+
           echo "$FRONTEND_RPM" > /tmp/rpm-info/frontend_rpm
           echo "$BACKEND_RPM" > /tmp/rpm-info/backend_rpm
-          
+
           echo "Found RPMs:"
           [ "$FRONTEND_RPM" != "not-found" ] && echo "- Frontend: $FRONTEND_RPM"
           [ "$BACKEND_RPM" != "not-found" ] && echo "- Backend: $BACKEND_RPM"
-      
+
       - name: Upload RPM info
         uses: actions/upload-artifact@v4
         with:
           name: rpm-info
           path: /tmp/rpm-info/
           retention-days: 1
-  
+
   # Final job to publish the release
   publish-release:
     name: Publish GitHub Release
@@ -231,37 +277,37 @@ jobs:
         with:
           name: rpm-packages
           path: /tmp/rpms
-      
+
       - name: Download RPM info
         uses: actions/download-artifact@v4
         with:
           name: rpm-info
           path: /tmp/rpm-info
-      
+
       - name: Download changelog
         uses: actions/download-artifact@v4
         with:
           name: version-changelog
           path: /tmp/changelog
-      
+
       - name: Read RPM info and changelog
         id: info
         run: |
           FRONTEND_RPM=$(cat /tmp/rpm-info/frontend_rpm)
           BACKEND_RPM=$(cat /tmp/rpm-info/backend_rpm)
           CHANGELOG=$(cat /tmp/changelog/changelog_content.md)
-          
+
           echo "frontend_rpm=$FRONTEND_RPM" >> $GITHUB_OUTPUT
           echo "backend_rpm=$BACKEND_RPM" >> $GITHUB_OUTPUT
-          
+
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          
+
           echo "RPM Info:"
           echo "- Frontend: $FRONTEND_RPM"
           echo "- Backend: $BACKEND_RPM"
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -269,23 +315,23 @@ jobs:
           name: Release ${{ needs.prepare-release.outputs.global_tag }}
           body: |
             # Release ${{ needs.prepare-release.outputs.global_tag }}
-            
+
             ## Version Information
             - Global: ${{ needs.prepare-release.outputs.global_tag }}
             - Frontend: web/v${{ needs.prepare-release.outputs.frontend_version }}
             - Backend: app/v${{ needs.prepare-release.outputs.backend_version }}
-            
+
             ## What's Changed
             ${{ steps.info.outputs.content }}
-            
+
             ## RPM Packages
-            
+
             The following RPM packages are available for installation:
             ${{ steps.info.outputs.frontend_rpm != 'not-found' && format('- **Frontend**: `{0}`', steps.info.outputs.frontend_rpm) || '' }}
             ${{ steps.info.outputs.backend_rpm != 'not-found' && format('- **Backend**: `{0}`', steps.info.outputs.backend_rpm) || '' }}
-            
+
             *RPM packages are attached to this release.*
-            
+
             *This release was automatically created by GitHub Actions.*
           files: /tmp/rpms/*.rpm
           fail_on_unmatched_files: false
