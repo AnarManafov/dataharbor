@@ -152,7 +152,7 @@ jobs:
   # Job to build the backend
   build-backend:
     name: Build Backend
-    needs: prepare-release
+    needs: [prepare-release, create-component-tags]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -299,9 +299,11 @@ jobs:
           echo "frontend_rpm=$FRONTEND_RPM" >> $GITHUB_OUTPUT
           echo "backend_rpm=$BACKEND_RPM" >> $GITHUB_OUTPUT
 
-          echo "content<<EOF" >> $GITHUB_OUTPUT
+          # For GitHub Actions output, need to use a different delimiter format
+          delimiter="CHANGELOG_EOF"
+          echo "content<<$delimiter" >> $GITHUB_OUTPUT 
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$delimiter" >> $GITHUB_OUTPUT
 
           echo "RPM Info:"
           echo "- Frontend: $FRONTEND_RPM"
