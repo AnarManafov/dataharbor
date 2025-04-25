@@ -3,7 +3,7 @@ name: Version Tag Processor
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+" # Trigger only on tag push matching vX.Y.Z format
+      - "v[0-9]+.[0-9]+.[0-9]+" # Trigger only on global version tags (vX.Y.Z)
 
 # Prevent concurrent workflow runs to avoid versioning conflicts
 concurrency:
@@ -16,8 +16,6 @@ env:
 jobs:
   # Job to extract tag info
   determine-versions:
-    # Only run when the tag was pushed directly (not when component tags are pushed by this workflow)
-    if: ${{ !contains(github.ref, 'web/') && !contains(github.ref, 'app/') }}
     name: Determine Versions
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -54,47 +52,31 @@ jobs:
           echo "- Frontend: web/v$FRONTEND_VERSION"
           echo "- Backend: app/v$BACKEND_VERSION"
 
-  # Job to create and push component tags
-  create-tags:
-    name: Create Component Tags
-    needs: determine-versions
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write # For tag creation and pushing
-    outputs:
-      tags_created: true
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+          # Store version info for next workflow
+          mkdir -p /tmp/version-info
+          echo "$GLOBAL_TAG" > /tmp/version-info/global_tag.txt
+          echo "$GLOBAL_VERSION" > /tmp/version-info/global_version.txt
+          echo "$FRONTEND_VERSION" > /tmp/version-info/frontend_version.txt
+          echo "$BACKEND_VERSION" > /tmp/version-info/backend_version.txt
+
+      - name: Upload version info
+        uses: actions/upload-artifact@v4
         with:
-          fetch-depth: 0
-          # Use a personal access token with the necessary permissions
-          token: ${{ secrets.WORKFLOW_TOKEN }}
+          name: version-info
+          path: /tmp/version-info
+          retention-days: 1
 
-      - name: Create and push component tags
-        id: create_tags
-        run: |
-          # Set Git configuration for the push
-          git config user.name "GitHub Actions"
-          git config user.email "github-actions@github.com"
-
-          # Create component tags based on global version
-          git tag web/v${{ needs.determine-versions.outputs.frontend_version }}
-          git tag app/v${{ needs.determine-versions.outputs.backend_version }}
-
-          # Push the new component tags with the PAT for proper permissions
-          git push https://${{ secrets.WORKFLOW_TOKEN }}@github.com/${{ github.repository }} web/v${{ needs.determine-versions.outputs.frontend_version }}
-          git push https://${{ secrets.WORKFLOW_TOKEN }}@github.com/${{ github.repository }} app/v${{ needs.determine-versions.outputs.backend_version }}
-
-          echo "Created and pushed component tags:"
-          echo "- web/v${{ needs.determine-versions.outputs.frontend_version }}"
-          echo "- app/v${{ needs.determine-versions.outputs.backend_version }}"
+  # NOTE: Component tag creation was moved to the publish-release workflow
+  # WHY: When creating tags from within a workflow triggered by a tag push,
+  # GitHub enforces stricter permission restrictions to prevent potential
+  # infinite workflow loops. Moving this logic to the publish-release workflow,
+  # which is triggered by a workflow_run event rather than a tag push, avoids
+  # these permission issues while still maintaining the same functionality.
 
   # Job to sync versions in package.json files
   update-package-versions:
     name: Sync Version in Files
-    needs: [determine-versions, create-tags]
+    needs: determine-versions
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -139,7 +121,7 @@ jobs:
   # Job to generate changelog from commits
   generate-changelog:
     name: Generate Changelog
-    needs: [determine-versions, create-tags]
+    needs: determine-versions
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -178,7 +160,7 @@ jobs:
   # Job to update release notes file
   update-release-notes:
     name: Update Release Notes
-    needs: [determine-versions, create-tags, generate-changelog]
+    needs: [determine-versions, generate-changelog]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
