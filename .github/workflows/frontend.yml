@@ -2,7 +2,8 @@ name: Frontend CI
 
 on:
   push:
-    branches-ignore: ["master"]  # Already handled by auto-version workflow
+    branches: ["**"]  # Run on all branches
+    tags-ignore: ["**"]  # But ignore tag pushes, those are handled by auto-version workflow
   pull_request:
     branches: ["master"]
 

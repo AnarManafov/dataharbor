@@ -1,0 +1,229 @@
+name: Version Tag Processor
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+" # Trigger on tag push matching vX.Y.Z format
+    branches:
+      - "master" # Only process tags on the master branch
+
+# Prevent concurrent workflow runs to avoid versioning conflicts
+concurrency:
+  group: version-processor-${{ github.ref }}
+  cancel-in-progress: false # Don't cancel in-progress runs to avoid inconsistent states
+
+env:
+  NODE_VERSION: "23"
+
+jobs:
+  # Job to extract tag info
+  determine-versions:
+    # Only run when the tag was pushed directly (not when component tags are pushed by this workflow)
+    if: ${{ !contains(github.ref, 'web/') && !contains(github.ref, 'app/') }}
+    name: Determine Versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      global_tag: ${{ steps.versions.outputs.global_tag }}
+      global_version: ${{ steps.versions.outputs.global_version }}
+      frontend_version: ${{ steps.versions.outputs.frontend_version }}
+      backend_version: ${{ steps.versions.outputs.backend_version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for versioning
+
+      - name: Extract version info
+        id: versions
+        run: |
+          # Get the pushed tag (remove refs/tags/ prefix)
+          GLOBAL_TAG=${GITHUB_REF#refs/tags/}
+          GLOBAL_VERSION=${GLOBAL_TAG#v}
+
+          # Generate versions for frontend and backend based on global version
+          FRONTEND_VERSION=$GLOBAL_VERSION
+          BACKEND_VERSION=$GLOBAL_VERSION
+
+          # Set output for next steps
+          echo "global_tag=$GLOBAL_TAG" >> $GITHUB_OUTPUT
+          echo "global_version=$GLOBAL_VERSION" >> $GITHUB_OUTPUT
+          echo "frontend_version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
+          echo "backend_version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
+
+          echo "Version information:"
+          echo "- Global: $GLOBAL_TAG"
+          echo "- Frontend: web/v$FRONTEND_VERSION"
+          echo "- Backend: app/v$BACKEND_VERSION"
+
+  # Job to create and push component tags
+  create-tags:
+    name: Create Component Tags
+    needs: determine-versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # For tag creation and pushing
+    outputs:
+      tags_created: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push component tags
+        id: create_tags
+        run: |
+          # Create component tags based on global version
+          git tag web/v${{ needs.determine-versions.outputs.frontend_version }}
+          git tag app/v${{ needs.determine-versions.outputs.backend_version }}
+
+          # Push the new component tags
+          git push origin web/v${{ needs.determine-versions.outputs.frontend_version }}
+          git push origin app/v${{ needs.determine-versions.outputs.backend_version }}
+
+          echo "Created and pushed component tags:"
+          echo "- web/v${{ needs.determine-versions.outputs.frontend_version }}"
+          echo "- app/v${{ needs.determine-versions.outputs.backend_version }}"
+
+  # Job to sync versions in package.json files
+  update-package-versions:
+    name: Sync Version in Files
+    needs: [determine-versions, create-tags]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # For committing changes
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync versions in files
+        run: npm run sync-versions
+        env:
+          GLOBAL_VERSION: ${{ needs.determine-versions.outputs.global_version }}
+          FRONTEND_VERSION: ${{ needs.determine-versions.outputs.frontend_version }}
+          BACKEND_VERSION: ${{ needs.determine-versions.outputs.backend_version }}
+
+      - name: Commit and push version changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+
+          git add package.json web/package.json
+
+          if git diff-index --quiet HEAD --; then
+            echo "No files changed, skipping commit"
+          else
+            git commit -m "chore: Update package versions to ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
+            git push
+          fi
+
+  # Job to generate changelog from commits
+  generate-changelog:
+    name: Generate Changelog
+    needs: [determine-versions, create-tags]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          mkdir -p /tmp/changelog
+
+          # Generate a changelog based on commits since the last tag
+          # Here we're using a custom script, but you could use a tool like standard-version
+          node tools/generate-changelog.js > /tmp/changelog/changelog_content.md
+
+          echo "Changelog generated successfully."
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-changelog
+          path: /tmp/changelog
+          retention-days: 5
+
+  # Job to update release notes file
+  update-release-notes:
+    name: Update Release Notes
+    needs: [determine-versions, create-tags, generate-changelog]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # For committing changes
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download changelog
+        uses: actions/download-artifact@v4
+        with:
+          name: version-changelog
+          path: /tmp/changelog
+
+      - name: Update RELEASE_NOTES.md
+        run: |
+          # Read the changelog content
+          CHANGELOG_CONTENT=$(cat /tmp/changelog/changelog_content.md)
+
+          # Create temporary file with new content at the top
+          VERSION_HEADER="## ${{ needs.determine-versions.outputs.global_tag }} ($(date '+%Y-%m-%d'))"
+
+          # Create a new file with the header, then append original content
+          echo "# Release Notes" > /tmp/new_release_notes.md
+          echo "" >> /tmp/new_release_notes.md
+          echo "$VERSION_HEADER" >> /tmp/new_release_notes.md
+          echo "" >> /tmp/new_release_notes.md
+          echo "$CHANGELOG_CONTENT" >> /tmp/new_release_notes.md
+          echo "" >> /tmp/new_release_notes.md
+
+          # Append the existing release notes (skip the title line)
+          sed '1,1d' RELEASE_NOTES.md >> /tmp/new_release_notes.md
+
+          # Replace the old file with the new one
+          mv /tmp/new_release_notes.md RELEASE_NOTES.md
+
+          echo "Updated RELEASE_NOTES.md successfully."
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+
+          git add RELEASE_NOTES.md
+
+          if git diff-index --quiet HEAD --; then
+            echo "No changes to release notes, skipping commit"
+          else
+            git commit -m "docs: Update release notes for ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
+            git push
+          fi

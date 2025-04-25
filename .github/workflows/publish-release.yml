@@ -2,10 +2,11 @@ name: Build and Publish Release
 
 on:
   workflow_run:
-    workflows: ["Auto Version Bump"]
+    workflows: ["Version Tag Processor"]
     types:
       - completed
-    branches: ["master"]
+    branches:
+      - master  # Only run on master branch
 
 # Prevent concurrent deployments
 concurrency:
@@ -22,7 +23,7 @@ jobs:
   # Job to extract tag info and setup
   prepare-release:
     name: Prepare Release Environment
-    # Only run if the auto-version workflow was successful
+    # Only run if the version tag processor workflow was successful
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -56,10 +57,10 @@ jobs:
           echo "- Frontend: $FRONTEND_TAG"
           echo "- Backend: $BACKEND_TAG"
       
-      - name: Download changelog from auto-version workflow
+      - name: Download changelog from version-tag-processor workflow
         uses: dawidd6/action-download-artifact@v3
         with:
-          workflow: auto-version.yml
+          workflow: version-tag-processor.yml
           name: version-changelog
           path: /tmp/changelog
       
