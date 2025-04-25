@@ -1,6 +1,6 @@
 {
   "name": "data-lake-ui",
-  "version": "0.13.0",
+  "version": "0.13.5",
   "type": "module",
   "workspaces": [
     ".",
