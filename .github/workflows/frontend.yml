@@ -2,103 +2,102 @@ name: Frontend CI
 
 on:
   push:
-    branches: ["**"]  # Run on all branches
-    tags-ignore: ["**"]  # But ignore tag pushes, those are handled by auto-version workflow
+    branches-ignore: ["master"] # Already handled by auto-version workflow
   pull_request:
     branches: ["master"]
 
 # Prevent concurrent workflow runs on the same branch/PR
 concurrency:
   group: frontend-ci-${{ github.ref }}
-  cancel-in-progress: true  # Cancel in-progress runs on new pushes
+  cancel-in-progress: true # Cancel in-progress runs on new pushes
 
 env:
-  NODE_VERSION: '23'  # Updated to match local Node.js 23 version
-  FRONTEND_DIR: './web'
+  NODE_VERSION: "23" # Updated to match local Node.js 23 version
+  FRONTEND_DIR: "./web"
   CACHE_NPM_DEPS: npm-cache-${{ github.sha }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Prevent hung workflows
+    timeout-minutes: 15 # Prevent hung workflows
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # Use latest v4
-        
+        uses: actions/checkout@v4 # Use latest v4
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4  # Use latest v4
+        uses: actions/setup-node@v4 # Use latest v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: '${{ env.FRONTEND_DIR }}/package-lock.json'
-          
+          cache: "npm"
+          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
+
       - name: Install Dependencies
         run: cd ${{ env.FRONTEND_DIR }} && npm ci
-        
+
       - name: Build
         id: build
         run: cd ${{ env.FRONTEND_DIR }} && npm run build
-        
+
       - name: Upload build artifacts
         if: success()
-        uses: actions/upload-artifact@v4  # Use latest v4
+        uses: actions/upload-artifact@v4 # Use latest v4
         with:
           name: frontend-dist
           path: ${{ env.FRONTEND_DIR }}/dist
           retention-days: 7
-          if-no-files-found: error  # Fail if no build artifacts are produced
+          if-no-files-found: error # Fail if no build artifacts are produced
 
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # Shorter timeout for linting
+    timeout-minutes: 10 # Shorter timeout for linting
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # Use latest v4
-        
+        uses: actions/checkout@v4 # Use latest v4
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4  # Use latest v4
+        uses: actions/setup-node@v4 # Use latest v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: '${{ env.FRONTEND_DIR }}/package-lock.json'
-          
+          cache: "npm"
+          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
+
       - name: Install Dependencies
         run: cd ${{ env.FRONTEND_DIR }} && npm ci
-        
+
       - name: Lint
         id: lint
         run: cd ${{ env.FRONTEND_DIR }} && npm run lint
-        continue-on-error: false  # Fail workflow if linting fails
+        continue-on-error: false # Fail workflow if linting fails
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Prevent hung workflows
+    timeout-minutes: 15 # Prevent hung workflows
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # Use latest v4
-        
+        uses: actions/checkout@v4 # Use latest v4
+
       - name: Set up Node.js
-        uses: actions/setup-node@v4  # Use latest v4
+        uses: actions/setup-node@v4 # Use latest v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: '${{ env.FRONTEND_DIR }}/package-lock.json'
-          
+          cache: "npm"
+          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
+
       - name: Install Dependencies
         run: cd ${{ env.FRONTEND_DIR }} && npm ci
-        
+
       - name: Run Tests
         id: tests
         run: cd ${{ env.FRONTEND_DIR }} && npm test
-        
+
       - name: Upload test results
-        if: always()  # Always upload test results, even if tests fail
-        uses: actions/upload-artifact@v4  # Use latest v4
+        if: always() # Always upload test results, even if tests fail
+        uses: actions/upload-artifact@v4 # Use latest v4
         with:
           name: test-results
           path: ${{ env.FRONTEND_DIR }}/test-results
           retention-days: 7
-          if-no-files-found: ignore  # Don't fail if no test results are found
+          if-no-files-found: ignore # Don't fail if no test results are found
 
   # Security scan job to check for vulnerabilities
   security-scan:
@@ -106,16 +105,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4  # Use latest v4
-        
+        uses: actions/checkout@v4 # Use latest v4
+
       - name: Setup Node.js
-        uses: actions/setup-node@v4  # Use latest v4
+        uses: actions/setup-node@v4 # Use latest v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          
+
       - name: Install dependencies
         run: cd ${{ env.FRONTEND_DIR }} && npm ci
-        
+
       - name: Run npm audit
         run: cd ${{ env.FRONTEND_DIR }} && npm audit --audit-level=high
-        continue-on-error: true  # Don't fail the workflow for security issues, just report them
+        continue-on-error: true # Don't fail the workflow for security issues, just report them

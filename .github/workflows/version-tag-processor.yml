@@ -3,14 +3,12 @@ name: Version Tag Processor
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+" # Trigger on tag push matching vX.Y.Z format
-    branches:
-      - "master" # Only process tags on the master branch
+      - 'v[0-9]+.[0-9]+.[0-9]+'  # Trigger only on tag push matching vX.Y.Z format
 
 # Prevent concurrent workflow runs to avoid versioning conflicts
 concurrency:
   group: version-processor-${{ github.ref }}
-  cancel-in-progress: false # Don't cancel in-progress runs to avoid inconsistent states
+  cancel-in-progress: false  # Don't cancel in-progress runs to avoid inconsistent states
 
 env:
   NODE_VERSION: "23"
