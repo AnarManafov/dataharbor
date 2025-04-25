@@ -62,8 +62,6 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write # For tag creation and pushing
-      id-token: write # For authentication
-      actions: write # For triggering workflows via API
     outputs:
       tags_created: true
     steps:
@@ -71,18 +69,23 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }} # Use GITHUB_TOKEN with correct permissions
+          # Use a personal access token with the necessary permissions
+          token: ${{ secrets.WORKFLOW_TOKEN }}
 
       - name: Create and push component tags
         id: create_tags
         run: |
+          # Set Git configuration for the push
+          git config user.name "GitHub Actions"
+          git config user.email "github-actions@github.com"
+
           # Create component tags based on global version
           git tag web/v${{ needs.determine-versions.outputs.frontend_version }}
           git tag app/v${{ needs.determine-versions.outputs.backend_version }}
 
-          # Push the new component tags
-          git push origin web/v${{ needs.determine-versions.outputs.frontend_version }}
-          git push origin app/v${{ needs.determine-versions.outputs.backend_version }}
+          # Push the new component tags with the PAT for proper permissions
+          git push https://${{ secrets.WORKFLOW_TOKEN }}@github.com/${{ github.repository }} web/v${{ needs.determine-versions.outputs.frontend_version }}
+          git push https://${{ secrets.WORKFLOW_TOKEN }}@github.com/${{ github.repository }} app/v${{ needs.determine-versions.outputs.backend_version }}
 
           echo "Created and pushed component tags:"
           echo "- web/v${{ needs.determine-versions.outputs.frontend_version }}"
