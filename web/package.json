@@ -1,6 +1,6 @@
 {
   "name": "data_lake_ui_frontend",
-  "version": "0.13.1",
+  "version": "0.13.6",
   "private": true,
   "type": "module",
   "scripts": {
