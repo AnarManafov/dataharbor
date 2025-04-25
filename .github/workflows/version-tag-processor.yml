@@ -98,6 +98,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: master # Explicitly checkout the master branch
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -126,7 +127,7 @@ jobs:
             echo "No files changed, skipping commit"
           else
             git commit -m "chore: Update package versions to ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
-            git push
+            git push origin HEAD:master  # Explicitly push to master branch
           fi
 
   # Job to generate changelog from commits
@@ -181,6 +182,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: master # Explicitly checkout the master branch
 
       - name: Download changelog
         uses: actions/download-artifact@v4
@@ -223,5 +225,5 @@ jobs:
             echo "No changes to release notes, skipping commit"
           else
             git commit -m "docs: Update release notes for ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
-            git push
+            git push origin HEAD:master  # Explicitly push to master branch
           fi
