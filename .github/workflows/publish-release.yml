@@ -5,8 +5,7 @@ on:
     workflows: ["Version Tag Processor"]
     types:
       - completed
-    branches:
-      - master # Only run on master branch
+    # Remove branch restriction since our Version Tag Processor is triggered by tags, not branches
 
 # Prevent concurrent deployments
 concurrency:
