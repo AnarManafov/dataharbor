@@ -1,5 +1,18 @@
 # Release Notes
 
+## v0.13.6 (2025-04-25)
+
+Generating changelog from v0.13.6 to HEAD...
+Found 0 commits.
+
+Changelog:
+> No changes found for this version.
+
+GENERATED_CHANGELOG<<EOF
+> No changes found for this version.
+EOF
+
+
 ## v0.13.5 (2025-04-25)
 
 Generating changelog from v0.13.5 to HEAD...
