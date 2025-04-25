@@ -92,11 +92,34 @@ Key security benefits of this approach:
 The project follows Semantic Versioning for versioning.  
 Each release is tagged according to the following rules:
 
-* **Backend Versions**: Use standard version tags `app/vX.Y.Z` (e.g., `app/v1.0.0`) to ensure compatibility with Go tools.
-* **Frontend Versions**: Use a prefix `web/vX.Y.Z` (e.g., `web/v1.0.0`) to distinguish Frontend versions.
-* **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to distinguish global versions.
+* **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to create global versions.
+* **Backend Versions**: Generated automatically as `app/vX.Y.Z` (e.g., `app/v1.0.0`) from global versions.
+* **Frontend Versions**: Generated automatically as `web/vX.Y.Z` (e.g., `web/v1.0.0`) from global versions.
 
-### Dynamic Versioning
+### Release Process
+
+The release process is initiated by manually applying an annotated global version tag (`vX.Y.Z`) and pushing it to GitHub:
+
+```shell
+# Create a new annotated version tag (recommended)
+git tag -a v1.2.3 -m "Release v1.2.3"
+
+# Push the tag to trigger the automated release process
+git push origin v1.2.3
+```
+
+When a global version tag is pushed to the master branch, the following automated workflow is triggered:
+
+1. **Version Tag Processing**: The system processes the tag and extracts version information
+2. **Component Tag Generation**: The system creates corresponding frontend (`web/vX.Y.Z`) and backend (`app/vX.Y.Z`) version tags
+3. **Package.json Updates**: Updates version information in package.json files
+4. **Changelog Generation**: Automatically generates a changelog from commit messages since the last release
+5. **Release Notes**: Updates the central RELEASE_NOTES.md file with the new version information
+6. **Build & Package**: Creates builds for both frontend and backend components
+7. **RPM Creation**: Generates RPM packages for deployment
+8. **GitHub Release**: Publishes a new GitHub release with all artifacts and notes
+
+### Dynamic Versioning (Development)
 
 ```shell
 # During development, use Git tags for displaying versions in your app
