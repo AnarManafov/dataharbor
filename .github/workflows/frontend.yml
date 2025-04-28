@@ -1,10 +1,14 @@
 name: Frontend CI
 
 on:
-  push:
-    branches-ignore: ["master"] # Already handled by auto-version workflow
   pull_request:
     branches: ["master"]
+  push:
+    branches: ["master"] # Only run on master branch pushes for post-merge verification
+    paths:
+      - "web/**" # Only run when frontend code changes
+    tags-ignore:
+      - "v[0-9]+.[0-9]+.[0-9]+" # Skip when version tags are pushed as this is handled by publish-release
 
 # Prevent concurrent workflow runs on the same branch/PR
 concurrency:
@@ -47,58 +51,6 @@ jobs:
           retention-days: 7
           if-no-files-found: error # Fail if no build artifacts are produced
 
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # Shorter timeout for linting
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4 # Use latest v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4 # Use latest v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
-
-      - name: Install Dependencies
-        run: cd ${{ env.FRONTEND_DIR }} && npm ci
-
-      - name: Lint
-        id: lint
-        run: cd ${{ env.FRONTEND_DIR }} && npm run lint
-        continue-on-error: false # Fail workflow if linting fails
-
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15 # Prevent hung workflows
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4 # Use latest v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4 # Use latest v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
-
-      - name: Install Dependencies
-        run: cd ${{ env.FRONTEND_DIR }} && npm ci
-
-      - name: Run Tests
-        id: tests
-        run: cd ${{ env.FRONTEND_DIR }} && npm test
-
-      - name: Upload test results
-        if: always() # Always upload test results, even if tests fail
-        uses: actions/upload-artifact@v4 # Use latest v4
-        with:
-          name: test-results
-          path: ${{ env.FRONTEND_DIR }}/test-results
-          retention-days: 7
-          if-no-files-found: ignore # Don't fail if no test results are found
-
   # Security scan job to check for vulnerabilities
   security-scan:
     runs-on: ubuntu-latest
@@ -118,3 +70,11 @@ jobs:
       - name: Run npm audit
         run: cd ${{ env.FRONTEND_DIR }} && npm audit --audit-level=high
         continue-on-error: true # Don't fail the workflow for security issues, just report them
+
+  # Job to build frontend RPM package using the reusable workflow
+  build-rpm:
+    needs: [build, security-scan] # Only build RPM if other jobs succeed
+    uses: ./.github/workflows/build-rpm.yml
+    with:
+      component: "frontend"
+      is_pr_build: ${{ github.event_name == 'pull_request' }}
