@@ -15,7 +15,6 @@ concurrency:
 env:
   NODE_VERSION: "23"
   GO_VERSION_FILE: "./app/go.mod"
-  RPM_OUTPUT_BASE_DIR: "/home/runner/rpmbuild/RPMS"
   ARTIFACT_RETENTION_DAYS: 30
 
 jobs:
@@ -79,13 +78,11 @@ jobs:
           retention-days: 1
 
   # New job to create component tags
-  #
-  # NOTE: Component tag creation was moved here from the version-tag-processor workflow
-  # WHY: GitHub enforces stricter permission restrictions on tag creation when a workflow
-  # is triggered by a tag push. This can cause failures when trying to push new tags that
-  # might trigger other workflows. Since this workflow is triggered by a workflow_run event
-  # rather than a tag push, it doesn't face the same permission restrictions, allowing
-  # component tags to be created and pushed without issues.
+  # NOTE: This job was moved from the version-tag-processor workflow
+  # WHY: When creating tags from within a workflow triggered by a tag push,
+  # GitHub enforces stricter permission restrictions to prevent potential
+  # infinite workflow loops. Moving this logic here avoids these permission
+  # issues while still maintaining the same functionality.
   create-component-tags:
     name: Create Component Tags
     needs: prepare-release
@@ -145,7 +142,7 @@ jobs:
       - name: Upload frontend build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-build
+          name: frontend-dist
           path: web/dist
           retention-days: 1 # Short retention since it's just for the workflow
 
@@ -179,86 +176,15 @@ jobs:
           path: app/data-lake-ui-backend
           retention-days: 1 # Short retention since it's just for the workflow
 
-  # Job to build RPM packages
+  # Use the reusable workflow to build RPM packages
   build-rpms:
     name: Build RPM Packages
     needs: [prepare-release, build-frontend, build-backend]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install RPM build dependencies
-        run: sudo apt-get update && sudo apt-get install -y rpm python3
-
-      - name: Build RPM packages
-        id: build_rpm
-        run: python3 packaging/build_rpm.py -b -f -v ${{ needs.prepare-release.outputs.version }}
-        timeout-minutes: 15
-
-      - name: Debug RPM directories
-        run: |
-          echo "Listing RPM directory structure:"
-          find ${{ env.RPM_OUTPUT_BASE_DIR }} -type f -name "*.rpm" | sort
-
-          echo "x86_64 directory:"
-          ls -la ${{ env.RPM_OUTPUT_BASE_DIR }}/x86_64 || echo "Directory doesn't exist"
-
-          echo "noarch directory:"
-          ls -la ${{ env.RPM_OUTPUT_BASE_DIR }}/noarch || echo "Directory doesn't exist"
-
-      # Create a directory to collect all RPMs for easier upload
-      - name: Collect RPMs in single directory
-        run: |
-          mkdir -p /tmp/all-rpms
-          # Copy all RPM files to a single directory
-          find ${{ env.RPM_OUTPUT_BASE_DIR }} -name "*.rpm" -exec cp {} /tmp/all-rpms \;
-          echo "Found RPMs:"
-          ls -la /tmp/all-rpms/
-
-      - name: Upload RPM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpm-packages
-          path: /tmp/all-rpms/*.rpm
-          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
-          if-no-files-found: error
-
-      - name: Extract RPM names
-        id: rpm_names
-        run: |
-          mkdir -p /tmp/rpm-info
-
-          # Find RPMs and handle errors gracefully
-          FRONTEND_RPM=$(find ${{ env.RPM_OUTPUT_BASE_DIR }}/noarch -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
-          BACKEND_RPM=$(find ${{ env.RPM_OUTPUT_BASE_DIR }}/x86_64 -name "data-lake-ui-backend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
-
-          if [ -z "$FRONTEND_RPM" ]; then
-            echo "::warning::Frontend RPM not found in noarch directory"
-            FRONTEND_RPM="not-found"
-          fi
-
-          if [ -z "$BACKEND_RPM" ]; then
-            echo "::warning::Backend RPM not found in x86_64 directory"
-            BACKEND_RPM="not-found"
-          fi
-
-          echo "$FRONTEND_RPM" > /tmp/rpm-info/frontend_rpm
-          echo "$BACKEND_RPM" > /tmp/rpm-info/backend_rpm
-
-          echo "Found RPMs:"
-          [ "$FRONTEND_RPM" != "not-found" ] && echo "- Frontend: $FRONTEND_RPM"
-          [ "$BACKEND_RPM" != "not-found" ] && echo "- Backend: $BACKEND_RPM"
-
-      - name: Upload RPM info
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpm-info
-          path: /tmp/rpm-info/
-          retention-days: 1
+    uses: ./.github/workflows/build-rpm.yml
+    with:
+      component: "both"
+      version: ${{ needs.prepare-release.outputs.version }}
+      is_pr_build: false # Release builds are never PR builds
 
   # Final job to publish the release
   publish-release:
@@ -274,14 +200,13 @@ jobs:
       - name: Download RPM packages
         uses: actions/download-artifact@v4
         with:
-          name: rpm-packages
+          name: rpm-packages-both
           path: /tmp/rpms
 
-      - name: Download RPM info
-        uses: actions/download-artifact@v4
-        with:
-          name: rpm-info
-          path: /tmp/rpm-info
+      - name: Check RPM packages
+        run: |
+          echo "Found RPMs:"
+          find /tmp/rpms -name "*.rpm" -type f | sort
 
       - name: Download changelog
         uses: actions/download-artifact@v4
@@ -289,25 +214,42 @@ jobs:
           name: version-changelog
           path: /tmp/changelog
 
-      - name: Read RPM info and changelog
-        id: info
+      - name: Extract RPM names
+        id: rpm_names
         run: |
-          FRONTEND_RPM=$(cat /tmp/rpm-info/frontend_rpm)
-          BACKEND_RPM=$(cat /tmp/rpm-info/backend_rpm)
-          CHANGELOG=$(cat /tmp/changelog/changelog_content.md)
+          mkdir -p /tmp/rpm-info
+
+          # Find RPMs and handle errors gracefully
+          FRONTEND_RPM=$(find /tmp/rpms -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
+          BACKEND_RPM=$(find /tmp/rpms -name "data-lake-ui-backend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
+
+          if [ -z "$FRONTEND_RPM" ]; then
+            echo "::warning::Frontend RPM not found"
+            FRONTEND_RPM="not-found"
+          fi
+
+          if [ -z "$BACKEND_RPM" ]; then
+            echo "::warning::Backend RPM not found"
+            BACKEND_RPM="not-found"
+          fi
 
           echo "frontend_rpm=$FRONTEND_RPM" >> $GITHUB_OUTPUT
           echo "backend_rpm=$BACKEND_RPM" >> $GITHUB_OUTPUT
+
+          echo "Found RPMs:"
+          [ "$FRONTEND_RPM" != "not-found" ] && echo "- Frontend: $FRONTEND_RPM"
+          [ "$BACKEND_RPM" != "not-found" ] && echo "- Backend: $BACKEND_RPM"
+
+      - name: Read changelog
+        id: changelog
+        run: |
+          CHANGELOG=$(cat /tmp/changelog/changelog_content.md)
 
           # For GitHub Actions output, need to use a different delimiter format
           delimiter="CHANGELOG_EOF"
           echo "content<<$delimiter" >> $GITHUB_OUTPUT 
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "$delimiter" >> $GITHUB_OUTPUT
-
-          echo "RPM Info:"
-          echo "- Frontend: $FRONTEND_RPM"
-          echo "- Backend: $BACKEND_RPM"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -323,13 +265,13 @@ jobs:
             - Backend: app/v${{ needs.prepare-release.outputs.backend_version }}
 
             ## What's Changed
-            ${{ steps.info.outputs.content }}
+            ${{ steps.changelog.outputs.content }}
 
             ## RPM Packages
 
             The following RPM packages are available for installation:
-            ${{ steps.info.outputs.frontend_rpm != 'not-found' && format('- **Frontend**: `{0}`', steps.info.outputs.frontend_rpm) || '' }}
-            ${{ steps.info.outputs.backend_rpm != 'not-found' && format('- **Backend**: `{0}`', steps.info.outputs.backend_rpm) || '' }}
+            ${{ steps.rpm_names.outputs.frontend_rpm != 'not-found' && format('- **Frontend**: `{0}`', steps.rpm_names.outputs.frontend_rpm) || '' }}
+            ${{ steps.rpm_names.outputs.backend_rpm != 'not-found' && format('- **Backend**: `{0}`', steps.rpm_names.outputs.backend_rpm) || '' }}
 
             *RPM packages are attached to this release.*
 

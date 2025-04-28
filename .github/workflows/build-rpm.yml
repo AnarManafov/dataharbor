@@ -1,0 +1,125 @@
+name: Build RPM Package
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        description: "Which component to build (frontend, backend, or both)"
+        required: true
+        type: string
+      version:
+        description: "Version to use for the RPM package"
+        required: false
+        type: string
+      is_pr_build:
+        description: "Whether this is a PR build"
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      rpm_dir:
+        description: "Directory containing built RPM packages"
+        value: ${{ jobs.build.outputs.rpm_dir }}
+
+env:
+  RPM_OUTPUT_BASE_DIR: "/home/runner/rpmbuild/RPMS"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      rpm_dir: /tmp/all-rpms
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for proper changelog creation
+
+      - name: Install RPM build dependencies
+        run: sudo apt-get update && sudo apt-get install -y rpm python3
+
+      - name: Generate PR-specific version suffix
+        id: version_suffix
+        if: inputs.is_pr_build
+        run: |
+          # Calculate unique build number based on PR number and run ID
+          # Format: pr.{pr_number}.{run_number % 65536}
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          UNIQUE_BUILD_ID=$((${{ github.run_id }} % 65536))
+          PR_VERSION_SUFFIX=".pr${PR_NUMBER}.${UNIQUE_BUILD_ID}"
+          echo "pr_suffix=$PR_VERSION_SUFFIX" >> $GITHUB_OUTPUT
+          echo "Generated PR version suffix: $PR_VERSION_SUFFIX"
+
+      - name: Prepare version parameter
+        id: prepare_params
+        run: |
+          VERSION_PARAM=""
+          if [ -n "${{ inputs.version }}" ]; then
+            BASE_VERSION="${{ inputs.version }}"
+          else
+            # Extract version from package.json if not provided
+            BASE_VERSION=$(grep -m 1 '"version":' package.json | cut -d'"' -f4)
+          fi
+
+          # Add PR suffix for PR builds
+          if [ "${{ inputs.is_pr_build }}" == "true" ]; then
+            VERSION="${BASE_VERSION}${{ steps.version_suffix.outputs.pr_suffix }}"
+          else
+            VERSION="${BASE_VERSION}"
+          fi
+
+          VERSION_PARAM="-v ${VERSION}"
+          echo "version_param=$VERSION_PARAM" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION"
+
+      - name: Determine component parameter
+        id: component_param
+        run: |
+          COMPONENT_PARAM=""
+          case "${{ inputs.component }}" in
+            "frontend")
+              COMPONENT_PARAM="-f"
+              ;;
+            "backend")
+              COMPONENT_PARAM="-b"
+              ;;
+            "both"|"all")
+              COMPONENT_PARAM="-f -b"
+              ;;
+            *)
+              echo "::error::Invalid component: ${{ inputs.component }}"
+              exit 1
+              ;;
+          esac
+          echo "component_param=$COMPONENT_PARAM" >> $GITHUB_OUTPUT
+
+      - name: Run RPM build script
+        id: build_rpm
+        run: |
+          python3 packaging/build_rpm.py ${{ steps.component_param.outputs.component_param }} ${{ steps.prepare_params.outputs.version_param }}
+
+      - name: Create consolidated RPM directory
+        run: |
+          mkdir -p /tmp/all-rpms
+          # Copy all RPM files to a single directory
+          find ${{ env.RPM_OUTPUT_BASE_DIR }} -name "*.rpm" -exec cp {} /tmp/all-rpms \;
+          echo "Found RPMs:"
+          ls -la /tmp/all-rpms/
+
+          # Create a manifest file with version info
+          echo "Version: ${{ steps.prepare_params.outputs.version }}" > /tmp/all-rpms/rpm-version.txt
+          echo "Component: ${{ inputs.component }}" >> /tmp/all-rpms/rpm-version.txt
+          echo "Is PR build: ${{ inputs.is_pr_build }}" >> /tmp/all-rpms/rpm-version.txt
+          if [ "${{ inputs.is_pr_build }}" == "true" ]; then
+            echo "PR number: ${{ github.event.pull_request.number }}" >> /tmp/all-rpms/rpm-version.txt
+          fi
+
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-packages-${{ inputs.component }}${{ inputs.is_pr_build && '-pr' || '' }}
+          path: /tmp/all-rpms/*
+          retention-days: ${{ inputs.is_pr_build && 7 || 14 }} # Keep PR artifacts for 7 days, others for 14
+          if-no-files-found: warn # Warn instead of failing if no RPMs are found

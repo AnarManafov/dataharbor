@@ -73,7 +73,30 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
     elif os.path.isfile("go.mod"):
         go_env = os.environ.copy()
         go_env["GOPATH"] = os.path.expanduser("~/go")
-        subprocess.run(["go", "build", "-o", app_name], check=True, env=go_env)
+
+        # Check if there's a main.go file in the current directory
+        if os.path.isfile("main.go"):
+            # If main.go exists, build just the main package to a single binary
+            print(f"Building main package to {app_name}...")
+            subprocess.run(["go", "build", "-v", "-o",
+                           app_name, "."], check=True, env=go_env)
+        else:
+            # For multiple packages, use a more specific approach
+            # First identify the main package
+            main_pkg = None
+            for root, dirs, files in os.walk("."):
+                if "main.go" in files:
+                    main_pkg = os.path.relpath(root, ".")
+                    break
+
+            if main_pkg:
+                print(
+                    f"Building main package from {main_pkg} to {app_name}...")
+                subprocess.run(["go", "build", "-v", "-o",
+                               app_name, main_pkg], check=True, env=go_env)
+            else:
+                print("Error: No main.go file found in any package")
+                return False
     else:
         print("Unknown project type. Exiting.")
         return
