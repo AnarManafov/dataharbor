@@ -1,4 +1,12 @@
-# Changelog
+# Changelog## [0.13.10] - 2025-05-05
+
+### Added
+
+- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (fe53bd4)
+- switch to Python script for changelog generation (changelog) (795cddf)
+- automate CHANGELOG and RELEASE_NOTES updates (changelog) (2d841e1)
+
+
 
 All notable changes to this project will be documented in this file.
 
