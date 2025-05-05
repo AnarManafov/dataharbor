@@ -146,6 +146,93 @@ The automation workflow performs the following tasks:
 
 There is no need for manual version management or release note updates - everything is handled by the CI/CD pipeline.
 
+## CI/CD Workflows
+
+The project uses GitHub Actions for continuous integration and delivery, with several workflows that handle different aspects of the development and release process.
+
+### CI/CD Workflow Diagrams
+
+#### 1. Version Tag Push Workflow (Release Process)
+
+When a version tag like "v0.13.9" is pushed, it triggers the following sequence:
+
+```
+Tag Push (v0.13.9)
+  ↓
+  ↓ [Triggers]
+  ↓
+┌─────────────────────────────┐
+│ version-tag-processor.yml   │
+├─────────────────────────────┤
+│ 1. determine-versions       │
+│ 2. update-package-versions  │
+│ 3. update-changelog         │ 
+│ 4. generate-changelog       │
+│ 5. update-release-notes     │
+└──────────────┬──────────────┘
+               │
+               │ [On workflow_run completion]
+               ▼
+┌─────────────────────────────┐
+│ publish-release.yml         │
+├─────────────────────────────┤
+│ 1. prepare-release          │
+│ 2. create-component-tags    │ ← Creates web/v0.13.9 and app/v0.13.9
+│ 3. build-frontend           │
+│ 4. build-backend            │
+│ 5. build-rpms               │ ← Uses build-rpm.yml reusable workflow
+│ 6. publish-release          │ ← Creates GitHub Release
+└─────────────────────────────┘
+```
+
+#### 2. Pull Requests and Pushes to Master
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                  Push to master OR PR                     │
+└───────────┬─────────────────────────────┬─────────────────┘
+            │                             │
+            ▼                             ▼
+┌───────────────────────┐     ┌───────────────────────┐
+│ Backend Changes       │     │ Frontend Changes      │
+│ (app/** files)        │     │ (web/** files)        │
+└──────────┬────────────┘     └─────────┬─────────────┘
+           │                            │
+           ▼                            ▼
+┌──────────────────────┐    ┌───────────────────────┐
+│ backend.yml          │    │ frontend.yml          │
+├──────────────────────┤    ├───────────────────────┤
+│ 1. build             │    │ 1. build              │
+│ 2. test-and-coverage │    │ 2. security-scan      │
+│ 3. lint              │    │ 3. build-rpm          │
+│ 4. build-rpm         │    └───────────────────────┘
+└──────────────────────┘
+```
+
+#### 3. Reusable Workflow (build-rpm.yml)
+
+This workflow is used by multiple other workflows for building RPM packages:
+
+```
+┌─────────────────────────────┐
+│ build-rpm.yml               │
+├─────────────────────────────┤
+│ [Input parameters]          │
+│ - component                 │ ← "frontend", "backend", or "both"
+│ - version                   │ ← Optional, uses package.json if not provided
+│ - is_pr_build               │ ← Adds PR-specific version suffix if true
+│                             │
+│ [Jobs]                      │
+│ 1. build                    │ ← Builds RPM packages and uploads as artifacts
+└─────────────────────────────┘
+```
+
+These workflows ensure that:
+- Code is properly built, tested and linted
+- RPM packages are created for both frontend and backend components
+- Releases are automatically published with proper changelogs
+- Version management is handled consistently across components
+
 ## How to run locally
 
 This setup ensures that both the Vue 3 Frontend and Go Backend are running simultaneously in development mode, making development more efficient.
