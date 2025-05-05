@@ -1,5 +1,14 @@
 # Release Notes
 
+## v0.13.9 (2025-05-05)
+
+Generating changelog from v0.13.7 to v0.13.9...
+Found 4 commits.
+Getting commits between v0.13.7..v0.13.9
+Successfully updated RELEASE_NOTES.md
+Saved raw changelog to /home/runner/work/data-lake-ui/data-lake-ui/CHANGELOG_RAW_0.13.9.txt for CI tools
+
+
 ## v0.13.7 (2025-05-05)
 
 Changelog:
