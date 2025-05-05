@@ -73,14 +73,12 @@ jobs:
   # which is triggered by a workflow_run event rather than a tag push, avoids
   # these permission issues while still maintaining the same functionality.
 
-  # Job to sync versions in package.json files
-  update-package-versions:
-    name: Sync Version in Files
+  # Job to prepare package version updates (but not commit them)
+  prepare-package-versions:
+    name: Prepare Package Version Updates
     needs: determine-versions
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write # For committing changes
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -104,28 +102,22 @@ jobs:
           FRONTEND_VERSION: ${{ needs.determine-versions.outputs.frontend_version }}
           BACKEND_VERSION: ${{ needs.determine-versions.outputs.backend_version }}
 
-      - name: Commit and push version changes
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "github-actions@github.com"
+      # Save the changes for later commit
+      - name: Upload updated package files
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-package-files
+          path: |
+            package.json
+            web/package.json
+          retention-days: 1
 
-          git add package.json web/package.json
-
-          if git diff-index --quiet HEAD --; then
-            echo "No files changed, skipping commit"
-          else
-            git commit -m "chore: Update package versions to ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
-            git push origin HEAD:master  # Explicitly push to master branch
-          fi
-
-  # Job to update CHANGELOG.md based on the new version tag
-  update-changelog:
-    name: Update CHANGELOG.md
+  # Job to prepare changelog update (but not commit it)
+  prepare-changelog:
+    name: Prepare CHANGELOG Update
     needs: determine-versions
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write # For committing changes
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -145,24 +137,18 @@ jobs:
 
           echo "CHANGELOG.md updated successfully for ${{ needs.determine-versions.outputs.global_tag }}"
 
-      - name: Commit and push CHANGELOG update
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "github-actions@github.com"
+      # Save the changes for later commit
+      - name: Upload updated changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-changelog
+          path: CHANGELOG.md
+          retention-days: 1
 
-          git add CHANGELOG.md
-
-          if git diff-index --quiet HEAD --; then
-            echo "No changes to CHANGELOG.md, skipping commit"
-          else
-            git commit -m "docs: Update changelog for ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
-            git push origin HEAD:master # Explicitly push to master branch
-          fi
-
-  # Job to generate changelog from commits
-  generate-changelog:
-    name: Generate Changelog
-    needs: [determine-versions, update-changelog]
+  # Job to generate release notes content
+  generate-release-notes:
+    name: Generate Release Notes Content
+    needs: [determine-versions, prepare-changelog]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -180,31 +166,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate changelog
+      - name: Generate release notes
         id: changelog
         run: |
           mkdir -p /tmp/changelog
 
-          # Generate a changelog using the Python script
+          # Generate release notes using the Python script
           python3 tools/generate_release_notes.py --version ${{ needs.determine-versions.outputs.global_version }} > /tmp/changelog/changelog_content.md
 
-          echo "Changelog generated successfully."
+          echo "Release notes generated successfully."
 
-      - name: Upload changelog
+      - name: Upload release notes content
         uses: actions/upload-artifact@v4
         with:
           name: version-changelog
           path: /tmp/changelog
           retention-days: 5
 
-  # Job to update release notes file
-  update-release-notes:
-    name: Update Release Notes
-    needs: [determine-versions, generate-changelog]
+  # Job to prepare release notes file update (but not commit it)
+  prepare-release-notes:
+    name: Prepare Release Notes File
+    needs: [determine-versions, generate-release-notes]
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: write # For committing changes
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -212,7 +196,7 @@ jobs:
           fetch-depth: 0
           ref: master # Explicitly checkout the master branch
 
-      - name: Download changelog
+      - name: Download changelog content
         uses: actions/download-artifact@v4
         with:
           name: version-changelog
@@ -236,16 +220,76 @@ jobs:
 
           echo "Updated RELEASE_NOTES.md successfully with only the latest version."
 
-      - name: Commit and push changes
+      # Save the changes for later commit
+      - name: Upload updated release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: updated-release-notes
+          path: RELEASE_NOTES.md
+          retention-days: 1
+
+  # Job to consolidate all changes and commit them at once
+  commit-all-changes:
+    name: Commit All Version-Related Changes
+    needs:
+      [
+        determine-versions,
+        prepare-package-versions,
+        prepare-changelog,
+        prepare-release-notes,
+      ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # For committing changes
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master # Explicitly checkout the master branch
+
+      # Download all the prepared changes
+      - name: Download package file changes
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-package-files
+          path: .
+
+      - name: Download changelog changes
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-changelog
+          path: .
+
+      - name: Download release notes changes
+        uses: actions/download-artifact@v4
+        with:
+          name: updated-release-notes
+          path: .
+
+      - name: Commit and push all changes
         run: |
           git config user.name "GitHub Actions"
           git config user.email "github-actions@github.com"
 
-          git add RELEASE_NOTES.md
+          # Fetch from remote to ensure we have the latest changes
+          git fetch origin master
 
+          # Reset to match remote branch if necessary to avoid conflicts
+          git reset --hard origin/master
+
+          # Apply the changes from artifacts (they overwrite the files)
+          # No need for git add as the files are already overwritten
+
+          # Stage the changed files
+          git add package.json web/package.json CHANGELOG.md RELEASE_NOTES.md
+
+          # Check if there are any changes to commit
           if git diff-index --quiet HEAD --; then
-            echo "No changes to release notes, skipping commit"
+            echo "No files changed, skipping commit"
           else
-            git commit -m "docs: Update release notes for ${{ needs.determine-versions.outputs.global_tag }} [skip ci]"
+            # Create a single commit with all changes
+            git commit -m "chore: Version ${{ needs.determine-versions.outputs.global_tag }} documentation and package updates [skip ci]"
             git push origin HEAD:master  # Explicitly push to master branch
           fi
