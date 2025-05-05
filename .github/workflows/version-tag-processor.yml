@@ -144,9 +144,8 @@ jobs:
         run: |
           mkdir -p /tmp/changelog
 
-          # Generate a changelog based on commits since the last tag
-          # Here we're using a custom script, but you could use a tool like standard-version
-          node tools/generate-changelog.js > /tmp/changelog/changelog_content.md
+          # Generate a changelog using the Python script
+          python3 tools/generate_release_notes.py --version ${{ needs.determine-versions.outputs.global_version }} > /tmp/changelog/changelog_content.md
 
           echo "Changelog generated successfully."
 
