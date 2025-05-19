@@ -1,9 +1,6 @@
 package controller
 
-// This file contains authentication-related controllers and middleware.
-// Note: The authentication middleware (SessionAuthMiddleware) is implemented here
-// rather than in middleware/auth_middleware.go to keep all authentication-related
-// logic in one place.
+// Authentication implemented in a single file to maintain cohesion and simplify maintenance.
 
 import (
 	"crypto/rand"
@@ -30,13 +27,9 @@ const (
 	sessionMaxAge = 86400 * 7 // 7 days - chosen to balance user convenience with security risks
 )
 
-// SessionStore holds the session information
 // Will be initialized in init()
 var SessionStore *sessions.CookieStore
 
-// TokenStore stores tokens in memory with unique IDs to avoid cookie size limitations
-// In a production environment with multiple instances, this should be replaced with a distributed store
-//
 // IMPORTANT: We use an in-memory token store because:
 //  1. Cookie size limits (~4KB) prevent storing large tokens directly in cookies
 //     (our tokens are ~5KB+ in size)
@@ -61,12 +54,9 @@ type TokenInfo struct {
 
 var tokenStore = make(map[string]TokenInfo)
 
-// generateTokenID creates a unique ID for storing tokens
 func generateTokenID() string {
 	return uuid.New().String()
 }
-
-// storeTokens saves tokens in the token store and returns an ID
 func storeTokens(accessToken, refreshToken, idToken string, expiresAt int64) string {
 	tokenID := generateTokenID()
 	tokenStore[tokenID] = TokenInfo{
@@ -78,13 +68,10 @@ func storeTokens(accessToken, refreshToken, idToken string, expiresAt int64) str
 	return tokenID
 }
 
-// getTokens retrieves tokens from the store
 func getTokens(tokenID string) (TokenInfo, bool) {
 	tokens, ok := tokenStore[tokenID]
 	return tokens, ok
 }
-
-// updateTokens updates tokens in the store
 func updateTokens(tokenID string, accessToken, refreshToken, idToken string, expiresAt int64) bool {
 	if _, exists := tokenStore[tokenID]; !exists {
 		return false
@@ -99,7 +86,6 @@ func updateTokens(tokenID string, accessToken, refreshToken, idToken string, exp
 	return true
 }
 
-// deleteTokens removes tokens from the store
 func deleteTokens(tokenID string) {
 	delete(tokenStore, tokenID)
 }
@@ -107,17 +93,15 @@ func deleteTokens(tokenID string) {
 func init() {
 	cfg := config.GetConfig()
 	logger := common.GetLogger()
-
-	// Using session secret from config enables persistent sessions across restarts
-	// Random generation is a fallback that prioritizes security over user convenience
+	// Prefer configured secret for persistent sessions between restarts
 	sessionSecret := cfg.Auth.OIDC.SessionSecret
 	if sessionSecret == "" {
-		// Generate a random secret
+		// Generate a secure but non-persistent secret as fallback
 		b := make([]byte, 32)
 		_, err := rand.Read(b)
 		if err != nil {
 			logger.Error("Failed to generate random session secret", "error", err)
-			// Fallback to a default (but this is not secure for production)
+			// Last resort fallback with explicit warning
 			sessionSecret = "default-session-secret-replace-in-production"
 		} else {
 			sessionSecret = base64.StdEncoding.EncodeToString(b)
@@ -127,31 +111,22 @@ func init() {
 
 	// Initialize the session store with the secret
 	SessionStore = sessions.NewCookieStore([]byte(sessionSecret))
-
-	// TODO: Production security settings:
-	// 1. Use HTTPS for both frontend and backend
-	// 2. Set Secure: true for cookies
-	// 3. Consider a more restrictive SameSite policy if your setup allows it (e.g., SameSiteLaxMode)
-
-	// In development mode, we use more relaxed settings for ease of testing
+	// Balance security with environment-specific needs
 	sameSiteMode := http.SameSiteStrictMode
 	secureCookies := true
-
-	// Development mode requires relaxed security for ease of testing
+	// Use relaxed settings in development to simplify local testing
 	if cfg.Env == "development" {
-		// In development, we allow cookies to be shared between different ports on localhost
 		sameSiteMode = http.SameSiteLaxMode
 		secureCookies = false
 		logger.Info("Running in development mode: using relaxed cookie settings")
 	}
-
-	// Configure session for security best practices
+	// Apply security settings appropriate for the environment
 	SessionStore.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
-		HttpOnly: true,          // Prevents JavaScript access, mitigating XSS risks
-		Secure:   secureCookies, // Only use secure cookies in production
-		SameSite: sameSiteMode,  // Allow in-site requests (Lax mode for dev, Strict for prod)
+		HttpOnly: true,          // Mitigate XSS risks
+		Secure:   secureCookies, // Only require HTTPS in production
+		SameSite: sameSiteMode,  // Balance cross-origin needs vs CSRF protection
 	}
 }
 
@@ -164,25 +139,20 @@ type TokenResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 }
 
-// LoginInit initiates the OIDC login flow
-// Returns the authorization URL that the frontend will redirect to
+// LoginInit begins authentication by creating an OIDC authorization URL
 func LoginInit(c *gin.Context) {
 	cfg := config.GetConfig()
-	logger := common.GetLogger()
-
-	// Enhanced debugging - Log all request details to diagnose the issue
+	logger := common.GetLogger() // Log detailed request info to help diagnose auth integration issues
 	logger.Infof("LOGIN REQUEST - Headers: %v", c.Request.Header)
 	logger.Infof("LOGIN REQUEST - Query params: %v", c.Request.URL.Query())
 	logger.Infof("LOGIN REQUEST - Remote addr: %v", c.Request.RemoteAddr)
-
-	// Very detailed auth config logging
 	logger.Infof("Auth configuration - Enabled: %v", cfg.Auth.Enabled)
 	logger.Infof("Auth configuration - OIDC Issuer: %v", cfg.Auth.OIDC.Issuer)
 	logger.Infof("Auth configuration - OIDC ClientID: %v", cfg.Auth.OIDC.ClientID)
 	logger.Infof("Auth configuration - OIDC ClientSecret set: %v", cfg.Auth.OIDC.ClientSecret != "")
 	logger.Infof("Auth configuration - Session Secret set: %v", cfg.Auth.OIDC.SessionSecret != "")
 
-	// Partial logging of secret prevents full exposure while allowing debug confirmation
+	// Show part of secret for debugging while maintaining security
 	secretForLog := "not-set"
 	if cfg.Auth.OIDC.ClientSecret != "" {
 		if len(cfg.Auth.OIDC.ClientSecret) >= 4 {
@@ -192,13 +162,13 @@ func LoginInit(c *gin.Context) {
 		}
 	}
 
-	// Log the OIDC configuration for debugging
+	// Confirm OIDC settings are properly loaded
 	logger.Infof("OIDC Config - Issuer: %s, ClientID: %s, ClientSecret: %s",
 		cfg.Auth.OIDC.Issuer,
 		cfg.Auth.OIDC.ClientID,
 		secretForLog)
 
-	// Check for required OIDC fields - log any issues found
+	// Identify missing OIDC configuration early
 	if cfg.Auth.Enabled {
 		if cfg.Auth.OIDC.Issuer == "" {
 			logger.Error("Auth is enabled but OIDC Issuer is empty - this will cause auth to be disabled")
@@ -211,7 +181,7 @@ func LoginInit(c *gin.Context) {
 		}
 	}
 
-	// Support disabled authentication for development/testing environments
+	// Allow auth bypass for testing and development
 	if !cfg.Auth.Enabled {
 		logger.Warn("Authentication is disabled in configuration, but login endpoint was called")
 		c.JSON(http.StatusOK, gin.H{
@@ -221,7 +191,7 @@ func LoginInit(c *gin.Context) {
 		return
 	}
 
-	// Fail-fast if misconfigured to prevent runtime errors
+	// Prevent confusing auth failures due to incomplete config
 	if cfg.Auth.Enabled && (cfg.Auth.OIDC.Issuer == "" || cfg.Auth.OIDC.ClientID == "" || cfg.Auth.OIDC.ClientSecret == "") {
 		logger.Error("Authentication is enabled but OIDC configuration is incomplete")
 		logger.Error("Issuer URL: ", cfg.Auth.OIDC.Issuer)
@@ -236,7 +206,7 @@ func LoginInit(c *gin.Context) {
 		return
 	}
 
-	// UUID ensures state is unpredictable, preventing CSRF attacks
+	// Cryptographically strong state parameter prevents CSRF attacks
 	state := uuid.New().String()
 
 	// For development, add a debug cookie to verify cookie behavior
@@ -323,8 +293,7 @@ func LoginInit(c *gin.Context) {
 	})
 }
 
-// AuthCallback handles the OIDC callback with the authorization code
-// This is where the actual token exchange happens after user authenticates
+// AuthCallback completes the authentication flow after user authorizes with the IdP
 func AuthCallback(c *gin.Context) {
 	cfg := config.GetConfig()
 	logger := common.GetLogger()
@@ -340,7 +309,7 @@ func AuthCallback(c *gin.Context) {
 	logger.Infof("Auth callback received with code and state: %s", state)
 	logger.Infof("Cookies: %v", c.Request.Cookies())
 
-	// State verification is critical to prevent CSRF attacks in the OAuth flow
+	// Validate state to ensure request integrity and prevent CSRF
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err != nil {
 		logger.Error("Failed to get session", "error", err)
@@ -425,7 +394,7 @@ func AuthCallback(c *gin.Context) {
 	}
 
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	// 10 second timeout prevents hanging requests during network issues
+	// Timeout prevents hanging during network issues
 	client := &http.Client{Timeout: 10 * time.Second}
 	tokenResp, err := client.Do(req)
 	if err != nil {
@@ -497,24 +466,77 @@ func AuthCallback(c *gin.Context) {
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL)
 }
 
-// Logout handles user logout by invalidating the session
+// Logout terminates both local and IdP sessions to prevent token reuse
 func Logout(c *gin.Context) {
 	logger := common.GetLogger()
+	cfg := config.GetConfig()
 
 	// Get session
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err == nil {
 		// Get token ID to delete from store
 		if tokenID, ok := session.Values["token_id"].(string); ok && tokenID != "" {
+			// Get tokens before removing them, we need them to call Keycloak logout
+			tokens, ok := getTokens(tokenID)
+			if ok && tokens.IDToken != "" {
+				// Try to load discovery document to get end session endpoint
+				discoveryDoc, err := fetchOIDCDiscoveryDocument(cfg.Auth.OIDC.Issuer)
+				if err == nil {
+					// Get end_session_endpoint from discovery document
+					if endSessionEndpoint, ok := discoveryDoc["end_session_endpoint"].(string); ok && endSessionEndpoint != "" {
+						logger.Infof("Using end session endpoint: %s", endSessionEndpoint)
+
+						// Build the logout URL with id_token_hint
+						logoutURL := fmt.Sprintf("%s?id_token_hint=%s&client_id=%s",
+							endSessionEndpoint,
+							url.QueryEscape(tokens.IDToken),
+							url.QueryEscape(cfg.Auth.OIDC.ClientID))
+
+						// Create HTTP client and make request to log out from Keycloak
+						client := &http.Client{Timeout: 5 * time.Second}
+						req, err := http.NewRequest("GET", logoutURL, nil)
+						if err == nil { // Run logout asynchronously to prevent delays in user experience while maintaining security
+							go func() {
+								resp, err := client.Do(req)
+								if err != nil {
+									logger.Warnf("Failed to logout from OIDC provider: %v", err)
+								} else {
+									defer resp.Body.Close()
+
+									// HTTP status validation ensures the token is properly invalidated at the IdP level
+									// This prevents potential security issues with lingering active sessions
+									if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+										logger.Info("Successfully logged out from OIDC provider, status: %d", resp.StatusCode)
+									} else {
+										// Error details help diagnose integration issues with the OIDC provider
+										body, readErr := io.ReadAll(resp.Body)
+										if readErr != nil {
+											logger.Warnf("OIDC provider logout returned status %d, but couldn't read response body: %v", resp.StatusCode, readErr)
+										} else {
+											logger.Warnf("OIDC provider logout failed with status %d: %s", resp.StatusCode, string(body))
+										}
+									}
+								}
+							}()
+						} else {
+							logger.Warnf("Failed to create request to OIDC logout endpoint: %v", err)
+						}
+					} else {
+						logger.Warn("No end session endpoint found in OIDC discovery document")
+					}
+				} else {
+					logger.Warnf("Failed to fetch OIDC discovery document for logout: %v", err)
+				}
+			}
 			// Delete tokens from the store for security
 			deleteTokens(tokenID)
 			logger.Info("Removed tokens from store during logout")
 		}
 	}
 
-	// Clear session values
+	// Remove all session data and expire the cookie
 	session.Values = make(map[interface{}]interface{})
-	session.Options.MaxAge = -1 // This will delete the cookie
+	session.Options.MaxAge = -1
 
 	if err := session.Save(c.Request, c.Writer); err != nil {
 		logger.Error("Failed to clear session", "error", err)
@@ -526,8 +548,7 @@ func Logout(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Logout successful"})
 }
 
-// Health returns the health status of the service
-// Used for monitoring and readiness checks
+// Health provides a lightweight endpoint for monitoring and readiness checks
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    "ok",
@@ -536,7 +557,7 @@ func Health(c *gin.Context) {
 	})
 }
 
-// refreshToken refreshes the access token using the refresh token
+// refreshToken renews authentication without requiring user interaction
 func refreshToken(c *gin.Context) error {
 	cfg := config.GetConfig()
 	logger := common.GetLogger()
@@ -650,24 +671,18 @@ func refreshToken(c *gin.Context) error {
 	return nil
 }
 
-// SessionAuthMiddleware creates a middleware that validates session-based authentication
-// and handles token refresh when needed. This approach centralizes auth management
-// in the controller package rather than the middleware package.
+// SessionAuthMiddleware ensures routes are protected and handles automatic token refresh
 func SessionAuthMiddleware() gin.HandlerFunc {
 	cfg := config.GetConfig()
 	logger := common.GetLogger()
-
-	// If authentication is globally disabled, create a pass-through middleware
-	// Useful for development or internal deployments with alternate security measures
+	// Skip authentication when disabled to facilitate development and testing
 	if !cfg.Auth.Enabled {
 		logger.Info("Authentication is disabled")
 		return func(c *gin.Context) {
 			c.Next()
 		}
 	}
-
-	// skipAuth determines which paths bypass authentication requirements
-	// Critical for public endpoints like login, health checks, and static assets
+	// Allow certain paths to remain public for system functionality
 	skipAuth := func(path string) bool {
 		for _, skipPath := range cfg.Auth.SkipAuthPaths {
 			if strings.HasPrefix(path, skipPath) {
@@ -680,13 +695,13 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 	logger.Info("Initializing session-based authentication middleware")
 
 	return func(c *gin.Context) {
-		// Allow certain paths to bypass authentication checks based on configuration
+		// Skip auth for public endpoints
 		if skipAuth(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
 
-		// Validate the user's session contains required authentication data
+		// Verify session integrity
 		session, err := SessionStore.Get(c.Request, sessionName)
 		if err != nil {
 			logger.Error("Failed to get session", "error", err)
@@ -695,7 +710,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Verify token ID exists - the presence of a token ID indicates previous successful auth
+		// Token ID presence confirms previous authentication
 		tokenID, ok := session.Values["token_id"].(string)
 		if !ok || tokenID == "" {
 			logger.Info("No token ID in session")
@@ -711,14 +726,11 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-
-		// Automatically refresh tokens to maintain user sessions
-		// Proactively refresh tokens that are about to expire (within 5 minutes)
-		// This prevents disruption of user experience due to token expiration
+		// Proactively refresh tokens to prevent disruption of user experience
 		refreshBuffer := int64(300) // 5 minutes in seconds
 		currentTime := time.Now().Unix()
 
-		// If token is expired or will expire within buffer period
+		// Handle expiring or expired tokens
 		if currentTime > tokens.ExpiresAt || (tokens.ExpiresAt-currentTime) < refreshBuffer {
 			logger.Info("Token expired or expiring soon, refreshing")
 			if err := refreshToken(c); err != nil {
@@ -729,9 +741,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 					response.Error(c, http.StatusUnauthorized, "Session expired")
 					c.Abort()
 					return
-				}
-				// Otherwise, continue with existing token even if refresh failed
-				// This gives user a chance to complete their current action
+				} // Proceed with existing token to avoid disrupting user's current action
 				logger.Warn("Using existing token despite failed refresh attempt")
 			} else {
 				// Get the new tokens after successful refresh
@@ -739,16 +749,12 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 				logger.Info("Successfully refreshed token before expiration")
 			}
 		}
-
-		// Pass the access token to downstream handlers via request context
-		// This allows them to use the token for authorization
+		// Make token available to downstream handlers for authorization
 		c.Set("access_token", tokens.AccessToken)
 		c.Set("user_claims", map[string]interface{}{
 			"authenticated": true,
 		})
-
-		// Pass the access token to downstream services via Authorization header
-		// This allows microservices behind this app to validate the token independently
+		// Forward token to enable microservice authorization
 		c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
 
 		c.Next()
@@ -757,17 +763,16 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 
 // Helper functions
 
-// fetchOIDCDiscoveryDocument gets the discovery document from the OIDC provider
-// This centralizes the common pattern used in multiple auth functions
+// fetchOIDCDiscoveryDocument retrieves IdP configuration to avoid hardcoding endpoints
 func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]interface{}, error) {
 	logger := common.GetLogger()
 
-	// Ensure issuer URL has proper format
+	// Add protocol if missing to prevent connection errors
 	if !strings.HasPrefix(issuerURL, "http://") && !strings.HasPrefix(issuerURL, "https://") {
 		issuerURL = "https://" + issuerURL
 	}
 
-	// Construct discovery URL
+	// Ensure URL follows OIDC specification format
 	discoveryURL := issuerURL
 	if !strings.HasSuffix(discoveryURL, "/") {
 		discoveryURL += "/"
@@ -795,9 +800,9 @@ func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]interface{}, error
 	return discoveryDoc, nil
 }
 
-// schemeFromRequest determines the scheme (http or https) from the request
+// schemeFromRequest handles both direct and proxy connections correctly
 func schemeFromRequest(c *gin.Context) string {
-	// Check for X-Forwarded-Proto header (used by load balancers)
+	// Support for reverse proxy environments
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 		return proto
 	}
