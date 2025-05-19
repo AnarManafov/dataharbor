@@ -55,12 +55,6 @@ export default function useAuth() {
         return isAuthenticated.value;
     };
 
-    // Skip initial auth check on login page to avoid unnecessary API calls
-    // and potential redirect loops
-    if (window.location.pathname !== '/login') {
-        checkAuth();
-    }
-
     // Initiate OIDC authentication flow while preserving intended destination
     const login = async () => {
         isLoading.value = true;

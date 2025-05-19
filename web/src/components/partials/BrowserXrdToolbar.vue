@@ -2,7 +2,7 @@
     <div class='toolbar'>
         <!-- First Row -->
         <el-row class='full-size-row'>
-            <el-col :span='12' class='toolbar-left-content'>
+            <el-col :span='19' class='toolbar-left-content'>
                 <div>
                     <el-tooltip class='box-item' effect='dark' :content='serviceStatusTooltip' placement='bottom-start'>
                         <el-icon :style='{ color: serviceStatusColor }' @click='changeDirToInitialPath' :size='16'
@@ -11,7 +11,7 @@
                         </el-icon>
                     </el-tooltip>
                 </div>
-                <div>
+                <div class='breadcrumb-container'>
                     <el-breadcrumb separator='/'>
                         <el-breadcrumb-item @click='changeDirToInitialPath'><a>Initial
                                 Directory</a></el-breadcrumb-item>
@@ -24,7 +24,7 @@
                     </el-breadcrumb>
                 </div>
             </el-col>
-            <el-col :span='12' class='toolbar-right-content'>
+            <el-col :span='5' class='toolbar-right-content'>
                 <div style='font-size: 10px;'>
                     Data Server Host: <span style='font-weight: bold;'>{{ xrdHostName }}</span>
                 </div>
@@ -98,6 +98,7 @@ const changeDir = (index: number) => {
     flex-direction: row;
     align-items: center;
     justify-content: start;
+    min-width: 0;
 }
 
 .toolbar-right-content {
@@ -108,8 +109,20 @@ const changeDir = (index: number) => {
     height: 100%;
 }
 
+.breadcrumb-container {
+    flex: 1 1 0%;
+    min-width: 0;
+    /* Ensures the breadcrumb can shrink/grow as needed */
+    display: flex;
+    align-items: center;
+}
+
 .el-breadcrumb {
     font-size: 16px;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .second-row {

@@ -744,7 +744,12 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 		// Proactively refresh tokens to prevent disruption of user experience
-		refreshBuffer := int64(300) // 5 minutes in seconds
+		// Use configured refresh buffer instead of hardcoded value
+		cfg := config.GetConfig()
+		refreshBuffer := cfg.Auth.OIDC.TokenRefreshBufferSec
+		if refreshBuffer <= 0 {
+			refreshBuffer = 60 // Fallback to 1 minute if not configured
+		}
 		currentTime := time.Now().Unix()
 
 		// Handle expiring or expired tokens
@@ -766,11 +771,25 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 				logger.Info("Successfully refreshed token before expiration")
 			}
 		}
+
+		// Fetch user claims to ensure we have the subject for rate limiting
+		userClaims := map[string]interface{}{
+			"authenticated": true,
+		}
+
+		// Try to get user info to extract the subject claim
+		if userInfo, err := fetchUserInfo(tokens.AccessToken, cfg); err == nil {
+			// Extract the subject claim for rate limiting
+			if sub, ok := userInfo["sub"].(string); ok {
+				userClaims["sub"] = sub
+			}
+		} else {
+			logger.Warn("Failed to fetch user info for claims", "error", err)
+		}
+
 		// Make token available to downstream handlers for authorization
 		c.Set("access_token", tokens.AccessToken)
-		c.Set("user_claims", map[string]interface{}{
-			"authenticated": true,
-		})
+		c.Set("user_claims", userClaims)
 		// Forward token to enable microservice authorization
 		c.Request.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
 
