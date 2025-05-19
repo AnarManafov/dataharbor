@@ -81,12 +81,11 @@ func (w *bodyLogWriter) Write(b []byte) (int, error) {
 func shouldSkipPath(path string) bool {
 	// List of paths to skip for logging
 	skipPaths := []string{
-		"/health",        // Health check endpoints
-		"/favicon.ico",   // Browser favicon requests
-		"/static/",       // Static assets
-		"/assets/",       // Static assets
-		"/download/",     // File downloads
-		"/api/xrd/stage", // File staging (may contain binary data)
+		"/health",      // Health check endpoints
+		"/favicon.ico", // Browser favicon requests
+		"/static/",     // Static assets
+		"/assets/",     // Static assets
+		"/download/",   // File downloads
 	}
 
 	for _, p := range skipPaths {

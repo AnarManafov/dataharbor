@@ -1,8 +1,8 @@
 env: development
 
 server:
-  address: ":22000"  # Match the port expected by the sandbox proxy
-  debug: true        # Enable debugging for development
+  address: ":22000"
+  debug: true
   shutdown_timeout: 30s
   cors:
     allow_credentials: true
@@ -18,10 +18,10 @@ server:
       - DELETE
       - OPTIONS
     allow_origins:
-      - http://localhost:5173  # Vite sandbox server (fallback)
-      - https://localhost:5173 # Vite sandbox server with HTTPS
-      - http://localhost:8080  # Regular development server  
-      - https://localhost:8080 # Regular development server with HTTPS
+      - http://localhost:5173
+      - https://localhost:5173
+      - http://localhost:8080
+      - https://localhost:8080
       - http://localhost:8081
       - https://localhost:8081
   ssl:
@@ -29,49 +29,41 @@ server:
     cert_file: "config/server.crt"
     key_file: "config/server.key"
 
-log:
-  format: text  # Using text format for easier reading during development
-  level: debug  # More detailed logging for development
+# Unified logging configuration optimized for development
+logging:
+  level: debug
+  format: text
+  console:
+    enabled: true
+    level: debug
+    format: text
+  file:
+    enabled: true
+    level: debug
+    format: json
+    filename: "./log/dataharbor_app.log"
+    maxsize: 10
+    maxbackups: 2
+    maxage: 7
+    compress: true
 
 xrd:
   host: "localhost"
   port: 1094
   initial_dir: "/tmp"
-  xrd_client_bin_path: "/opt/homebrew/bin/"
-  process_timeout: 60           # In seconds
-  staging_path: "/tmp/delete_me"
-  staging_tmp_dir_prefix: "stg_"
-  sanitation_job_interval: 30   # In minutes
-  url: "root://localhost:1094"
   user: ""
   usergroup: ""
-  userpwd: ""
   user_required: false
   tls: false
   client_cert: ""
   client_key: ""
 
-# Frontend configuration for locating and serving UI assets
 frontend:
-  url: "https://localhost:5173"   # Updated to HTTPS for Keycloak compatibility
+  url: "https://localhost:5173"
   dist_dir: "dist"
   asset_paths:
-    - "../sandbox/public"       # Primary: Sandbox public files when running with npm sandbox:serve
-    - "web"                     # Fallback: Standard path if sandbox is not used
-
-# Logger configuration for zap logger
-logger:
-  console:
-    level: "debug"              # More detailed logging for development
-    driver: "console"
-  file:
-    level: "debug"
-    driver: "file"
-    filename: "./log/dataharbor_app.log"
-    maxsize: 10
-    maxbackups: 2
-    maxage: 27
-    compress: true
+    - "../sandbox/public"
+    - "web"
 
 auth:
   enabled: true
@@ -87,3 +79,4 @@ auth:
     allowed_roles:
       - "xrootd-user"
     session_secret: "5f9d7b8e-3a1c-4d86-9f2e-6b7c8d9e4f3a"
+    token_refresh_buffer_sec: 60  # Refresh tokens 1 minute before expiration

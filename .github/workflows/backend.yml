@@ -132,9 +132,58 @@ jobs:
           working-directory: "./app/"
           args: --timeout=5m # Add timeout to avoid linting getting stuck
 
+  # Job to run integration tests and benchmarks
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # Separate timeout for integration tests
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: ${{ env.GO_SUM_FILE }}
+          cache: true
+
+      - name: Run Integration Tests
+        run: |
+          echo "Running comprehensive integration tests for XRD client functionality..."
+          cd test && go test -v -timeout=2m
+
+      - name: Run Benchmark Tests
+        run: |
+          echo "Running performance benchmark tests for critical XRD operations..."
+          cd test && go test -bench=. -benchtime=200ms -timeout=2m | tee benchmark_results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: "./app/test/benchmark_results.txt"
+          retention-days: 7
+
+      - name: Verify Integration Test Coverage
+        run: |
+          echo "Verifying integration test coverage..."
+          cd test && go test -cover -coverprofile=integration_coverage.out
+          echo "Integration test coverage summary:"
+          go tool cover -func=integration_coverage.out | tail -1
+
+      - name: Upload integration test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-coverage-report
+          path: "./app/test/integration_coverage.out"
+          retention-days: 7
+
   # Job to build backend RPM package using the reusable workflow
   build-rpm:
-    needs: [build, test-and-coverage, lint] # Only build RPM if other jobs succeed
+    needs: [build, test-and-coverage, lint, integration-tests] # Only build RPM if other jobs succeed
     uses: ./.github/workflows/build-rpm.yml
     with:
       component: "backend"

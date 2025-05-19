@@ -265,6 +265,8 @@ The application uses Vue Router with declarative route definitions and metadata-
 
 **File Download Flow**: Secure staging and download process for large files
 
+> For detailed information about the download system architecture and implementation, see [DOWNLOADS.md](./DOWNLOADS.md).
+
 **Health Monitoring**: Periodic backend status checks for user feedback
 
 ## Component Development

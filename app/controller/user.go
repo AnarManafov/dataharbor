@@ -78,8 +78,14 @@ func GetCurrentUser(c *gin.Context) {
 			currentTime,
 			timeRemaining)
 
-		// If token is expired or will expire soon (within 5 minutes)
-		refreshBuffer := int64(300) // 5 minutes in seconds
+		// If token is expired or will expire soon (configurable buffer)
+		// This prevents tokens from expiring during ongoing operations
+		// For short-lived tokens (e.g., 5 minutes), a 1-minute buffer is appropriate
+		cfg := config.GetConfig()
+		refreshBuffer := cfg.Auth.OIDC.TokenRefreshBufferSec
+		if refreshBuffer <= 0 {
+			refreshBuffer = 60 // Fallback to 1 minute if not configured
+		}
 
 		if currentTime > tokens.ExpiresAt || timeRemaining < refreshBuffer {
 			logger.Info("Token expired or expiring soon, attempting refresh")

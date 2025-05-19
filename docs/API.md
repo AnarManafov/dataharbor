@@ -230,49 +230,35 @@ Retrieves a specific page of files and folders from a directory.
 curl -X POST -H "Content-Type: application/json" -d '{"path":"/tmp/", "page": 2, "pageSize": 10}' http://localhost:8081/api/v1/dir/page
 ```
 
-### Stage File for Download
+### Download File (Streaming)
 
-Stages a file to a temporary public location for download.
+**Recommended**: Streams a file directly from XROOTD to the client without temporary storage.
 
-**Endpoint**: `POST /api/v1/stage_file`
+> For detailed information about the frontend download system implementation, see [DOWNLOADS.md](./DOWNLOADS.md).
 
-**Request Body**:
-
-```json
-{
-  "path": "/path/to/file.txt"
-}
-```
+**Endpoint**: `GET /api/v1/download?path=/path/to/file.txt`
 
 **Parameters**:
 
-| Field  | Type   | Required | Description                    |
-| ------ | ------ | -------- | ------------------------------ |
-| `path` | string | Yes      | Full path to the file to stage |
+| Field  | Type   | Required | Description                                         |
+| ------ | ------ | -------- | --------------------------------------------------- |
+| `path` | string | Yes      | Full path to the file to download (query parameter) |
 
-**Response**:
-
-```json
-{
-  "code": 200,
-  "message": "success",
-  "data": {
-    "path": "/tmp/staged/stg_2478601451/file.txt"
-  }
-}
-```
+**Response**: Direct binary file stream with appropriate headers
 
 **Example**:
 
 ```shell
-curl -X POST -H "Content-Type: application/json" -d '{"path":"/tmp/example.txt"}' http://localhost:8081/api/v1/stage_file
+curl -X GET "http://localhost:8081/api/v1/download?path=/tmp/example.txt" --output example.txt
 ```
 
 **Notes**:
 
-- Staged files are automatically cleaned up after a configured timeout
-- The staging directory is publicly accessible for download
-- Use the returned path to construct download URLs
+- Files are streamed directly from XROOTD using `xrdfs cat` command
+- No temporary storage or staging required - more secure and efficient
+- One concurrent download per user session to prevent resource exhaustion
+- Supports large binary files with chunked transfer encoding
+- Proper MIME type detection and Content-Disposition headers for browser downloads
 
 ## Server Information Endpoints
 
@@ -547,16 +533,15 @@ const listDirectory = async (path, pageSize = 50) => {
   }
 }
 
-// Stage and download file
-const downloadFile = async (filePath) => {
+// Recommended: Direct streaming download
+const downloadFileStreaming = async (filePath) => {
   try {
-    // Stage file
-    const stageResponse = await api.post('/api/v1/stage_file', { path: filePath })
-    const stagedPath = stageResponse.data.data.path
+    // Construct download URL with file path as query parameter
+    const downloadUrl = `/api/v1/download?path=${encodeURIComponent(filePath)}`
     
-    // Create download link
+    // Create download link and trigger download
     const link = document.createElement('a')
-    link.href = `/downloads/${stagedPath}`
+    link.href = downloadUrl
     link.download = filePath.split('/').pop()
     link.click()
   } catch (error) {

@@ -19,8 +19,16 @@
 
             <!-- Scrollable content area -->
             <div class="file-table-container">
+                <!-- Always show file table (it handles empty states with parent directory) -->
                 <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
-                    @selectDir="selectDir" />
+                    @selectDir="selectDir" @downloadFile="handleDownloadFile" />
+
+                <!-- Show empty state overlay when no actual files exist, but still allow table to show parent dir -->
+                <div v-if="!tableLoading && tableData.length === 0 && filteredData.length <= 1"
+                    class="empty-state-overlay">
+                    <el-empty description="This directory is empty" />
+                </div>
+
                 <!-- Show a button to back to top -->
                 <el-backtop :right="40" :bottom="40" />
             </div>
@@ -29,16 +37,17 @@
 </template>
 
 <script lang="ts" setup>
-import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth, getPagedItemsInDir } from '@/api/api';
+import { getHostName, getInitialDirPath, getItemsInDir, getStreamingDownloadUrl, getBackendHealth, getPagedItemsInDir } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { saveAs } from 'file-saver';
+import { Folder } from '@element-plus/icons-vue';
 import axios from 'axios';
 import { useStorage } from '@vueuse/core'
 import { displayErrorMessage, joinPaths } from '@/utils/utils';
 import Toolbar from '../components/partials/BrowserXrdToolbar.vue';
 import FileTable from '../components/partials/BrowserXrdFileTable.vue';
+import { DownloadService } from '@/services/downloadService';
 
 // Define props
 const props = defineProps({
@@ -304,50 +313,85 @@ const selectDir = async (row: { type: string; name: string; }) => {
             routerPushNewPath(currentDirectory.value);
         }
     } else {
-        const srcFileToDownload = joinPaths(currentDirectory.value, row.name);
-        // @ts-ignore: TS2304: cannot find name ' require'
-        // The auto import is used
-        ElMessageBox.confirm('Do you want to download the file?', srcFileToDownload, {
-            // if you want to disable its autofocus
-            // autofocus: false,
-            confirmButtonText: 'Download',
-            cancelButtonText: 'Cancel',
-        })
-            .then(() => {
-                // @ts-ignore: TS2304: cannot find name ' require'
-                // The auto import is used
-                ElMessage({
-                    type: 'success',
-                    message: 'Preparing to download: ' + srcFileToDownload,
-                })
+        // File selected - redirect to download handler
+        handleDownloadFile(row);
+    }
+}
 
-                // Requesting to stage the file
-                var destFileToDownload = "";
+/**
+ * Handle file download using StreamSaver.js
+ * @param {Object} row - The file row object
+ */
+const handleDownloadFile = async (row: { name: string; size?: number; downloading?: boolean }) => {
+    if (row.downloading) {
+        console.log('Download already in progress for:', row.name);
+        return;
+    }
 
-                getFileStagedForDownload(srcFileToDownload)
-                    .then(resp => {
-                        destFileToDownload = resp.data.data
+    const filePath = joinPaths(currentDirectory.value, row.name);
 
-                        // Force download a file 
-                        axios.get(destFileToDownload, { responseType: 'blob' })
-                            .then(response => {
-                                saveAs(response.data, row.name);
-                            })
-                            .catch((response) => {
-                                displayErrorMessage(new Error(`Could not Download the requested file: ${srcFileToDownload}<br>${response}`))
-                            });
-                    })
-                    .catch((error) => {
-                        if (error) {
-                            displayErrorMessage(error)
-                            // Force check the backend health
-                            fetchBackendServiceStatus()
-                        }
-                    })
-            })
-            .catch(() => {
-                console.log("Download is canceled by the user.");
+    try {
+        // Show confirmation dialog
+        await ElMessageBox.confirm(
+            'Do you want to download this file?',
+            filePath,
+            {
+                confirmButtonText: 'Download',
+                cancelButtonText: 'Cancel',
+                type: 'info'
+            }
+        );
+
+        // Set downloading state
+        row.downloading = true;
+
+        ElMessage({
+            type: 'info',
+            message: `Starting download: ${row.name}`,
+            duration: 2000
+        });
+
+        // Use StreamSaver for download
+        const result = await DownloadService.downloadFile(
+            filePath,
+            row.name,
+            row.size || 0
+        );
+
+        if (result.success) {
+            let message = `Download completed: ${row.name}`;
+            if (result.speed) {
+                const { mbps, duration } = result.speed;
+                const sizeMB = ((row.size || 0) / (1024 * 1024)).toFixed(1);
+                message += ` (${sizeMB} MB in ${duration}s at ${mbps} MB/s)`;
+            }
+
+            ElMessage({
+                type: 'success',
+                message: message,
+                duration: 5000 // Longer duration for speed info
             });
+        } else {
+            ElMessage({
+                type: 'error',
+                message: `Download failed: ${result.error}`,
+                duration: 5000
+            });
+        }
+    } catch (error) {
+        if (error === 'cancel') {
+            console.log('Download cancelled by user');
+        } else {
+            console.error('Download error:', error);
+            ElMessage({
+                type: 'error',
+                message: `Download error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                duration: 5000
+            });
+        }
+    } finally {
+        // Clear downloading state
+        row.downloading = false;
     }
 }
 
@@ -472,10 +516,17 @@ const listDir = async () => {
             cumulativeFileSize.value = filters.prettyBytes(resp.data.cumulativeFileSize); // Update cumulativeFileSize
             console.log("pageSize: %d, totalPages: %d, totalItems: %d, totalFileCount: %d, totalFolderCount: %d, cumulativeFileSize: %d", pageSize.value, totalPages.value, totalItems.value, totalFileCount.value, totalFolderCount.value, cumulativeFileSize.value);
         } else {
-            // Revert the current directory value if the directory change fails
-            currentDirectory.value = oldCurrentDirectory;
-            // Empty the table data if the response is null and no errors
+            // Handle empty directory gracefully - this is normal and not an error
             tableData.value = [];
+            // Set default values for empty directory
+            pageSize.value = PAGE_SIZE;
+            totalPages.value = 0;
+            totalItems.value = 0;
+            totalFileCount.value = 0;
+            totalFolderCount.value = 0;
+            cumulativeFileSize.value = "0 B";
+
+            // Only throw an error if there's an actual error code and message
             if (resp.data.code != 200 && resp.data.error != "") {
                 throw new Error(resp.data.error);
             }
@@ -503,20 +554,19 @@ const handlePageChange = async (page: number) => {
         if (resp.data.items != null) {
             tableData.value = resp.data.items;
         } else {
-            // Empty the table data if the response is null and no errors
+            // Handle empty directory gracefully - this is normal and not an error
             tableData.value = [];
+            // Only throw an error if there's an actual error code and message
             if (resp.data.code != 200 && resp.data.error != "") {
                 throw new Error(resp.data.error);
             }
         }
     } catch (error) {
-        // Check the backend health
+        // Check backend health and show error
         await fetchBackendServiceStatus();
-        // Return an error
         throw new Error(`Error received from the backend while listing: ${currentDirectory.value}<br>${error.message}`);
     }
     currentPage.value = page;
-
 };
 
 /**
@@ -595,6 +645,22 @@ onBeforeUnmount(() => {
     background: var(--el-bg-color-page);
     min-height: 0;
     /* Important: allows flex child to shrink below content size */
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    /* For absolute positioning of empty state overlay */
+}
+
+/* Ensure the table has proper spacing from the scrollbar */
+:deep(.el-table) {
+    margin-right: 8px;
+    /* Add margin to prevent overlap with scrollbar */
+}
+
+/* Fixed right column styling to prevent scrollbar overlap */
+:deep(.el-table .el-table__fixed-right) {
+    right: 8px;
+    /* Offset the fixed right column to account for scrollbar */
 }
 
 /* GitHub-style pagination sizing */
@@ -613,6 +679,15 @@ onBeforeUnmount(() => {
     .file-table-container,
     .pagination-header {
         padding: 12px 16px;
+    }
+
+    /* Adjust table spacing on mobile */
+    :deep(.el-table) {
+        margin-right: 4px;
+    }
+
+    :deep(.el-table .el-table__fixed-right) {
+        right: 4px;
     }
 }
 </style>
