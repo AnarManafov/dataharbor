@@ -77,7 +77,8 @@ The authentication flow works as follows:
 1. **Logout**:
    * User initiates logout in the frontend
    * Frontend calls the backend logout endpoint (`POST /api/auth/logout`)
-   * Backend invalidates the session and clears the secure cookies
+   * Backend invalidates the user's session in Keycloak using the end session endpoint
+   * Backend invalidates the local session and clears the secure cookies
    * User is redirected to the login page or home page
 
 Key security benefits of this approach:
