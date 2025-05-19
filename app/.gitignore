@@ -10,6 +10,7 @@
 # default output name for golang binaries
 app
 dataharbor-backend
+dataharbor
 
 # Test binary, built with `go test -c`
 *.test

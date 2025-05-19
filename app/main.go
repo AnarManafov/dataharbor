@@ -4,15 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
-	"github.com/AnarManafov/dataharbor/app/core"
 	"github.com/AnarManafov/dataharbor/app/route"
 
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 )
 
 func main() {
@@ -26,38 +25,46 @@ func initialize() {
 	// 1. Initialize command-line flags first to get the config file path
 	config.InitCmd()
 
-	// 2. Initialize logger
-	common.InitLogger()
-
-	// 3. Load the config from the file path specified in the command line
-	common.Logger.Info("Loading config from:", config.ConfigFile)
+	// 2. Load the config from the file path specified in the command line
+	fmt.Printf("Loading config from: %s\n", config.ConfigFile)
 	cfg, err := config.LoadConfig(config.ConfigFile)
 	if err != nil {
-		common.Logger.Error("Failed to load config:", err)
-	} else {
-		// Set the loaded config as the global config
-		config.SetConfig(cfg)
-
-		// Log key configuration values for debugging
-		common.Logger.Info("Auth configuration - Enabled:", cfg.Auth.Enabled)
-		common.Logger.Info("OIDC configuration - Issuer:", cfg.Auth.OIDC.Issuer)
-		common.Logger.Info("OIDC configuration - ClientID:", cfg.Auth.OIDC.ClientID)
-		clientSecretStatus := "not set"
-		if cfg.Auth.OIDC.ClientSecret != "" {
-			clientSecretStatus = "set"
-		}
-		common.Logger.Info("OIDC configuration - ClientSecret:", clientSecretStatus)
+		fmt.Printf("Failed to load config: %v\n", err)
+		os.Exit(1)
 	}
 
-	// 4. Load config into viper for components that use viper directly
+	// 3. Set the loaded config as the global config
+	config.SetConfig(cfg)
+
+	// 4. Initialize logger with the unified configuration
+	common.InitLogger(&cfg.Logging)
+
+	// 5. Load config into viper for components that still use viper directly (deprecated)
 	err = config.LoadViper(config.ConfigFile)
 	if err != nil {
 		common.Logger.Warn("Warning: viper config loading issue:", err)
 	}
 
-	// 5. Log full configuration if debug is enabled
+	// 6. Log configuration information
+	common.Logger.Info("Configuration loaded successfully")
+	common.Logger.Info("Environment:", cfg.Env)
+	common.Logger.Info("Server address:", cfg.Server.Address)
+	common.Logger.Info("Auth enabled:", cfg.Auth.Enabled)
+
+	if cfg.Auth.Enabled {
+		common.Logger.Info("OIDC Issuer:", cfg.Auth.OIDC.Issuer)
+		common.Logger.Info("OIDC ClientID:", cfg.Auth.OIDC.ClientID)
+		clientSecretStatus := "not set"
+		if cfg.Auth.OIDC.ClientSecret != "" {
+			clientSecretStatus = "set"
+		}
+		common.Logger.Info("OIDC ClientSecret:", clientSecretStatus)
+	}
+
+	// 7. Log full configuration if debug is enabled
 	if cfg.Server.Debug {
-		common.Logger.Debug("Full configuration:", viper.AllSettings())
+		common.Logger.Debug("Debug mode enabled")
+		// Note: removed viper.AllSettings() as we're moving away from global viper
 	}
 }
 
@@ -77,12 +84,13 @@ func startServer(stop chan struct{}) {
 		address = ":8080" // Default fallback
 	}
 
-	ticker, done := core.NewSanitationScheduler()
-	go core.SanitationJob(ticker, done)
-
 	srv := &http.Server{
-		Addr:    address,
-		Handler: r,
+		Addr:           address,
+		Handler:        r,
+		ReadTimeout:    0,                 // No read timeout for streaming downloads
+		WriteTimeout:   0,                 // No write timeout for streaming downloads
+		IdleTimeout:    120 * time.Second, // Keep connections alive
+		MaxHeaderBytes: 1 << 20,           // 1MB max header size
 	}
 
 	// Start server with SSL/TLS support if enabled
@@ -115,7 +123,4 @@ func startServer(stop chan struct{}) {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.Logger.Fatal("Server forced to shutdown:", err)
 	}
-
-	ticker.Stop()
-	done <- true
 }

@@ -17,7 +17,3 @@ type DirectoryResponse struct {
 	TotalFolderCount   int                     `json:"totalFolderCount"`
 	CumulativeFileSize int                     `json:"cumulativeFileSize"`
 }
-
-type StagedFileResponse struct {
-	Path string `json:"path"`
-}

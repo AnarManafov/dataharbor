@@ -298,6 +298,119 @@ func (c *Controller) ListDirectory(ctx *gin.Context) {
 }
 ```
 
+### File Downloads (Streaming)
+
+DataHarbor implements a secure, efficient file streaming mechanism that downloads files directly from XROOTD without temporary storage:
+
+```go
+// controller/xrd.go
+func (c *Controller) DownloadFile(ctx *gin.Context) {
+    filePath := ctx.Query("path")
+    if filePath == "" {
+        response.ErrorResponse(ctx, http.StatusBadRequest, "File path is required", nil)
+        return
+    }
+    
+    // Validate file path and get user session
+    if err := c.validateFilePath(filePath); err != nil {
+        response.ErrorResponse(ctx, http.StatusBadRequest, "Invalid file path", err)
+        return
+    }
+    
+    session := sessions.Default(ctx)
+    userToken := session.Get("access_token")
+    if userToken == nil {
+        response.ErrorResponse(ctx, http.StatusUnauthorized, "Authentication required", nil)
+        return
+    }
+    
+    // Enforce one download per user
+    if !c.acquireDownloadSlot(session.ID) {
+        response.ErrorResponse(ctx, http.StatusTooManyRequests, 
+            "Download already in progress", nil)
+        return
+    }
+    defer c.releaseDownloadSlot(session.ID)
+    
+    // Stream file directly from XROOTD
+    if err := c.streamFileFromXRD(ctx, filePath, userToken.(string)); err != nil {
+        c.logger.Error("File streaming failed", 
+            zap.String("path", filePath),
+            zap.String("user_token", c.maskToken(userToken.(string))),
+            zap.Error(err))
+        return
+    }
+}
+
+func (c *Controller) streamFileFromXRD(ctx *gin.Context, filePath, userToken string) error {
+    // Set appropriate headers for file download
+    filename := c.sanitizeFilename(filepath.Base(filePath))
+    mimeType := c.detectMimeType(filePath)
+    
+    ctx.Header("Content-Type", mimeType)
+    ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+    ctx.Header("Transfer-Encoding", "chunked")
+    
+    // Execute xrdfs cat command for streaming
+    cmd := exec.Command("xrdfs", c.config.XRD.Server, "cat", filePath)
+    cmd.Env = append(os.Environ(), fmt.Sprintf("XRD_ACCESSTOKEN=%s", userToken))
+    
+    stdout, err := cmd.StdoutPipe()
+    if err != nil {
+        return fmt.Errorf("failed to create stdout pipe: %w", err)
+    }
+    
+    if err := cmd.Start(); err != nil {
+        return fmt.Errorf("failed to start xrdfs command: %w", err)
+    }
+    
+    // Stream file content in chunks
+    buffer := make([]byte, 32*1024) // 32KB buffer
+    for {
+        n, err := stdout.Read(buffer)
+        if n > 0 {
+            if _, writeErr := ctx.Writer.Write(buffer[:n]); writeErr != nil {
+                cmd.Process.Kill()
+                return fmt.Errorf("failed to write to response: %w", writeErr)
+            }
+            ctx.Writer.Flush()
+        }
+        if err == io.EOF {
+            break
+        }
+        if err != nil {
+            cmd.Process.Kill()
+            return fmt.Errorf("failed to read from command: %w", err)
+        }
+    }
+    
+    return cmd.Wait()
+}
+```
+
+**Key Features:**
+
+- **Direct Streaming**: Files stream from XROOTD to client without intermediate storage
+- **Authentication**: Uses user's XROOTD access token for secure file access
+- **Concurrency Control**: Limits one download per user session
+- **Binary Safe**: Handles any file type without corruption
+- **Memory Efficient**: Uses 32KB buffer with immediate flushing
+- **Proper Headers**: Sets MIME type and Content-Disposition for browser downloads
+
+**Performance Benefits:**
+
+- **Zero Disk Usage**: No temporary files or staging directory
+- **Low Memory Footprint**: Streaming with small buffers
+- **Immediate Start**: Download begins as soon as first bytes are available
+- **Scalable**: Multiple users can download simultaneously without disk contention
+
+**Security Advantages:**
+
+- **No Public Exposure**: Files never exist in publicly accessible locations
+- **Per-Request Authentication**: Each download validated against user permissions
+- **Audit Trail**: All download attempts logged with masked user tokens
+- **Path Validation**: Prevents directory traversal attacks
+
 ## Authentication & Authorization
 
 ### OIDC Authentication Flow

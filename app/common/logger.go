@@ -1,54 +1,48 @@
 package common
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	"github.com/AnarManafov/dataharbor/app/config"
 )
 
 var Logger *zap.SugaredLogger
 
-// InitLogger initializes the application's logging infrastructure based on configuration
-// from viper. Supports both file and console logging with different log levels.
-// Falls back to a development console logger if no configuration is found.
-func InitLogger() {
-	// Use viper to support both config files and environment variables
-	viper.SetEnvPrefix("LOGGER")
-	viper.AutomaticEnv()
-
-	loggerList := viper.GetStringMap("logger")
-
-	if len(loggerList) == 0 {
+// initLoggerWithConfig is the main implementation
+func initLoggerWithConfig(cfg *config.LoggingConfig) {
+	if cfg == nil {
 		// Provide a basic development logger if no config exists
 		l, _ := zap.NewDevelopment()
 		Logger = l.Sugar()
 		return
 	}
 
-	// Create cores for each configured logger (file, console, etc.)
-	var cList []zapcore.Core
-	for loggerName := range loggerList {
-		c, err := parseLogger(loggerName)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "parse logger %s failed; err: %s\n", loggerName, err)
-			continue
-		}
+	var cores []zapcore.Core
 
-		cList = append(cList, c)
+	// Add console logging if enabled
+	if cfg.Console.Enabled {
+		cores = append(cores, createConsoleCore(cfg))
 	}
 
-	if len(cList) == 0 {
-		Logger = nil
+	// Add file logging if enabled
+	if cfg.File.Enabled {
+		cores = append(cores, createFileCore(cfg))
+	}
+
+	// If no cores are configured, use a basic development logger
+	if len(cores) == 0 {
+		l, _ := zap.NewDevelopment()
+		Logger = l.Sugar()
 		return
 	}
 
 	// Combine all logging outputs into one logger
-	core := zapcore.NewTee(cList...)
+	core := zapcore.NewTee(cores...)
 	Logger = zap.New(core).WithOptions(zap.WithCaller(true), zap.AddCallerSkip(1)).Sugar()
 }
 
@@ -89,52 +83,88 @@ func Warnf(ctx *gin.Context, template string, arg ...interface{}) {
 	Logger.Warnf(concatTid(ctx, template), arg...)
 }
 
-// parseLogger creates the appropriate zapcore.Core based on logger configuration
-func parseLogger(name string) (zapcore.Core, error) {
-	cnf := viper.Sub("logger." + name)
-	driverName := cnf.GetString("driver")
-	switch driverName {
-	case "console":
-		return parseConsoleConf(cnf), nil
-	case "file":
-		return parseFileConf(cnf), nil
-	default:
-		return nil, fmt.Errorf("invalid logger driver name: \"%s\"", driverName)
+// createConsoleCore creates a console logger core
+func createConsoleCore(cfg *config.LoggingConfig) zapcore.Core {
+	config := zap.NewProductionEncoderConfig()
+	config.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	var encoder zapcore.Encoder
+	if cfg.Console.Format == "json" {
+		encoder = zapcore.NewJSONEncoder(config)
+	} else {
+		encoder = zapcore.NewConsoleEncoder(config)
 	}
+
+	level := getZapLevel(cfg.Console.Level)
+	if level == zapcore.InvalidLevel {
+		level = getZapLevel(cfg.Level) // fallback to global level
+	}
+
+	return zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), level)
 }
 
-// parseFileConf creates a file logger with rotation support
-func parseFileConf(cnf *viper.Viper) zapcore.Core {
-	// Use lumberjack for log rotation to prevent log files from growing indefinitely
+// createFileCore creates a file logger core with rotation
+func createFileCore(cfg *config.LoggingConfig) zapcore.Core {
+	// Use lumberjack for log rotation
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   cnf.GetString("filename"),
-		MaxSize:    cnf.GetInt("maxsize"),
-		MaxBackups: cnf.GetInt("maxbackups"),
-		MaxAge:     cnf.GetInt("maxage"),
-		Compress:   cnf.GetBool("compress"),
+		Filename:   cfg.File.Filename,
+		MaxSize:    cfg.File.MaxSize,
+		MaxBackups: cfg.File.MaxBackups,
+		MaxAge:     cfg.File.MaxAge,
+		Compress:   cfg.File.Compress,
 	}
 
 	config := zap.NewProductionEncoderConfig()
 	config.EncodeTime = zapcore.ISO8601TimeEncoder
-	fileEncoder := zapcore.NewJSONEncoder(config)
-	return zapcore.NewCore(fileEncoder, zapcore.AddSync(lumberjackLogger), getZapLevel(cnf.GetString("level")))
-}
 
-// parseConsoleConf creates a console logger for terminal output
-func parseConsoleConf(cnf *viper.Viper) zapcore.Core {
-	config := zap.NewProductionEncoderConfig()
-	config.EncodeTime = zapcore.ISO8601TimeEncoder
+	var encoder zapcore.Encoder
+	if cfg.File.Format == "json" {
+		encoder = zapcore.NewJSONEncoder(config)
+	} else {
+		encoder = zapcore.NewConsoleEncoder(config)
+	}
 
-	consoleEncoder := zapcore.NewConsoleEncoder(config)
-	return zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), getZapLevel(cnf.GetString("level")))
+	level := getZapLevel(cfg.File.Level)
+	if level == zapcore.InvalidLevel {
+		level = getZapLevel(cfg.Level) // fallback to global level
+	}
+
+	return zapcore.NewCore(encoder, zapcore.AddSync(lumberjackLogger), level)
 }
 
 // getZapLevel converts string level names to zap log levels
 func getZapLevel(levelName string) zapcore.Level {
 	switch levelName {
+	case "debug":
+		return zap.DebugLevel
 	case "info":
 		return zap.InfoLevel
+	case "warn":
+		return zap.WarnLevel
+	case "error":
+		return zap.ErrorLevel
 	default:
-		return zap.DebugLevel
+		return zapcore.InvalidLevel
 	}
+}
+
+// InitLoggerFromViper initializes logger from viper configuration (deprecated)
+// This function is kept for backward compatibility with tests
+func InitLoggerFromViper() {
+	// This is the old implementation - provide a basic development logger
+	l, _ := zap.NewDevelopment()
+	Logger = l.Sugar()
+}
+
+// For backward compatibility with tests that don't pass config
+func InitLogger(args ...*config.LoggingConfig) {
+	if len(args) == 0 || args[0] == nil {
+		// Backward compatibility mode - use development logger
+		l, _ := zap.NewDevelopment()
+		Logger = l.Sugar()
+		return
+	}
+
+	// New implementation with config
+	initLoggerWithConfig(args[0])
 }
