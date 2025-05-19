@@ -1,12 +1,4 @@
-# Changelog## [0.13.10] - 2025-05-05
-
-### Added
-
-- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (fe53bd4)
-- switch to Python script for changelog generation (changelog) (795cddf)
-- automate CHANGELOG and RELEASE_NOTES updates (changelog) (2d841e1)
-
-
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -15,9 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Maintenance
+
+- update dependencies in package.json (3481244)
+
+## [0.13.12] - 2025-05-05
+
 ### Added
 
-- enhance RPM build process and CI workflows (build) [GH-26] (8ae7211)
+- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (562099f)
+- switch to Python script for changelog generation (changelog) (845afa1)
+- automate CHANGELOG and RELEASE_NOTES updates (changelog) (0b1858a)
+
+### Documentation
+
+- Update release notes for v0.13.9 [skip ci] (60f002a)
+- Update changelog for v0.13.10 [skip ci] (4f4d0a8)
+
+### Maintenance
+
+- Update package versions to v0.13.8 [skip ci] (0e32a04)
+- refactor version tag processing jobs (workflow) (2fbcb47)
+
+## [0.13.11] - 2025-05-05
+
+### Maintenance
+
+- refactor version tag processing jobs (workflow) (ace4d8c)
+
+## [0.13.10] - 2025-05-05
+
+### Added
+
+- automate CHANGELOG and RELEASE_NOTES updates (changelog) (2d841e1)
+
+## [0.13.9] - 2025-05-05
+
+### Added
+
+- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (fe53bd4)
+- switch to Python script for changelog generation (changelog) (795cddf)
 
 ### Documentation
 
