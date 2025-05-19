@@ -5,21 +5,22 @@
   "workspaces": [
     ".",
     "web"
-  ],
-  "scripts": {
+  ],  "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd web && npm run dev",
     "dev:backend": "cd app && go run . ${CONFIG_FILE_PATH:+-config $CONFIG_FILE_PATH}",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "cd web && npm run build",
     "build:backend": "cd app && go build .",
-    "sandbox:create": "mkdir -p sandbox/public && cp -r web/public/* sandbox/public/",
-    "sandbox:clean": "rm -rf sandbox",
+    "sandbox:create": "shx mkdir -p sandbox/public && shx cp -r web/public/* sandbox/public/",
+    "sandbox:clean": "shx rm -rf sandbox",
     "sandbox:run": "cd web && npm run sandbox",
     "sync-versions": "node tools/sync-versions.js",
     "prepare-release": "npm run sync-versions && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "shx": "^0.4.0"
   }
 }
