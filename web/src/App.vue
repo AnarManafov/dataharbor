@@ -9,6 +9,7 @@
 <script>
 import GlobalSidebar from './components/GlobalSidebar.vue';
 import useAuth from './composables/useAuth';
+import { onMounted } from 'vue';
 
 export default {
     name: 'App',
@@ -17,7 +18,15 @@ export default {
     },
     setup() {
         // Initialize auth at the root level to ensure auth state is available throughout the application
-        const auth = useAuth();
+        const { checkAuth } = useAuth();
+
+        // Check auth status when the app is mounted
+        // Skip initial auth check on login page to avoid unnecessary API calls and potential redirect loops
+        onMounted(() => {
+            if (window.location.pathname !== '/login') {
+                checkAuth();
+            }
+        });
 
         // No need to return auth as we're using it for initialization only
         // For components needing auth functionality, they should call useAuth() directly

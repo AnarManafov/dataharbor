@@ -72,6 +72,7 @@ DataHarbor is designed for **internal use by developers and system administrator
 
 - **[SETUP.md](./docs/SETUP.md)** - Complete development environment setup and prerequisites
 - **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** - Development workflow, testing, and contribution guidelines
+- **[CONFIGURATION.md](./docs/CONFIGURATION.md)** - Unified configuration system with Viper and environment variables
 
 ### Architecture & Design
 
@@ -85,13 +86,14 @@ DataHarbor is designed for **internal use by developers and system administrator
 
 ### Technical References
 
-| Documentation                                       | Description                                                   |
-| --------------------------------------------------- | ------------------------------------------------------------- |
-| **[API.md](./docs/API.md)**                         | Complete REST API documentation and examples                  |
-| **[XROOTD.md](./docs/XROOTD.md)**                   | XROOTD integration, configuration, and file operations        |
-| **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**           | Production deployment, containerization, and packaging        |
-| **[TESTING.md](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and best practices |
-| **[TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** | Common issues and solutions                                   |
+| Documentation                                       | Description                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------- |
+| **[API.md](./docs/API.md)**                         | Complete REST API documentation and examples                   |
+| **[DOWNLOADS.md](./docs/DOWNLOADS.md)**             | Streaming file download system architecture and implementation |
+| **[XROOTD.md](./docs/XROOTD.md)**                   | XROOTD integration, configuration, and file operations         |
+| **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**           | Production deployment, containerization, and packaging         |
+| **[TESTING.md](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and best practices  |
+| **[TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** | Common issues and solutions                                    |
 
 ## 🔧 Common Development Tasks
 

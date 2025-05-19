@@ -5,11 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.13.13] - 2025-05-19
+
+### Added
+
+- enhance logout process for improved security (auth) [GH-27] (83194d0)
+
+### Documentation
+
+- update changelog and release notes for v0.13.12 (8051ee9)
 
 ### Maintenance
 
 - update dependencies in package.json (3481244)
+- Updated coverage badge. (fcd7dea, 4098de7)
+- update npm scripts for cross-platform (7035c45)
 
 ## [0.13.12] - 2025-05-05
 
