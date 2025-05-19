@@ -4,6 +4,7 @@ import BrowseXrdView from '../views/BrowseXrdView.vue'
 import AboutView from '../views/AboutView.vue'
 import DocumentationView from '../views/DocumentationView.vue'
 import LoginView from '../views/LoginView.vue'
+import DownloadTestView from '../views/DownloadTestView.vue'
 import OidcCallbackComponent from '../components/partials/OidcCallbackComponent.vue'
 import OidcCallbackError from '../components/partials/OidcCallbackError.vue'
 import { useAuth } from '../composables/useAuth'
@@ -23,7 +24,10 @@ const routes = [
         component: BrowseXrdView,
         // Protected routes will redirect to login when user isn't authenticated
         meta: { requiresAuth: true },
-        props: true
+        props: (route) => ({
+            // Convert array path segments to single string
+            path: Array.isArray(route.params.path) ? route.params.path.join('/') : route.params.path
+        })
     },
     {
         path: '/about',
@@ -49,6 +53,12 @@ const routes = [
         component: LoginView,
         meta: { isPublic: true }
     },
+    {
+        path: '/download-test',
+        name: 'downloadTest',
+        component: DownloadTestView,
+        meta: { requiresAuth: true }
+    },
     // Authentication callback routes for OIDC flow
     {
         path: '/oidc-callback',
@@ -68,9 +78,6 @@ const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
     routes
 })
-
-// Create auth instance before router guards run to ensure authentication state is available
-const { checkAuth } = useAuth();
 
 // Global navigation guard to enforce authentication requirements
 router.beforeEach(async (to, from, next) => {
@@ -92,6 +99,8 @@ router.beforeEach(async (to, from, next) => {
     try {
         // For protected routes, verify user is authenticated
         if (requiresAuth) {
+            // Call useAuth inside the guard function where Vue context is available
+            const { checkAuth } = useAuth();
             const isAuthenticated = await checkAuth();
 
             if (!isAuthenticated) {

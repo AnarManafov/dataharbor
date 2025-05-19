@@ -1,40 +1,61 @@
 env: development
 server:
-    address: :22000
-    shutdown_timeout: ""
-    cors:
-        allow_origins: []
-        allow_methods: []
-        allow_headers: []
-        allow_credentials: false
-    ssl:
-        enabled: false
-        cert_file: ""
-        key_file: ""
-log:
-    format: text
-    level: info
-xrd:
-    url: root://localhost:1094
-    user: ""
-    usergroup: ""
-    userpwd: ""
-    user_required: false
-    tls: false
-    client_cert: ""
-    client_key: ""
-auth:
+  address: :22000
+  debug: false
+  shutdown_timeout: 30s
+  cors:
+    allow_origins: []
+    allow_methods: []
+    allow_headers: []
+    allow_credentials: false
+  ssl:
     enabled: false
-    skip_auth_paths:
-        - /health
-    oidc:
-        issuer: ""
-        client_id: ""
-        client_secret: ""
-        discovery_url: ""
-        allowed_roles: []
-        session_secret: ""
+    cert_file: ""
+    key_file: ""
+
+# Unified logging configuration
+logging:
+  level: info
+  format: json
+  console:
+    enabled: true
+    level: info
+    format: text
+  file:
+    enabled: false
+    level: info
+    format: json
+    filename: ./log/dataharbor.log
+    maxsize: 10
+    maxbackups: 5
+    maxage: 30
+    compress: true
+
+xrd:
+  host: localhost
+  port: 1094
+  initial_dir: /tmp
+  user: ""
+  usergroup: ""
+  user_required: false
+  tls: false
+  client_cert: ""
+  client_key: ""
+
+auth:
+  enabled: false
+  skip_auth_paths:
+    - /health
+  oidc:
+    issuer: ""
+    client_id: ""
+    client_secret: ""
+    discovery_url: ""
+    allowed_roles: []
+    session_secret: ""
+    token_refresh_buffer_sec: 60  # Refresh tokens 1 minute before expiration
+
 frontend:
-    url: http://localhost:5173
-    asset_paths: []
-    dist_dir: dist
+  url: http://localhost:5173
+  asset_paths: []
+  dist_dir: dist

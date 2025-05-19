@@ -52,7 +52,7 @@ function handleApiError(error) {
  * Ensures users begin browsing from an accessible and relevant location
  */
 export function getInitialDirPath() {
-    return apiClient.get('/xrd/initialDir')
+    return apiClient.get('/v1/xrd/initialDir')
         .catch(handleApiError);
 }
 
@@ -61,7 +61,7 @@ export function getInitialDirPath() {
  * @param {string} path - Directory to explore
  */
 export function getItemsInDir(path) {
-    return apiClient.post('/xrd/ls/paged', { path, page: 1, pageSize: 500 })
+    return apiClient.post('/v1/xrd/ls/paged', { path, page: 1, pageSize: 500 })
         .catch(handleApiError);
 }
 
@@ -73,7 +73,7 @@ export function getItemsInDir(path) {
  * @param {number} pageSize - Items per page
  */
 export function getPagedItemsInDir(path, page, pageSize) {
-    return apiClient.post('/xrd/ls/paged', {
+    return apiClient.post('/v1/xrd/ls/paged', {
         path,
         page,
         pageSize
@@ -81,13 +81,13 @@ export function getPagedItemsInDir(path, page, pageSize) {
 }
 
 /**
- * Request file preparation for user download
- * Makes XRootD data accessible through HTTP by staging to web-accessible storage
- * @param {string} path - File to prepare for download
+ * Download file directly from XRootD via streaming endpoint
+ * Returns the streaming download URL without requiring file staging
+ * @param {string} path - File path to download
  */
-export function getFileStagedForDownload(path) {
-    return apiClient.post('/xrd/stage', { path })
-        .catch(handleApiError);
+export function getStreamingDownloadUrl(path) {
+    // Return the URL for the streaming download endpoint
+    return `${baseURL}/v1/xrd/download?path=${encodeURIComponent(path)}`;
 }
 
 /**
@@ -95,7 +95,7 @@ export function getFileStagedForDownload(path) {
  * Helps users understand which system they're currently accessing
  */
 export function getHostName() {
-    return apiClient.get('/xrd/hostname')
+    return apiClient.get('/v1/xrd/hostname')
         .catch(handleApiError);
 }
 
