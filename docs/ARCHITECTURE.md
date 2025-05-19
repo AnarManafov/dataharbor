@@ -152,7 +152,27 @@ flowchart TD
     I --> J[UI Refresh]
 ```
 
-### File Staging Process
+### File Download Process (Streaming)
+
+**Current Recommended Approach:**
+
+1. **Request**: User initiates file download via GET request with file path
+2. **Authentication**: Backend validates user session and XROOTD token
+3. **Path Validation**: File path validated for security (no directory traversal)
+4. **Concurrency Check**: Ensures only one download per user session
+5. **Direct Streaming**: File streamed from XROOTD to client using `xrdfs cat`
+6. **Cleanup**: Download slot released upon completion or error
+
+**Benefits:**
+
+- No temporary storage required
+- Immediate download start
+- Secure per-request authentication
+- Memory efficient streaming
+
+### File Staging Process (Legacy)
+
+**Deprecated Approach (maintained for backward compatibility):**
 
 1. **Request**: User requests file staging
 2. **Validation**: Backend validates file path and permissions
@@ -160,6 +180,8 @@ flowchart TD
 4. **Response**: Staged file path returned to frontend
 5. **Download**: User can download from public location
 6. **Cleanup**: Sanitation job removes expired staged files
+
+**Note**: The staging approach is deprecated in favor of direct streaming for security and efficiency reasons.
 
 ## Design Patterns
 

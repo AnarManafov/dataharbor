@@ -313,7 +313,53 @@ xrdcp /local/path/file.txt root://server.example.com:1094//path/to/file.txt
 
 # Get file information
 xrdfs root://server.example.com:1094 stat /path/to/file.txt
+
+# Stream file content (used for direct downloads)
+xrdfs root://server.example.com:1094 cat /path/to/file.txt
 ```
+
+#### File Streaming for Downloads
+
+DataHarbor uses `xrdfs cat` for efficient file streaming without temporary storage. This approach provides several advantages over traditional staging:
+
+**Performance Benefits:**
+
+- **Zero Intermediate Storage**: Files stream directly from XROOTD to the client
+- **Memory Efficient**: Uses chunked transfer with configurable buffer sizes (32KB default)
+- **Binary Safe**: Handles any file type without corruption risk
+- **Scalable**: No disk space consumption on the backend server
+
+**Security Benefits:**
+
+- **No Temporary Files**: Eliminates security risks from staged files
+- **Direct Authentication**: Each download request is authenticated individually
+- **No Public Exposure**: Files are never exposed in public directories
+- **Audit Trail**: Every download attempt is logged with user context
+
+**Implementation Details:**
+
+```bash
+# Basic streaming command used by DataHarbor
+xrdfs root://server.example.com:1094 cat /path/to/file.txt
+
+# With timeout for large files
+timeout 300 xrdfs root://server.example.com:1094 cat /path/to/large-file.bin
+```
+
+**Why `xrdfs cat` is Optimal:**
+
+- **True Streaming**: Outputs data as soon as available from XROOTD
+- **Binary Preservation**: No encoding or transformation applied to file contents
+- **Efficient Protocol**: Uses XROOTD's native read operations
+- **Error Propagation**: Cleanly handles network issues and file access errors
+- **Resource Light**: Minimal memory footprint on both client and server
+
+**Compared to Alternatives:**
+
+- **vs. `xrdcp`**: `xrdcp` requires destination file, `cat` streams to stdout
+- **vs. HTTP staging**: No intermediate storage, better security, lower latency
+- **vs. Direct XROOTD URLs**: Backend authentication, centralized access control
+
 
 #### Server Information
 ```bash

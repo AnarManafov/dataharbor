@@ -19,7 +19,7 @@
     "prepare-release": "npm run sync-versions && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
+    "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
     "shx": "^0.4.0"
   }

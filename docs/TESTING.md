@@ -11,24 +11,71 @@ This document covers the existing test structure and commands for running tests 
 
 ## Backend Testing (Go)
 
-### Current Test Structure
+### Test Structure
 
 ```text
 app/
+├── common/
+│   ├── logger_test.go
+│   ├── sysconf_test.go
+│   └── xrd_test.go
 ├── controller/
 │   ├── auth_test.go
 │   ├── fs_test.go
-│   └── health_test.go
-├── middleware/
-│   ├── auth_middleware_test.go
-│   └── cors_test.go
-├── common/
-│   ├── logger_test.go
+│   ├── health_test.go
+│   ├── main_test.go
 │   └── xrd_test.go
+├── middleware/
+│   ├── access_middleware_test.go
+│   ├── auth_middleware_test.go
+│   ├── cors_test.go
+│   ├── main_test.go
+│   ├── recovery_test.go
+│   └── trace_middleware_test.go
+├── response/
+│   ├── error_test.go
+│   └── response_test.go
+├── route/
+│   ├── main_test.go
+│   └── routes_test.go
+├── test/
+│   ├── config_benchmark_test.go
+│   └── config_integration_test.go
+├── util/
+│   └── util_test.go
 └── main_test.go
 ```
 
-### Running Backend Tests
+### Test Types
+
+- **Unit Tests**: Located throughout `app/` subdirectories (e.g., controller, middleware, common, response, route, util). These test individual functions or components in isolation.
+- **Integration Tests**: In `app/test/config_integration_test.go`, covering configuration and XROOTD client logic working together.
+- **Benchmark Tests**: In `app/test/config_benchmark_test.go`, measuring performance of XROOTD client creation and related operations.
+
+### Running Integration and Benchmark Tests
+
+To run only the integration tests:
+
+```bash
+cd app/test
+go test -v -run Integration
+```
+
+To run only the benchmark tests (benchmarks are NOT run by default):
+
+```bash
+cd app/test
+go test -bench . -benchmem
+```
+
+To run all tests (unit, integration, etc.) in the `app/test` directory (does NOT include benchmarks):
+
+```bash
+cd app/test
+go test -v ./...
+```
+
+### Running All Backend Tests
 
 ```bash
 cd app
@@ -130,37 +177,3 @@ npm test -- --watch FileExplorer.test.js
 # Frontend: Debug mode
 npm run test:debug
 ```
-
-## Test Types
-
-### Unit Tests
-- Individual function and method testing
-- Isolated component testing  
-- Mock external dependencies (XROOTD, OIDC)
-
-### Integration Tests
-- API endpoint testing
-- Authentication flow testing
-- File system operations
-
-### End-to-End Tests
-- Complete user workflows
-- Cross-browser compatibility
-- Full authentication flow
-
-## Best Practices
-
-1. **Test Organization**
-   - Keep tests close to source code
-   - Use descriptive test names
-   - Group related tests together
-
-2. **Mock Usage**
-   - Mock external dependencies (XROOTD, OIDC providers)
-   - Use dependency injection for testability
-   - Reset mocks between tests
-
-3. **Performance**
-   - Keep unit tests fast (< 100ms each)
-   - Use parallel execution where possible
-   - Optimize test data setup/teardown

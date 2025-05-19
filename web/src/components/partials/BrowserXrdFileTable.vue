@@ -21,7 +21,8 @@
         </el-table-column>
         <el-table-column prop='size' label='Size' sortable="custom" width='150'>
             <template #default='scope'>
-                {{ filters.prettyBytes(scope.row.size) }}
+                <span v-if='scope.row.name === ".."'>-</span>
+                <span v-else>{{ filters.prettyBytes(scope.row.size) }}</span>
             </template>
         </el-table-column>
         <el-table-column prop='date_time' label='Date' sortable="custom" width='200' />
@@ -32,12 +33,22 @@
                 </el-tag>
             </template>
         </el-table-column>
+        <el-table-column label='Actions' width='100' fixed="right" class-name="actions-column">
+            <template #default='scope'>
+                <div class="actions-wrapper">
+                    <el-button v-if='scope.row.type === "file" && scope.row.name !== ".."'
+                        @click='downloadFile(scope.row)' size='small' type='primary' :icon='Download'
+                        :loading='scope.row.downloading' :disabled='scope.row.downloading' circle>
+                    </el-button>
+                </div>
+            </template>
+        </el-table-column>
     </el-table>
 </template>
 
 <script lang="ts" setup>
 import { ref, computed } from 'vue';
-import { Folder, Document, ArrowUp } from '@element-plus/icons-vue';
+import { Folder, Document, ArrowUp, Download } from '@element-plus/icons-vue';
 
 const props = defineProps({
     filteredData: {
@@ -55,11 +66,16 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['selectDir']);
+const emit = defineEmits(['selectDir', 'downloadFile']);
 
 // Sorting state
 const sortProp = ref('name');
 const sortOrder = ref('ascending');
+
+// Handle download action
+const downloadFile = (row: any) => {
+    emit('downloadFile', row);
+};
 
 // Computed property for sorted data that keeps ".." at the top
 const sortedData = computed(() => {
@@ -134,5 +150,31 @@ const selectDir = (row: { type: string; name: string }) => {
 
 .clickable:hover {
     text-decoration: underline;
+}
+
+/* Actions column styling */
+.actions-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-right: 8px;
+    /* Add right padding to prevent scrollbar overlap */
+}
+
+/* Ensure actions column has proper spacing */
+:deep(.actions-column) {
+    padding-right: 16px !important;
+    /* Extra padding for the column itself */
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 768px) {
+    .actions-wrapper {
+        padding-right: 4px;
+    }
+
+    :deep(.actions-column) {
+        padding-right: 8px !important;
+    }
 }
 </style>

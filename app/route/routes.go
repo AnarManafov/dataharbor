@@ -60,12 +60,20 @@ func SetupRouter(r *gin.Engine) {
 	api := r.Group("/api")
 	api.Use(controller.SessionAuthMiddleware())
 
+	// API v1 routes group for versioning
+	v1 := api.Group("/v1")
+
 	// XRootD file system exploration and download endpoints
-	api.GET("/xrd/ls", controller.ListDirectory)
-	api.GET("/xrd/initialDir", controller.FetchInitialDir)
-	api.POST("/xrd/stage", controller.FetchFileStagedForDownload)
-	api.GET("/xrd/hostname", controller.FetchHostName)
-	api.POST("/xrd/ls/paged", controller.FetchDirItemsByPage)
+	v1.GET("/xrd/ls", controller.ListDirectory)
+	v1.GET("/xrd/initialDir", controller.FetchInitialDir)
+	v1.GET("/xrd/download", controller.DownloadFile)
+	v1.GET("/xrd/hostname", controller.FetchHostName)
+	v1.POST("/xrd/ls/paged", controller.FetchDirItemsByPage)
+
+	// Future: Multi-file download endpoints (interface prepared, implementation pending)
+	// v1.POST("/xrd/download/batch", controller.DownloadMultipleFiles)     // Start batch download
+	// v1.GET("/xrd/download/status/:id", controller.GetDownloadStatus)     // Check batch progress
+	// v1.DELETE("/xrd/download/:id", controller.CancelDownload)            // Cancel download
 
 	// Setup frontend static files
 	setupStaticFiles(r)

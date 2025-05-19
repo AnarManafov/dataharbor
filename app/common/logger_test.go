@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/AnarManafov/dataharbor/app/config"
 )
 
 func TestInitLogger_Default(t *testing.T) {
@@ -92,18 +94,24 @@ func TestInitLogger_InvalidConfig(t *testing.T) {
 	viper.Reset()
 	DestroyLogger()
 
-	// Setup invalid logger configuration
-	viper.Set("logger.custom", map[string]interface{}{
-		"type": "invalid",
-	})
+	// Create invalid logger configuration
+	invalidConfig := &config.LoggingConfig{
+		Level: "invalid_level", // This will fallback to info level
+		Console: config.ConsoleConfig{
+			Enabled: false,
+		},
+		File: config.FileConfig{
+			Enabled: false,
+		},
+	}
 
-	t.Log("DEBUG")
-	// Initialize the logger
-	InitLogger()
+	// Initialize the logger with invalid config
+	InitLogger(invalidConfig)
 
-	// Check if Logger is nil or if an error is logged
-	if Logger != nil {
-		t.Fatal("Expected Logger to be nil with invalid configuration, but it was initialized")
+	// Check if Logger is initialized (it should be, even with invalid config)
+	// Our new implementation provides a fallback development logger
+	if Logger == nil {
+		t.Fatal("Expected Logger to be initialized even with invalid configuration, but it was nil")
 	}
 }
 
@@ -205,22 +213,9 @@ func TestLogger_Levels(t *testing.T) {
 }
 
 func TestParseConsoleConf(t *testing.T) {
-	// Initialize viper and set configuration values
-	cnf := viper.New()
-	cnf.Set("level", "info")
-
-	// Call the parseConsoleConf function
-	core := parseConsoleConf(cnf)
-
-	// Assertions
-	if core == nil {
-		t.Fatalf("Expected zapcore.Core, got nil")
-	}
-
-	// Check if the core is configured correctly
-	// This is a bit tricky since zapcore.Core doesn't expose its configuration directly
-	// We can only check if it's not nil and assume it's configured correctly based on the input
-	// Further checks would require more complex reflection or integration tests
+	// This test is deprecated as parseConsoleConf function was removed
+	// in favor of createConsoleCore which requires the full config structure
+	t.Skip("parseConsoleConf function has been removed in the unified configuration refactor")
 }
 
 func TestConcatTid(t *testing.T) {
