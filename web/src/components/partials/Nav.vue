@@ -43,14 +43,40 @@
             <div class="navbar-end">
                 <div class="navbar-item">
                     <div class="buttons">
+                        <!-- Show login button if not authenticated -->
                         <el-button v-if="!isAuthenticated" type="primary" @click="handleLogin">
-                            Log In
+                            <el-icon class="el-icon--left">
+                                <User />
+                            </el-icon>
+                            <span>Log In</span>
                         </el-button>
-                        <div v-else class="user-profile">
-                            <span class="welcome-message">Welcome, {{ userName }}!</span>
-                            <el-button type="danger" size="small" @click="showLogoutConfirmation">
-                                Logout
-                            </el-button>
+
+                        <!-- Show user profile if authenticated -->
+                        <div v-else class="user-profile-container">
+                            <div class="user-profile">
+                                <el-tooltip v-if="userEmail" effect="dark" :content="userEmail"
+                                    placement="bottom-start">
+                                    <el-avatar :size="40" :src="userAvatar" :icon="User" class="user-avatar"
+                                        :aria-label="'User avatar for ' + (userFullName || 'unknown user')">
+                                        {{ userInitials }}
+                                    </el-avatar>
+                                </el-tooltip>
+
+                                <el-avatar v-else :size="40" :icon="User" class="user-avatar"
+                                    :aria-label="'User avatar for ' + (userFullName || 'unknown user')">
+                                    {{ userInitials }}
+                                </el-avatar>
+
+                                <div class="user-info">
+                                    <div class="user-login">{{ userLogin }}</div>
+                                    <div class="user-name">{{ userFullName }}</div>
+                                </div>
+
+                                <el-button type="danger" size="small" @click="showLogoutConfirmation"
+                                    class="logout-btn">
+                                    Logout
+                                </el-button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -64,9 +90,13 @@ import { useAuth } from '../../composables/useAuth';
 import { computed } from 'vue';
 import { ElMessageBox } from 'element-plus';
 import { useRouter } from 'vue-router';
+import { User } from '@element-plus/icons-vue';
 
 export default {
     name: 'Nav',
+    components: {
+        User
+    },
     setup() {
         const { isAuthenticated, user, logout, login } = useAuth();
         const router = useRouter();
@@ -95,12 +125,110 @@ export default {
             });
         };
 
+        // Get user login (username or ID)
+        const userLogin = computed(() => {
+            if (!user.value) return 'User';
+
+            // Preferred username is the ideal login value
+            if (user.value.preferred_username) {
+                return user.value.preferred_username;
+            }
+
+            // Email username as a fallback
+            if (user.value.email) {
+                return user.value.email.split('@')[0]; // Just the part before @
+            }
+
+            // Subject ID as last resort
+            if (user.value.sub) {
+                return user.value.sub;
+            }
+
+            return 'User';
+        });
+
+        // Get user's full name
+        const userFullName = computed(() => {
+            if (!user.value) return '';
+
+            // Full name is the best option for display name
+            if (user.value.name) {
+                return user.value.name;
+            }
+
+            // Combine given name and family name if available
+            if (user.value.given_name && user.value.family_name) {
+                return `${user.value.given_name} ${user.value.family_name}`;
+            }
+
+            // Given name only
+            if (user.value.given_name) {
+                return user.value.given_name;
+            }
+
+            // Fall back to username if no name is available
+            if (user.value.preferred_username) {
+                return user.value.preferred_username;
+            }
+
+            return '';
+        });
+
+        // Get user's email for tooltip
+        const userEmail = computed(() => {
+            if (!user.value) return '';
+            return user.value.email || '';
+        });
+
+        // Get user's initials for avatar fallback
+        const userInitials = computed(() => {
+            if (!user.value) return '';
+
+            // From full name
+            if (user.value.name) {
+                const names = user.value.name.split(' ');
+                if (names.length >= 2) {
+                    return (names[0][0] + names[1][0]).toUpperCase();
+                } else if (names.length === 1 && names[0].length > 0) {
+                    return names[0][0].toUpperCase();
+                }
+            }
+
+            // From given name and family name
+            if (user.value.given_name && user.value.family_name) {
+                return (user.value.given_name[0] + user.value.family_name[0]).toUpperCase();
+            }
+
+            // From preferred username
+            if (user.value.preferred_username) {
+                return user.value.preferred_username[0].toUpperCase();
+            }
+
+            // From email
+            if (user.value.email) {
+                return user.value.email[0].toUpperCase();
+            }
+
+            return '';
+        });
+
+        // Get user's avatar URL if available
+        const userAvatar = computed(() => {
+            if (!user.value) return '';
+            return user.value.picture || '';  // OpenID standard claim for avatar
+        });
+
         return {
             isAuthenticated,
             showLogoutConfirmation,
             handleLogin,
-            // Try multiple standard OIDC claims for the user's name
-            // Order of preference: given_name, name, preferred_username, email, sub
+            User,
+            userLogin,
+            userFullName,
+            userEmail,
+            userInitials,
+            userAvatar,
+            // Keep for backward compatibility
             userName: computed(() => {
                 if (!user.value) return 'User';
 
@@ -184,12 +312,58 @@ nav {
     /* Changes cursor to default arrow */
 }
 
-.user-profile {
+.user-profile-container {
     display: flex;
     align-items: center;
 }
 
-.welcome-message {
-    margin-right: 8px;
+.user-profile {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+
+    &:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+}
+
+.user-avatar {
+    margin-right: 12px;
+    background-color: var(--el-color-primary);
+    color: #fff;
+    cursor: pointer;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: column;
+    margin-right: 16px;
+}
+
+.user-login {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.user-name {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+}
+
+.logout-btn {
+    margin-left: 8px;
+}
+
+/* Scope element-plus button styles to this component only */
+.navbar-end .el-button {
+    display: flex;
+    align-items: center;
+}
+
+.navbar-end .el-icon--left {
+    display: flex;
+    margin-right: 4px;
 }
 </style>
