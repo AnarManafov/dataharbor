@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/AnarManafov/dataharbor/app/common"
 
 	"github.com/gin-gonic/gin"
 )

@@ -23,7 +23,7 @@ export default {
 
     // UI customization
     ui: {
-        appTitle: 'Data Lake UI',
+        appTitle: 'DataHarbor',
         initialPageSize: 100,
     }
 };

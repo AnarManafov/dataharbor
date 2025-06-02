@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/config"
-	"github.com/AnarManafov/data_lake_ui/app/core"
-	"github.com/AnarManafov/data_lake_ui/app/route"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
+	"github.com/AnarManafov/dataharbor/app/core"
+	"github.com/AnarManafov/dataharbor/app/route"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"

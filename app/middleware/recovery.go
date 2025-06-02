@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/AnarManafov/data_lake_ui/app/response"
+	"github.com/AnarManafov/dataharbor/app/response"
 
 	"github.com/gin-gonic/gin"
 )

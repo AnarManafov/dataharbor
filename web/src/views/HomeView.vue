@@ -3,7 +3,7 @@
         <section class='hero is-dark'>
             <div class='hero-body'>
                 <div class='container'>
-                    <h1 class='title'>Welcome to Data Lake UI</h1>
+                    <h1 class='title'>Welcome to DataHarbor</h1>
                     <h2 class='subtitle'>
                         Browsing GSI Lustre made easy
                     </h2>

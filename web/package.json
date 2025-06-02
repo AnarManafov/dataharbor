@@ -1,5 +1,5 @@
 {
-  "name": "data_lake_ui_frontend",
+  "name": "dataharbor_frontend",
   "version": "0.13.7",
   "private": true,
   "type": "module",
@@ -8,8 +8,8 @@
     "dev:with-config": "VITE_CONFIG_FILE_PATH='/config.json' vite",
     "dev:env-certs": "vite",
     "sandbox:env-certs": "vite --config vite.sandbox.config.js",
-    "dev:pkm-certs": "VITE_SSL_KEY=\"$HOME/Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/server.key\" VITE_SSL_CERT=\"$HOME/Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/server.crt\" vite",
-    "sandbox:pkm-certs": "VITE_SSL_KEY=\"$HOME/Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/server.key\" VITE_SSL_CERT=\"$HOME/Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/server.crt\" vite --config vite.sandbox.config.js",
+    "dev:pkm-certs": "VITE_SSL_KEY=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.key\" VITE_SSL_CERT=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.crt\" vite",
+    "sandbox:pkm-certs": "VITE_SSL_KEY=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.key\" VITE_SSL_CERT=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.crt\" vite --config vite.sandbox.config.js",
     "build": "vite build",
     "preview": "vite preview",
     "sandbox": "vite --config vite.sandbox.config.js",
