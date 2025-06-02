@@ -1,44 +1,34 @@
 <template>
-    <div>
-        <el-divider />
-    </div>
-    <el-container class='layout-file-tree-container'>
-        <el-container>
-            <el-aside width='200px'>
-                <el-scrollbar>
-                    <SidebarMenu />
-                </el-scrollbar>
-            </el-aside>
+    <div class="browse-view">
+        <el-container class="file-browser-container">
+            <el-header class="toolbar-header">
+                <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
+                    :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
+                    :folderCount="folderCount" :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
+                    :totalFolderCount="totalFolderCount" :totalFileCount="totalFileCount"
+                    :totalFileSize="cumulativeFileSize" @changeDirToInitialPath="changeDirToInitialPath"
+                    @changeDir="changeDir" />
+            </el-header>
             <el-container>
-                <el-header class="toolbar-header">
-                    <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
-                        :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
-                        :folderCount="folderCount" :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
-                        :totalFolderCount="totalFolderCount" :totalFileCount="totalFileCount"
-                        :totalFileSize="cumulativeFileSize" @changeDirToInitialPath="changeDirToInitialPath"
-                        @changeDir="changeDir" />
+                <el-header class="pagination-header">
+                    <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
+                        :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
                 </el-header>
-                <el-container>
-                    <el-header class="pagination-header">
-                        <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
-                            :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
-                    </el-header>
-                    <el-main>
-                        <el-scrollbar>
-                            <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
-                                @selectDir="selectDir" />
-                            <!-- Show a button to back to top -->
-                            <el-backtop :right="100" :bottom="25" />
-                        </el-scrollbar>
-                    </el-main>
-                    <el-footer class="pagination-footer">
-                        <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
-                            :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
-                    </el-footer>
-                </el-container>
+                <el-main class="file-table-main">
+                    <el-scrollbar>
+                        <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
+                            @selectDir="selectDir" />
+                        <!-- Show a button to back to top -->
+                        <el-backtop :right="40" :bottom="40" />
+                    </el-scrollbar>
+                </el-main>
+                <el-footer class="pagination-footer">
+                    <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
+                        :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
+                </el-footer>
             </el-container>
         </el-container>
-    </el-container>
+    </div>
 </template>
 
 <script lang="ts" setup>
@@ -50,7 +40,6 @@ import axios from 'axios';
 import { useStorage } from '@vueuse/core'
 import { displayErrorMessage, joinPaths } from '@/utils/utils';
 import Toolbar from '../components/partials/BrowserXrdToolbar.vue';
-import SidebarMenu from '../components/partials/BrowserXrdSidebarMenu.vue';
 import FileTable from '../components/partials/BrowserXrdFileTable.vue';
 
 // Define props
@@ -472,40 +461,70 @@ onBeforeUnmount(() => {
 
 
 <style scoped>
-.layout-file-tree-container .el-header {
+.browse-view {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-browser-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-browser-container .el-header {
     position: sticky;
-    /* background-color: var(--el-color-primary-light-7);*/
+    top: 0;
+    z-index: 10;
+    background: var(--el-bg-color);
+    border-bottom: 1px solid var(--el-border-color-light);
     color: var(--el-text-color-primary);
     text-align: center;
+    height: auto;
+    padding: 16px 24px;
 }
 
-.layout-file-tree-container .el-aside {
-    color: var(--el-text-color-primary);
-    /*background: var(--el-color-primary-light-8);*/
-}
-
-.layout-file-tree-container .el-main {
-    padding-right: 20px;
-    padding-bottom: 20px;
+.file-table-main {
+    flex: 1;
+    padding: 16px 24px;
+    background: var(--el-bg-color-page);
+    overflow: hidden;
 }
 
 .toolbar-header {
     /* Ensure the toolbar is above other elements */
-    z-index: 2;
+    z-index: 12;
 }
 
 .pagination-header,
 .pagination-footer {
-    z-index: 1;
+    z-index: 11;
     display: flex;
     justify-content: center;
+    background: var(--el-bg-color);
+    border-bottom: 1px solid var(--el-border-color-light);
+    padding: 12px 24px;
+    height: auto;
 }
 
 .pagination-header {
-    margin-top: 40px;
+    border-top: 1px solid var(--el-border-color-light);
 }
 
 .pagination-footer {
-    margin-bottom: 10px;
+    border-top: 1px solid var(--el-border-color-light);
+    border-bottom: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+
+    .file-browser-container .el-header,
+    .file-table-main,
+    .pagination-header,
+    .pagination-footer {
+        padding: 12px 16px;
+    }
 }
 </style>

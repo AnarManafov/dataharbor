@@ -1,20 +1,19 @@
 <template>
     <div id="app">
-        <Nav />
-        <div class="container is-fluid">
+        <GlobalSidebar>
             <router-view />
-        </div>
+        </GlobalSidebar>
     </div>
 </template>
 
 <script>
-import Nav from './components/partials/Nav.vue';
+import GlobalSidebar from './components/GlobalSidebar.vue';
 import useAuth from './composables/useAuth';
 
 export default {
     name: 'App',
     components: {
-        Nav
+        GlobalSidebar
     },
     setup() {
         // Initialize auth at the root level to ensure auth state is available throughout the application
@@ -33,10 +32,8 @@ export default {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #2c3e50;
-}
-
-.container {
-    margin-top: 20px;
+    height: 100vh;
+    overflow: hidden;
 }
 
 .centered {
