@@ -3,7 +3,7 @@
         <div class='hero is-primary'>
             <div class='hero-body'>
                 <div class='container'>
-                    <h1 class='title is-size-1'>About Data Lake UI</h1>
+                    <h1 class='title is-size-1'>About DataHarbor</h1>
                 </div>
             </div>
         </div>

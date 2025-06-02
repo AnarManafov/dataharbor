@@ -45,10 +45,10 @@ export function getCertPaths() {
         },
 
         // PKM workspace location (your specific case)
-        generateCertPaths(__dirname, '../../pkm/docs/gsi/data-lake-ui/test/cert/server.key', '../../pkm/docs/gsi/data-lake-ui/test/cert/server.crt', 'PKM workspace (relative)'),
+        generateCertPaths(__dirname, '../../pkm/docs/gsi/dataharbor/test/cert/server.key', '../../pkm/docs/gsi/dataharbor/test/cert/server.crt', 'PKM workspace (relative)'),
 
         // Common PKM locations on different platforms
-        generateCertPaths(process.env.HOME || process.env.USERPROFILE || '', 'Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/server.key', 'Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/server.crt', 'PKM in user home'),
+        generateCertPaths(process.env.HOME || process.env.USERPROFILE || '', 'Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.key', 'Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.crt', 'PKM in user home'),
 
         // Original fallback location
         generateCertPaths(__dirname, '../app/config/server.key', '../app/config/server.crt', 'local app/config')

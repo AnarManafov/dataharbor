@@ -3,8 +3,8 @@ package middleware
 import (
 	"strings"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/config"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 )

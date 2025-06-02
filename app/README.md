@@ -118,7 +118,7 @@ It might be an overkill to containerize it. But just in case it is needed, a [Po
 ### Build a Podman container
 
 ```shell
-podman build -t data_lake_ui_frontend:0.0.4 .
+podman build -t dataharbor_backend:0.0.4 .
 ```
 
 ,where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
@@ -126,7 +126,7 @@ podman build -t data_lake_ui_frontend:0.0.4 .
 ### Run a Podman container
 
 ```shell
-podman run --network=host data_lake_ui_backend:0.0.4
+podman run --network=host dataharbor_backend:0.0.4
 ```
 
 ### Known issues
@@ -141,7 +141,7 @@ This link helps with some Podman on OSX issues: <https://github.com/ansible/vsco
 
 ### RPM
 
-- SPEC File: [data-lake-ui-backend.spec](../packaging/data-lake-ui-backend.spec)
+- SPEC File: [dataharbor-backend.spec](../packaging/dataharbor-backend.spec)
 - To build the package:
   
   ```shell
@@ -152,9 +152,9 @@ This link helps with some Podman on OSX issues: <https://github.com/ansible/vsco
   python3 packaging/build_rpm.py -b
   ```
 
-- Package name: `data-lake-ui-frontend-<VERSION>-<RELEASE>.noarch.rpm`
+- Package name: `dataharbor-backend-<VERSION>-<RELEASE>.noarch.rpm`
 
-The package will install a backend executable, statically linked, as `/usr/local/bin/data-lake-ui-backend`.
+The package will install a backend executable, statically linked, as `/usr/local/bin/dataharbor-backend`.
 
 ## Dev Tips
 

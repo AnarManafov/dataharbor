@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/request"
-	"github.com/AnarManafov/data_lake_ui/app/response"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/request"
+	"github.com/AnarManafov/dataharbor/app/response"
 
 	"github.com/gin-gonic/gin"
 )

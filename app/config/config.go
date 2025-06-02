@@ -101,7 +101,7 @@ func LoadConfig(configFile string) (*Config, error) {
 			"config/application.yaml",
 			"application.yaml",
 			"../config/application.yaml",
-			"/etc/data-lake-ui/config/application.yaml",
+			"/etc/dataharbor/config/application.yaml",
 		}
 
 		for _, loc := range locations {

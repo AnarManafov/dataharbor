@@ -52,8 +52,8 @@ The development server uses HTTPS with self-signed certificates for testing. The
    ```
 
 2. **PKM workspace** (for documentation/testing):
-   - Relative path: `../../pkm/docs/gsi/data-lake-ui/test/cert/`
-   - User home: `~/Documents/workspace/pkm/docs/gsi/data-lake-ui/test/cert/`
+   - Relative path: `../../pkm/docs/gsi/dataharbor/test/cert/`
+   - User home: `~/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/`
 
 3. **Local fallback**: `../app/config/` (original location)
 
@@ -94,7 +94,7 @@ The container includes nginx, therefore once started can be used out of the box.
 ### Build a Podman container
 
 ```shell
-podman build -t data_lake_ui_backend:0.4.0 .
+podman build -t dataharbor_frontend:0.4.0 .
 ```
 
 , where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
@@ -102,7 +102,7 @@ podman build -t data_lake_ui_backend:0.4.0 .
 ### Run a Podman container
 
 ```shell
-podman run -p 8080:8080 data_lake_ui_frontend:0.4.0
+podman run -p 8080:8080 dataharbor_frontend:0.4.0
 ```
 
 The nginx of the container will be serving on port 8080, which can be changed if needed, of course.
@@ -111,7 +111,7 @@ The nginx of the container will be serving on port 8080, which can be changed if
 
 ### RPM
 
-- SPEC File: [data-lake-ui-frontend.spec](../packaging/data-lake-ui-frontend.spec)
+- SPEC File: [dataharbor-frontend.spec](../packaging/dataharbor-frontend.spec)
 - To build the package:
 
   ```shell
@@ -122,12 +122,12 @@ The nginx of the container will be serving on port 8080, which can be changed if
   python3 packaging/build_rpm.py -b
   ```
 
-- Package name: `data-lake-ui-frontend-<VERSION>-<RELEASE>.noarch.rpm`
+- Package name: `dataharbor-frontend-<VERSION>-<RELEASE>.noarch.rpm`
 
 The package will install:
 
-- all frontend required files into `/usr/share/data-lake-ui-frontend`.
-- [ngingx.conf](./nginx.conf) into `/etc/data-lake-ui-frontend/ngingx/ngingx.conf`
+- all frontend required files into `/usr/share/dataharbor-frontend`.
+- [ngingx.conf](./nginx.conf) into `/etc/dataharbor-frontend/ngingx/ngingx.conf`
 
 ```shell
 ## Check locations of installed files
@@ -152,7 +152,7 @@ http {
 Create a symbolic link to your custom configuration file in the `sites-available` and `sites-enabled`:
 
 ```shell
-sudo ln -s /etc/data-lake-ui-frontend/nginx/nginx.conf /etc/nginx/sites-available/nginx.conf
+sudo ln -s /etc/dataharbor-frontend/nginx/nginx.conf /etc/nginx/sites-available/nginx.conf
 
 sudo ln -s /etc/nginx/sites-available/nginx.conf /etc/nginx/sites-enabled/nginx.conf
 

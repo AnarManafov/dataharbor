@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )

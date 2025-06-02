@@ -1,5 +1,5 @@
 """
-This script builds RPM packages for the data-lake-ui application.
+This script builds RPM packages for the dataharbor application.
 
 Functions:
     build_package(app_name, source_dir, spec_file, version):
@@ -199,11 +199,11 @@ def main():
         # Try to get from root package.json
         version = get_package_version("package.json")
 
-    app_name_backend = "data-lake-ui-backend"
+    app_name_backend = "dataharbor-backend"
     source_dir_backend = "app"
     spec_file_backend = f"packaging/{app_name_backend}.spec"
 
-    app_name_frontend = "data-lake-ui-frontend"
+    app_name_frontend = "dataharbor-frontend"
     source_dir_frontend = "web"
     spec_file_frontend = f"packaging/{app_name_frontend}.spec"
     nginx_conf_path = "web/nginx.conf"
