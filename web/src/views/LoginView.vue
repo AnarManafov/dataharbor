@@ -1,30 +1,51 @@
 <!-- src/views/LoginView.vue -->
 <template>
     <div class="login-view">
-        <el-card class="login-card">
-            <template #header>
-                <div class="card-header">
-                    <h3>Login</h3>
+        <div class="login-container">
+            <div class="login-header">
+                <div class="logo-section">
+                    <img src="/assets/dataharbor-logo.svg" alt="DataHarbor" class="logo" />
+                    <h1>DataHarbor</h1>
                 </div>
-            </template>
+                <p class="login-subtitle">Sign in to access your files</p>
+            </div>
 
-            <div v-if="loading" class="text-center">
-                <el-icon class="loading-icon">
-                    <Loading />
-                </el-icon>
-                <p class="loading-text">Authenticating...</p>
+            <el-card class="login-card" shadow="hover">
+                <div v-if="loading" class="loading-section">
+                    <el-icon class="loading-icon">
+                        <Loading />
+                    </el-icon>
+                    <p class="loading-text">Authenticating...</p>
+                </div>
+                <div v-else class="login-content">
+                    <h2>Welcome Back</h2>
+                    <p class="login-description">
+                        Please sign in with your GSI account to access the file browser and other protected resources.
+                    </p>
+
+                    <div class="login-form">
+                        <el-button type="primary" :loading="loading" size="large" class="login-button"
+                            @click="handleLogin">
+                            <el-icon class="button-icon">
+                                <User />
+                            </el-icon>
+                            Sign in with GSI Account
+                        </el-button>
+
+                        <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon class="error-alert"
+                            :closable="false" />
+                    </div>
+
+                    <div class="help-section">
+                        <p>Need help? <a href="#" class="help-link">Contact Support</a></p>
+                    </div>
+                </div>
+            </el-card>
+
+            <div class="login-footer">
+                <p>&copy; 2025 DataHarbor. All rights reserved.</p>
             </div>
-            <div v-else>
-                <p class="card-text">
-                    Please login to access protected resources.
-                </p>
-                <el-button type="primary" :loading="loading" size="large" class="login-button" @click="handleLogin">
-                    Login with GSI Account
-                </el-button>
-                <el-alert v-if="errorMessage" title="" :description="errorMessage" type="error" show-icon
-                    class="mt-3" />
-            </div>
-        </el-card>
+        </div>
     </div>
 </template>
 
@@ -32,12 +53,13 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import useAuth from '../composables/useAuth';
-import { Loading } from '@element-plus/icons-vue';
+import { Loading, User } from '@element-plus/icons-vue';
 
 export default {
     name: 'LoginView',
     components: {
-        Loading
+        Loading,
+        User
     },
     setup() {
         const { login, isAuthenticated, error, isLoading } = useAuth();
@@ -84,45 +106,154 @@ export default {
 
 <style scoped>
 .login-view {
-    min-height: calc(100vh - 120px);
-    padding: 40px 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 2rem;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 450px;
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+
+    .logo-section {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+
+        .logo {
+            width: 48px;
+            height: 48px;
+        }
+
+        h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+    }
+
+    .login-subtitle {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1.1rem;
+        font-weight: 300;
+        margin: 0;
+    }
 }
 
 .login-card {
-    width: 400px;
-    max-width: 90%;
+    border-radius: 16px;
+    border: none;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
 }
 
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.text-center {
+.loading-section {
     text-align: center;
+    padding: 3rem 2rem;
+
+    .loading-icon {
+        font-size: 3rem;
+        color: var(--el-color-primary);
+        margin-bottom: 1rem;
+        animation: rotating 2s linear infinite;
+    }
+
+    .loading-text {
+        color: var(--el-text-color-regular);
+        font-size: 1.1rem;
+        margin: 0;
+    }
 }
 
-.loading-icon {
-    font-size: 2rem;
-    margin-bottom: 1rem;
-    animation: rotating 2s linear infinite;
+.login-content {
+    padding: 3rem 2rem;
+
+    h2 {
+        color: var(--el-text-color-primary);
+        font-size: 1.75rem;
+        font-weight: 600;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
+
+    .login-description {
+        color: var(--el-text-color-regular);
+        text-align: center;
+        line-height: 1.6;
+        margin-bottom: 2rem;
+    }
 }
 
-.loading-text {
-    margin-top: 1rem;
+.login-form {
+    margin-bottom: 2rem;
+
+    .login-button {
+        width: 100%;
+        height: 48px;
+        font-size: 1rem;
+        font-weight: 500;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+
+        .button-icon {
+            margin-right: 0.5rem;
+        }
+
+        &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+    }
+
+    .error-alert {
+        margin-top: 1rem;
+        border-radius: 8px;
+    }
 }
 
-.login-button {
-    width: 100%;
-    margin-top: 1rem;
+.help-section {
+    text-align: center;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--el-border-color-light);
+
+    p {
+        color: var(--el-text-color-regular);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .help-link {
+        color: var(--el-color-primary);
+        text-decoration: none;
+        font-weight: 500;
+
+        &:hover {
+            text-decoration: underline;
+        }
+    }
 }
 
-.mt-3 {
-    margin-top: 1rem;
+.login-footer {
+    text-align: center;
+    margin-top: 2rem;
+
+    p {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+        margin: 0;
+    }
 }
 
 @keyframes rotating {
@@ -132,6 +263,30 @@ export default {
 
     to {
         transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 768px) {
+    .login-view {
+        padding: 1rem;
+    }
+
+    .login-header {
+        .logo-section h1 {
+            font-size: 1.5rem;
+        }
+
+        .login-subtitle {
+            font-size: 1rem;
+        }
+    }
+
+    .login-content {
+        padding: 2rem 1.5rem;
+
+        h2 {
+            font-size: 1.5rem;
+        }
     }
 }
 </style>
