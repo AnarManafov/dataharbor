@@ -166,14 +166,14 @@ jobs:
 
       - name: Build backend
         id: build_backend
-        run: cd app && go build -o data-lake-ui-backend
+        run: cd app && go build -o dataharbor-backend
         timeout-minutes: 10
 
       - name: Upload backend build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: backend-build
-          path: app/data-lake-ui-backend
+          path: app/dataharbor-backend
           retention-days: 1 # Short retention since it's just for the workflow
 
   # Use the reusable workflow to build RPM packages
@@ -220,8 +220,8 @@ jobs:
           mkdir -p /tmp/rpm-info
 
           # Find RPMs and handle errors gracefully
-          FRONTEND_RPM=$(find /tmp/rpms -name "data-lake-ui-frontend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
-          BACKEND_RPM=$(find /tmp/rpms -name "data-lake-ui-backend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
+          FRONTEND_RPM=$(find /tmp/rpms -name "dataharbor-frontend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
+          BACKEND_RPM=$(find /tmp/rpms -name "dataharbor-backend-*.rpm" -printf "%f\n" 2>/dev/null | head -n 1 || echo "")
 
           if [ -z "$FRONTEND_RPM" ]; then
             echo "::warning::Frontend RPM not found"

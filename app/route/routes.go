@@ -8,9 +8,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/controller"
-	"github.com/AnarManafov/data_lake_ui/app/middleware"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/controller"
+	"github.com/AnarManafov/dataharbor/app/middleware"
 	"github.com/spf13/viper"
 )
 

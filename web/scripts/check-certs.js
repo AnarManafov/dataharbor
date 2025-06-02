@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Certificate Setup Script for Data Lake UI Development
+ * Certificate Setup Script for DataHarbor Development
  * 
  * This script helps developers set up SSL certificates for local development
  * by detecting and configuring certificate paths across different platforms.
@@ -14,7 +14,7 @@ import { getCertPaths } from '../cert-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-console.log('🔍 Data Lake UI - SSL Certificate Configuration\n');
+console.log('🔍 DataHarbor - SSL Certificate Configuration\n');
 
 // Check current certificate status
 const certPaths = getCertPaths();

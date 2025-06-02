@@ -17,13 +17,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/config"
-	"github.com/AnarManafov/data_lake_ui/app/response"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
+	"github.com/AnarManafov/dataharbor/app/response"
 )
 
 const (
-	sessionName   = "data-lake-ui-session"
+	sessionName   = "dataharbor-session"
 	sessionMaxAge = 86400 * 7 // 7 days - chosen to balance user convenience with security risks
 )
 

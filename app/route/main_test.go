@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/config"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 )
 
 func TestMain(m *testing.M) {

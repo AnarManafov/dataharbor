@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/AnarManafov/dataharbor/app/common"
 )
 
 // TestMain sets up the test environment

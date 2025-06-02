@@ -68,7 +68,7 @@ logger:
   file:
     level: "debug"
     driver: "file"
-    filename: "./log/data_lake_ui_app.log"
+    filename: "./log/dataharbor_app.log"
     maxsize: 10
     maxbackups: 2
     maxage: 27
