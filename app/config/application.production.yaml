@@ -19,11 +19,10 @@ server:
       - DELETE
       - OPTIONS
     allow_origins:
-      - https://yourdomain.com  # Replace with your production domain
-  ssl:
+      - https://yourdomain.com  # Replace with your production domain  ssl:
     enabled: true
-    cert_file: "/etc/ssl/data-lake-ui/server.crt"
-    key_file: "/etc/ssl/data-lake-ui/server.key"
+    cert_file: "/etc/ssl/dataharbor/server.crt"
+    key_file: "/etc/ssl/dataharbor/server.key"
 
 log:
   format: json  # Using json format for better log processing in production
@@ -35,25 +34,23 @@ xrd:
   initial_dir: "/data"
   xrd_client_bin_path: "/usr/bin/"
   process_timeout: 120           # Increased timeout for production workloads (in seconds)
-  staging_path: "/var/lib/data-lake-ui/staging"
+  staging_path: "/var/lib/dataharbor/staging"
   staging_tmp_dir_prefix: "stg_"
   sanitation_job_interval: 60   # In minutes
   url: "root://xrootd-server.yourdomain.com:1094"
   user: "service-account"
   usergroup: "data-access"
-  userpwd: ""  # Set via environment variable in production
-  user_required: true
+  userpwd: ""  # Set via environment variable in production  user_required: true
   tls: true
-  client_cert: "/etc/ssl/data-lake-ui/client.crt"
-  client_key: "/etc/ssl/data-lake-ui/client.key"
+  client_cert: "/etc/ssl/dataharbor/client.crt"
+  client_key: "/etc/ssl/dataharbor/client.key"
 
 # Frontend configuration for locating and serving UI assets
 frontend:
-  url: "https://yourdomain.com"  # Production URL
-  dist_dir: "dist"
+  url: "https://yourdomain.com"  # Production URL  dist_dir: "dist"
   asset_paths:
-    - "/var/www/data-lake-ui"    # Primary production path
-    - "/opt/data-lake-ui/web"    # Secondary production path
+    - "/var/www/dataharbor"    # Primary production path
+    - "/opt/dataharbor/web"    # Secondary production path
 
 # Logger configuration for zap logger
 logger:
@@ -63,7 +60,7 @@ logger:
   file:
     level: "info"
     driver: "file"
-    filename: "/var/log/data-lake-ui/app.log"  # Production log path
+    filename: "/var/log/dataharbor/app.log"  # Production log path
     maxsize: 100
     maxbackups: 10
     maxage: 30
@@ -76,10 +73,9 @@ auth:
     - "/api/auth/login"
     - "/api/auth/callback"
   oidc:
-    issuer: "https://id.yourdomain.com/realms/prod"  # Production identity provider
-    client_id: "data-lake-ui-prod"
-    client_secret: "${DATA_LAKE_UI_CLIENT_SECRET}"  # Fill this in with your secret or use ${DATA_LAKE_UI_CLIENT_SECRET}
+    issuer: "https://id.yourdomain.com/realms/prod"  # Production identity provider    client_id: "dataharbor-prod"
+    client_secret: "${DATAHARBOR_CLIENT_SECRET}"  # Fill this in with your secret or use ${DATAHARBOR_CLIENT_SECRET}
     discovery_url: "https://id.yourdomain.com/realms/prod/.well-known/openid-configuration"
     allowed_roles:
       - "xrootd-user"
-    session_secret: "${DATA_LAKE_UI_SESSION_SECRET}"  # Fill this in with a secure random string or use ${DATA_LAKE_UI_SESSION_SECRET}
+    session_secret: "${DATAHARBOR_SESSION_SECRET}"  # Fill this in with a secure random string or use ${DATAHARBOR_SESSION_SECRET}

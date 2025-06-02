@@ -17,7 +17,7 @@ COPY ./ .
 RUN go mod download
 
 # build app for production
-RUN go build -o /data_lake_ui_backend
+RUN go build -o /dataharbor_backend
 
 #EXPOSE 22000
-CMD [ "/data_lake_ui_backend" ]
+CMD [ "/dataharbor_backend" ]

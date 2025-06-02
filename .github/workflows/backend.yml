@@ -38,11 +38,11 @@ jobs:
           cache: true # Enable Go module caching
 
       - name: Build
-        run: go build -v -o data-lake-ui-backend
+        run: go build -v -o dataharbor-backend
 
       - name: Verify executable
         run: |
-          if [[ ! -f "data-lake-ui-backend" ]]; then
+          if [[ ! -f "dataharbor-backend" ]]; then
             echo "::error::No executable was produced by the build"
             exit 1
           fi

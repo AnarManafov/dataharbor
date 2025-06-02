@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Example SSL Certificate Setup Script for Data Lake UI
+# Example SSL Certificate Setup Script for DataHarbor
 # Copy and customize this script for your specific environment
 
 # Configuration - Modify these paths for your setup
 PKM_WORKSPACE_PATH="${PKM_WORKSPACE_PATH:-$HOME/Documents/workspace/pkm}"
-CERT_SUBPATH="${CERT_SUBPATH:-docs/gsi/data-lake-ui/test/cert}"
+CERT_SUBPATH="${CERT_SUBPATH:-docs/gsi/dataharbor/test/cert}"
 
 # Certificate paths in your PKM
 CERT_DIR="$PKM_WORKSPACE_PATH/$CERT_SUBPATH"

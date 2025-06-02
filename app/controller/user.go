@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/config"
-	"github.com/AnarManafov/data_lake_ui/app/response"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
+	"github.com/AnarManafov/dataharbor/app/response"
 )
 
 // GetCurrentUser returns information about the currently authenticated user.

@@ -18,9 +18,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
-	"github.com/AnarManafov/data_lake_ui/app/middleware"
-	"github.com/AnarManafov/data_lake_ui/app/response"
+	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/middleware"
+	"github.com/AnarManafov/dataharbor/app/response"
 )
 
 type xrdDirEntry struct {

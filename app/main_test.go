@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/AnarManafov/data_lake_ui/app/common"
+	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
