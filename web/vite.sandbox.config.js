@@ -6,6 +6,7 @@ import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 import fs from 'fs';
+import { getHttpsConfig } from "./cert-config.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -73,12 +74,13 @@ export default defineConfig({
     // Configure the development server
     server: {
         port: 5173,
+        https: getHttpsConfig(),
         // Proxy API requests to your backend during development
         proxy: {
             '/api': {
-                target: 'http://localhost:22000',
+                target: 'https://localhost:22000',
                 changeOrigin: true,
-                secure: false,
+                secure: false, // Allow self-signed certificates in development
                 ws: true,
                 xfwd: true,
                 // Allow cookies to be sent cross-domain

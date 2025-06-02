@@ -114,18 +114,22 @@ func init() {
 	// Balance security with environment-specific needs
 	sameSiteMode := http.SameSiteStrictMode
 	secureCookies := true
-	// Use relaxed settings in development to simplify local testing
-	if cfg.Env == "development" {
+	// Use relaxed settings in development unless SSL is enabled
+	if cfg.Env == "development" && !cfg.Server.SSL.Enabled {
 		sameSiteMode = http.SameSiteLaxMode
 		secureCookies = false
-		logger.Info("Running in development mode: using relaxed cookie settings")
+		logger.Info("Running in development mode without SSL: using relaxed cookie settings")
+	} else if cfg.Env == "development" && cfg.Server.SSL.Enabled {
+		sameSiteMode = http.SameSiteLaxMode
+		secureCookies = true
+		logger.Info("Running in development mode with SSL: using secure cookies")
 	}
 	// Apply security settings appropriate for the environment
 	SessionStore.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,          // Mitigate XSS risks
-		Secure:   secureCookies, // Only require HTTPS in production
+		Secure:   secureCookies, // Require HTTPS when SSL is enabled
 		SameSite: sameSiteMode,  // Balance cross-origin needs vs CSRF protection
 	}
 }
@@ -226,12 +230,20 @@ func LoginInit(c *gin.Context) {
 	logger.Infof("Setting state in session: %s", state)
 
 	// Set session options directly to ensure proper cross-origin behavior
+	secureCookies := cfg.Server.SSL.Enabled
+	sameSiteMode := http.SameSiteNoneMode
+
+	// In development with SSL, use Lax mode for easier testing
+	if cfg.Env == "development" && cfg.Server.SSL.Enabled {
+		sameSiteMode = http.SameSiteLaxMode
+	}
+
 	session.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   false, // Set to false for development, should be true in production
+		SameSite: sameSiteMode,
+		Secure:   secureCookies, // Use secure cookies when SSL is enabled
 	}
 
 	// Save the session
@@ -444,7 +456,12 @@ func AuthCallback(c *gin.Context) {
 		if frontendURL == "" {
 			// In development, we're likely using Vite at port 5173
 			if cfg.Env == "development" {
-				frontendURL = "http://localhost:5173"
+				// Use HTTPS for development since Keycloak now requires it
+				scheme := "https"
+				if !cfg.Server.SSL.Enabled {
+					scheme = "http"
+				}
+				frontendURL = fmt.Sprintf("%s://localhost:5173", scheme)
 			} else {
 				// In production, default to same host but assume it's being served from root
 				frontendURL = fmt.Sprintf("%s://%s", schemeFromRequest(c), c.Request.Host)
@@ -802,13 +819,29 @@ func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]interface{}, error
 
 // schemeFromRequest handles both direct and proxy connections correctly
 func schemeFromRequest(c *gin.Context) string {
-	// Support for reverse proxy environments
+	cfg := config.GetConfig()
+
+	// Support for reverse proxy environments - check forwarded headers first
 	if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 		return proto
 	}
 
-	// Check if we're using TLS
+	// Check for other common proxy headers
+	if proto := c.GetHeader("X-Forwarded-Protocol"); proto != "" {
+		return proto
+	}
+
+	if proto := c.GetHeader("X-Scheme"); proto != "" {
+		return proto
+	}
+
+	// Check if we're using TLS directly
 	if c.Request.TLS != nil {
+		return "https"
+	}
+
+	// Check if SSL is enabled in configuration (for direct HTTPS connections)
+	if cfg.Server.SSL.Enabled {
 		return "https"
 	}
 
