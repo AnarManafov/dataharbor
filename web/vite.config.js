@@ -8,6 +8,7 @@ import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
+import { getHttpsConfig } from "./cert-config.js";
 
 // Helper functions to get version information directly (no external imports)
 function getVersion(tagPattern, fallbackPath) {
@@ -87,12 +88,13 @@ export default defineConfig({
     },
     server: {
         port: 5173,
+        https: getHttpsConfig(),
         proxy: {
-            // Proxy all /api requests to backend server
+            // Proxy all /api requests to backend server (now HTTPS)
             '/api': {
-                target: 'http://localhost:22000',
+                target: 'https://localhost:22000',
                 changeOrigin: true,
-                secure: false,
+                secure: false, // Allow self-signed certificates in development
                 ws: true,
                 xfwd: true,
                 // Allow cookies to be sent cross-domain
