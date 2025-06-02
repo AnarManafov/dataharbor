@@ -19,11 +19,16 @@ server:
       - DELETE
       - OPTIONS
     allow_origins:
-      - http://localhost:5173  # Vite sandbox server
-      - http://localhost:8080  # Regular development server
+      - http://localhost:5173  # Vite sandbox server (fallback)
+      - https://localhost:5173 # Vite sandbox server with HTTPS
+      - http://localhost:8080  # Regular development server  
+      - https://localhost:8080 # Regular development server with HTTPS
       - http://localhost:8081
+      - https://localhost:8081
   ssl:
-    enabled: false
+    enabled: true
+    cert_file: "config/server.crt"
+    key_file: "config/server.key"
 
 log:
   format: text  # Using text format for easier reading during development
@@ -49,7 +54,7 @@ xrd:
 
 # Frontend configuration for locating and serving UI assets
 frontend:
-  url: "http://localhost:5173"   # Vite sandbox development server URL
+  url: "https://localhost:5173"   # Updated to HTTPS for Keycloak compatibility
   dist_dir: "dist"
   asset_paths:
     - "../sandbox/public"       # Primary: Sandbox public files when running with npm sandbox:serve

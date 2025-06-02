@@ -76,8 +76,8 @@ func startServer(stop chan struct{}) {
 	r := gin.New()
 	route.RegisterRoutes(r)
 
+	cfg := config.GetConfig()
 	port := strconv.Itoa(common.ServerConfig.Port)
-	fmt.Printf("Starting server on port: %s\n", port)
 
 	ticker, done := core.NewSanitationScheduler()
 	go core.SanitationJob(ticker, done)
@@ -87,11 +87,29 @@ func startServer(stop chan struct{}) {
 		Handler: r,
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			common.Logger.Fatal(err)
+	// Start server with SSL/TLS support if enabled
+	if cfg.Server.SSL.Enabled {
+		fmt.Printf("Starting HTTPS server on port: %s\n", port)
+		common.Logger.Infof("SSL enabled - cert: %s, key: %s", cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile)
+
+		// Validate certificate files exist
+		if cfg.Server.SSL.CertFile == "" || cfg.Server.SSL.KeyFile == "" {
+			common.Logger.Fatal("SSL enabled but certificate or key file not specified")
 		}
-	}()
+
+		go func() {
+			if err := srv.ListenAndServeTLS(cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile); err != nil && err != http.ErrServerClosed {
+				common.Logger.Fatal("HTTPS server failed:", err)
+			}
+		}()
+	} else {
+		fmt.Printf("Starting HTTP server on port: %s\n", port)
+		go func() {
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				common.Logger.Fatal("HTTP server failed:", err)
+			}
+		}()
+	}
 
 	<-stop
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
