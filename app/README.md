@@ -1,190 +1,79 @@
-# Backend
+# DataHarbor Backend
 
-The backend is written in Go and provides an interface to XROOTD-related operations.  
-At first the plan was to use XRD API directly. Unfortunately there is only XRD-client C++ API, which is difficult to support in Go. Sometime is it also unreliable even via a [SWIG wrapper](https://www.swig.org/Doc3.0/Go.html).  
+Go backend for DataHarbor - provides REST API for XROOTD file system operations and authentication.
 
-For now it was decided to use xrd-client command line calls to cover all XRD-related operations. All command line calls are covered with an async. timeout to prevent blocking of the entire app.  
+> **📖 Complete Documentation**: See [../docs/](../docs/) for comprehensive setup, API, and development guides.
 
-The backend app is running a lightweight, local WEB server and responds on requests send by the frontend (a Vue SPA).  
-The server port is configurable, see [the app's configuration](./config/application.template.yaml).
+## Quick Start
 
-## Features
+### Prerequisites
 
-- List files using the selected XROOTD server.
-- Can stage a requested file for download. It copies the file to a WEB server's public location, into a staged temporary directory, for further download.
-- Implements a sanitation job to periodically check and clean staged temporary files.
+- Go 1.24+
+- XROOTD client tools
 
-## API
-
-### Files and Directories
-
-- [Initial directory](./docs/api/initial_dir.md) : `GET /initial_dir`
-- [List a directory (returns the first page, if there are multiple)](./docs/api/dir.md#get-files-and-folders-from-a-directory): `POST /dir`
-- [List a directory by pages](./docs/api/dir.md#get-paginated-files-and-folders-from-a-directory): `POST /dir/page`
-- [Stage a file. Prepare for download.](./docs/api/stage_file.md): `POST /stage_file`
-
-### General Details
-
-- [Host Info](./docs/api/host_name.md): `GET /host_name`
-- [Service's health](./docs/api/health.md): `GET /health`
-
-## Requirements
-
-- [Go](https://go.dev/)  
-
-  ```shell
-  # OS X
-  brew install go
-  
-  # Windows
-  winget install GoLang.Go
-  ```
-  
-- [an xrootd client](../docs/xrootd.md)
-
-### Build the project
-
-**Install Dependencies:**
+### Development
 
 ```shell
-cd app
+# Install dependencies
 go mod download
+
+# Run with auto-reload
+go run .
+
+# Run with specific config
+go run . --config=config/application.development.yaml
 ```
 
-> **Note**
-> All the following command should be run in the `app` directory (i.e. `cd app`)
-
-**Build:**
+### Testing
 
 ```shell
-go build -o app .
-```
-
-**Run:**
-
-```shell
- go run .
-```
-
-**Run with the app's config file:**
-
-```shell
-go run . --config=<the_config_file_name>
-```
-
-  or just start an executable.
-
-## Unit tests
-
-**Run unit-tests:**
-
-```shell
+# Run all tests
 go test -v ./...
-```
 
-using `-v` for full verbose output.
-
-***Test with Coverage report:**
-
-```shell
+# Run with coverage
 go test -cover ./...
 ```
 
-**Tests with a Detailed Coverage report:**
+## Key Features
+
+- **File System Operations**: Directory listing, file staging via XROOTD
+- **Authentication**: OIDC integration with BFF pattern
+- **RESTful API**: JSON-based API with consistent error handling
+- **File Staging**: Temporary file staging for downloads with automatic cleanup
+
+## Architecture
+
+- **XROOTD Integration**: Uses command-line client calls with async timeouts
+- **HTTP Server**: Lightweight web server with configurable port
+- **Middleware Stack**: Authentication, CORS, logging, recovery
+- **File Operations**: Asynchronous file staging with cleanup jobs
+
+## Production Deployment
+
+### Container (Recommended)
 
 ```shell
-go test -coverprofile=coverage.out ./...
+# Build container
+podman build -t dataharbor-backend:latest .
+
+# Run container
+podman run --network=host dataharbor-backend:latest
 ```
 
-**View the Coverage Report:**
+### RPM Package
 
 ```shell
-go tool cover -html=coverage.out
+# Build RPM (requires rpm tools)
+python3 ../packaging/build_rpm.py -b
 ```
 
-**View the Coverage Summary:**
+## Documentation
 
-```shell
-go tool cover -func=coverage.out
-```
-
-This will display the coverage percentage for each function and a total coverage percentage at the end.
-
-## Containerization
-
-The backend is not that big - just one executable and one configuration file, for now.  
-It might be an overkill to containerize it. But just in case it is needed, a [Podman Container file](./Containerfile) is in the app directory and below are some instructions.
-
-### Build a Podman container
-
-```shell
-podman build -t dataharbor_backend:0.0.4 .
-```
-
-,where 0.0.4 is the version of the app. TODO: Need to automate that, by taking the version from the `git describe`, etc.
-
-### Run a Podman container
-
-```shell
-podman run --network=host dataharbor_backend:0.0.4
-```
-
-### Known issues
-
-#### An xrootd client bin directory
-
-An xrootd client bin directory needs to be exposed to the container.
-
-This link helps with some Podman on OSX issues: <https://github.com/ansible/vscode-ansible/wiki/macos>
-
-## Packaging
-
-### RPM
-
-- SPEC File: [dataharbor-backend.spec](../packaging/dataharbor-backend.spec)
-- To build the package:
-  
-  ```shell
-  # only for OS X 
-  brew install rpm
-
-  # Build command
-  python3 packaging/build_rpm.py -b
-  ```
-
-- Package name: `dataharbor-backend-<VERSION>-<RELEASE>.noarch.rpm`
-
-The package will install a backend executable, statically linked, as `/usr/local/bin/dataharbor-backend`.
-
-## Dev Tips
-
-**Initialize Go:**
-
-The following command will generate a `go.mod` file.
-
-```shell
-cd app
-go mod init github.com/${YOUR_USERNAME}/app
-```
-
-**Register missing dependencies:**
-
-```shell
-cd app
-go get github.com/${YOUR_USERNAME}/app
-```
-
-**Update/Add dependencies and sums:**
-
-```shell
-cd app
-go get -u ./...
-go mod tidy
-```
-
-**Update required Go version:**
-
-```shell
-cd app
-go mod edit -go=1.24
-```
+| Topic                     | Location                                           |
+| ------------------------- | -------------------------------------------------- |
+| **Complete Setup Guide**  | [../docs/SETUP.md](../docs/SETUP.md)               |
+| **API Documentation**     | [../docs/API.md](../docs/API.md)                   |
+| **Backend Development**   | [../docs/BACKEND.md](../docs/BACKEND.md)           |
+| **Architecture Overview** | [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) |
+| **Testing Guide**         | [../docs/TESTING.md](../docs/TESTING.md)           |
+| **Deployment Guide**      | [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md)     |

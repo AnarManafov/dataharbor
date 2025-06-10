@@ -1,104 +1,168 @@
 # DataHarbor
 
-![CI](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)
+![CI Backend](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)
 ![Coverage](https://img.shields.io/badge/Coverage-32.7%25-yellow)
-![CI](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)
+![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)
 
-DataHarbor provides a user interface to access GSI Lustre cluster data.  
-It consists of the following main parts:
+DataHarbor is a full-stack web application that provides developers with a secure interface to access and manage GSI Lustre cluster data. Built with a Go backend and Vue.js frontend, it offers file browsing, directory navigation, and secure file downloads through XROOTD integration.
 
-- [Frontend](./web/README.md)
-- [Backend](./app/README.md)
+## 🎯 Purpose
 
-## Features
+DataHarbor is designed for **internal use by developers and system administrators** who need to:
 
-- Secure, standards-based authentication using OpenID Connect (OIDC) and a Backend-For-Frontend (BFF) pattern
-- User login and logout with strong session security
-- Remotely browse and navigate directories and files on the GSI Lustre cluster
-- View detailed file and directory properties (size, modification date, permissions, etc.)
-- Select and securely download individual files
+- Browse and navigate remote file systems on GSI Lustre clusters
+- View detailed file and directory metadata (size, permissions, timestamps)
+- Securely download individual files from remote storage
+- Manage file staging operations for large data transfers
+- Access high-performance computing storage systems through a web interface
 
-## Documentation
+## 🏗️ Architecture Overview
 
-For detailed information about architecture, authentication, versioning, CI/CD workflows, and local development setup, see [DEVELOPMENT.md](./docs/DEVELOPMENT.md).
+- **Backend**: Go REST API server with XROOTD client integration
+- **Frontend**: Vue 3 SPA with Element Plus UI components  
+- **Authentication**: OpenID Connect (OIDC) with Backend-For-Frontend (BFF) pattern
+- **Security**: HTTP-only cookies, server-side session management
+- **Storage**: XROOTD protocol for high-performance data access
 
-## Running DataHarbor Manually (Full Stack)
+## 🚀 Quick Start for Developers
 
-To run the complete DataHarbor application (backend and frontend) manually on a server, follow these steps:
+### Prerequisites
 
-### 1. Prerequisites
+- **Go** 1.24+ (for backend development)
+- **Node.js** 18+ & **npm** (for frontend development)
+- **XROOTD client** tools (for file system operations)
 
-- **Go** (for backend)
-- **npm** (for frontend)
-- **xrootd client** (for backend, see [backend docs](./app/README.md))
+### Development Setup
 
-### 2. Clone the Repository
+1. **Clone and setup the repository**
+
+   ```shell
+   git clone https://github.com/AnarManafov/dataharbor.git
+   cd dataharbor
+   
+   # Install frontend dependencies
+   cd web
+   npm install
+   cd ..
+   
+   # Install backend dependencies
+   cd app
+   go mod download
+   cd ..
+   ```
+
+2. **Start development servers**
+
+   ```shell
+   # Start both frontend and backend concurrently
+   npm run dev
+   
+   # Or start them separately:
+   npm run dev:frontend  # Frontend on https://localhost:5173
+   npm run dev:backend   # Backend on http://localhost:8081
+   ```
+
+3. **Access the application**
+   - Open your browser to `https://localhost:5173`
+   - Accept the self-signed certificate warning for development
+
+## 📚 Developer Documentation
+
+### Getting Started
+
+- **[SETUP.md](./docs/SETUP.md)** - Complete development environment setup and prerequisites
+- **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** - Development workflow, testing, and contribution guidelines
+
+### Architecture & Design
+
+- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - System architecture, design patterns, and component overview
+- **[AUTHENTICATION.md](./docs/AUTHENTICATION.md)** - OIDC authentication flow, security model, and BFF pattern
+
+### Component Development
+
+- **[BACKEND.md](./docs/BACKEND.md)** - Go backend development, API design, and XROOTD integration
+- **[FRONTEND.md](./docs/FRONTEND.md)** - Vue.js frontend development, components, and state management
+
+### Technical References
+
+| Documentation                                       | Description                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| **[API.md](./docs/API.md)**                         | Complete REST API documentation and examples                  |
+| **[XROOTD.md](./docs/XROOTD.md)**                   | XROOTD integration, configuration, and file operations        |
+| **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**           | Production deployment, containerization, and packaging        |
+| **[TESTING.md](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and best practices |
+| **[TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** | Common issues and solutions                                   |
+
+## 🔧 Common Development Tasks
+
+### Build for Production
 
 ```shell
-git clone https://github.com/AnarManafov/dataharbor.git
-cd dataharbor
+npm run build
 ```
 
-### 3. Install Dependencies
-
-- **Backend:**
-
-  ```shell
-  cd app
-  go mod download
-  cd ..
-  ```
-
-- **Frontend:**
-
-  ```shell
-  cd web
-  npm install
-  cd ..
-  ```
-
-### 4. Build the Backend
+### Run Tests
 
 ```shell
+# Backend tests
 cd app
-go build -o dataharbor-backend .
-cd ..
-```
+go test -v ./...
 
-### 5. (Optional) Configure the Backend
-
-- Edit or provide a config file if needed (see [`app/config/application.template.yaml`](./app/config/application.template.yaml)).
-- To use a custom config file, run the backend with `--config=<path-to-config.yaml>`.
-
-### 6. Start the Backend
-
-```shell
-cd app
-./dataharbor-backend --config=<path-to-config.yaml>  # or omit --config if not needed
-cd ..
-```
-
-By default, the backend runs on `localhost:8081` (check your config for the actual port).
-
-### 7. Start the Frontend
-
-```shell
+# Frontend tests (if available)
 cd web
-npm run build           # For production
-npm run dev             # For development (hot reload)
-cd ..
+npm test
 ```
 
-- For production, serve the built frontend with a web server (e.g., nginx, or use the container).
-- For development, the frontend runs on `localhost:5173` by default.
+### Version Management
 
-### 8. Access the Application
+```shell
+# Sync versions across components
+npm run sync-versions
 
-- Open your browser and go to `http://localhost:5173` (or the port shown in the frontend output).
-- The frontend will communicate with the backend as configured (see proxy settings in `web/vite.config.js` if needed).
+# Prepare release
+npm run prepare-release
+```
 
-### Notes
+## 🏗️ Project Structure
 
-- Ensure both backend and frontend are running and accessible to each other (adjust firewall, ports, and proxy settings as needed).
-- For HTTPS/local SSL, see [frontend README](./web/README.md) for certificate setup.
-- For more advanced deployment (RPM, containers), see the respective [backend](./app/README.md) and [frontend](./web/README.md) READMEs.
+```text
+dataharbor/
+├── app/                    # Go backend application
+│   ├── controller/         # HTTP request handlers
+│   ├── middleware/         # Authentication, CORS, logging middleware
+│   ├── route/             # API route definitions
+│   ├── config/            # Configuration management
+│   └── docs/api/          # Backend API documentation
+├── web/                   # Vue.js frontend application
+│   ├── src/
+│   │   ├── components/    # Reusable Vue components
+│   │   ├── views/         # Page-level components
+│   │   ├── api/           # API client and HTTP services
+│   │   └── stores/        # Pinia state management
+│   └── public/            # Static assets and configuration
+├── docs/                  # Developer documentation
+├── packaging/             # RPM packaging and build scripts
+├── tools/                 # Development and release utilities
+└── playground/            # Experimental code and prototypes
+```
+
+## 🤝 Contributing
+
+This is an internal project for GSI developers. To contribute:
+
+1. Create a feature branch from `master`
+2. Follow the coding standards outlined in development docs
+3. Add appropriate tests for new functionality
+4. Update documentation as needed
+5. Submit a pull request with detailed description
+
+## 📄 License
+
+See [LICENSE](./LICENSE) file for details.
+
+## 🔗 Related Technologies
+
+- [XROOTD](https://xrootd.slac.stanford.edu) - High-performance data access system
+- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework  
+- [Gin](https://gin-gonic.com/) - Go web framework
+- [Element Plus](https://element-plus.org/) - Vue 3 component library

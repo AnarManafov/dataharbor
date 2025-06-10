@@ -1,281 +1,549 @@
-# Development & Architecture Documentation
+# Development Guide
 
-This document contains detailed information about the architecture, authentication flow, versioning, CI/CD workflows, and local development setup for DataHarbor.
+This document covers the development workflow, contribution guidelines, CI/CD processes, and best practices for DataHarbor developers.
 
-## Architecture
+## Development Workflow
 
-### Authentication
+### Getting Started
 
-The application uses OpenID Connect (OIDC) for authentication, implemented with a Backend-For-Frontend (BFF) pattern for enhanced security. This approach keeps authentication tokens secure on the server side, never exposing them to the browser.
+1. **Fork and Clone**
 
-#### BFF Authentication Flow
+   ```bash
+   git clone https://github.com/AnarManafov/dataharbor.git
+   cd dataharbor
+   ```
 
-The diagram below illustrates the authentication flow in our application:
+2. **Install Dependencies**
 
-[![BFF Authentication Flow Diagram](./architecture/auth/bff_auth_flow_sequence.png)](./architecture/auth/bff_auth_flow_sequence.png)
+   ```bash
+   # Install all dependencies (uses npm workspaces)
+   npm install
+   
+   # Or install individually
+   cd web && npm install && cd ..
+   cd app && go mod download && cd ..
+   ```
 
-[Original draw.io source file](./architecture/auth/bff_auth_flow_sequence.drawio) (for editing and reference)
+3. **Start Development Environment**
 
-#### Authentication Algorithm
+   ```bash
+   # Start both frontend and backend with hot reload
+   npm run dev
+   
+   # Or start separately
+   npm run dev:frontend  # https://localhost:5173
+   npm run dev:backend   # http://localhost:8081
+   ```
 
-The authentication flow works as follows:
+### Branch Strategy
 
-1. **Initial Authentication Request**:
-   * User attempts to access a protected resource in the frontend
-   * Frontend detects user is not authenticated
-   * Frontend redirects to the login page
+- **`master`**: Main development branch, always deployable
+- **Feature branches**: `feature/description` or `feature/issue-number`
+- **Bug fixes**: `fix/description` or `fix/issue-number`
+- **Releases**: Tagged with semantic versioning (`v1.2.3`)
 
-1. **Login Initiation**:
-   * User clicks the login button
-   * Frontend calls the backend endpoint (`GET /api/auth/login`)
-   * Backend generates a random state parameter to prevent CSRF attacks
-   * Backend creates the OIDC authorization URL and returns it to the frontend
-   * Frontend redirects the user's browser to the OIDC provider's authorization URL
+### Development Environment Configuration
 
-1. **OIDC Authentication**:
-   * User authenticates with the OIDC provider (e.g., Keycloak)
-   * OIDC provider validates credentials and permissions
-   * OIDC provider redirects back to our backend callback URL with an authorization code and state parameter
+#### Backend Configuration
 
-1. **Token Exchange**:
-   * Backend verifies the state parameter to prevent CSRF attacks
-   * Backend exchanges the authorization code for tokens with the OIDC provider
-   * This exchange occurs server-to-server and includes the client secret
-   * Backend receives access token, ID token, and refresh token
+Create or modify `app/config/application.development.yaml`:
 
-1. **Secure Session Creation**:
-   * Backend stores tokens in HTTP-only cookies that JavaScript cannot access
-   * Backend sets appropriate cookie security flags (HttpOnly, SameSite, etc.)
-   * Backend redirects the user to the originally requested page
+```yaml
+server:
+  host: "localhost"
+  port: 8081
+  debug: true
 
-1. **Authenticated API Requests**:
-   * Frontend makes API requests to backend with cookies automatically attached
-   * Backend middleware validates the session cookies
-   * Backend extracts the access token and uses it for backend operations
-   * Protected resources are returned to the frontend
+logging:
+  level: "debug"
+  format: "console"
 
-1. **Token Refresh**:
-   * When the access token expires, backend detects this during an API request
-   * Backend uses the stored refresh token to obtain a new access token
-   * Backend updates the session cookies with the new tokens
-   * The original API request is completed without user interruption
+auth:
+  oidc:
+    # Use development OIDC settings
+    issuer: "https://dev-keycloak.gsi.de/realms/dataharbor"
+    client_id: "dataharbor-dev"
 
-1. **Logout**:
-   * User initiates logout in the frontend
-   * Frontend calls the backend logout endpoint (`POST /api/auth/logout`)
-   * Backend invalidates the user's session in Keycloak using the end session endpoint
-   * Backend invalidates the local session and clears the secure cookies
-   * User is redirected to the login page or home page
-
-Key security benefits of this approach:
-
-* Authentication tokens are stored securely in HTTP-only cookies
-* Tokens are never accessible to JavaScript, mitigating XSS attacks
-* Token refresh happens server-side, improving security
-* Server-side session management with stronger protection
-
-## Versioning
-
-The project follows Semantic Versioning for versioning.  
-Each release is tagged according to the following rules:
-
-* **Global Versions**: Use a prefix `vX.Y.Z` (e.g., `v1.0.0`) to create global versions.
-* **Backend Versions**: Generated automatically as `app/vX.Y.Z` (e.g., `app/v1.0.0`) from global versions.
-* **Frontend Versions**: Generated automatically as `web/vX.Y.Z` (e.g., `web/v1.0.0`) from global versions.
-
-### Release Process
-
-The release process is initiated by manually applying an annotated global version tag (`vX.Y.Z`) and pushing it to GitHub:
-
-```shell
-# Create a new annotated version tag (recommended)
-git tag -a v1.2.3 -m "Release v1.2.3"
-
-# Push the tag to trigger the automated release process
-git push origin v1.2.3
+xrootd:
+  servers:
+    - "root://dev-xrootd.gsi.de:1094"
+  timeout: "30s"
 ```
 
-When a global version tag is pushed to the master branch, the following automated workflow is triggered:
+#### Frontend Configuration
 
-1. **Version Tag Processing**: The system processes the tag and extracts version information
-2. **Component Tag Generation**: The system creates corresponding frontend (`web/vX.Y.Z`) and backend (`app/vX.Y.Z`) version tags
-3. **Package.json Updates**: Updates version information in package.json files
-4. **Changelog Generation**: Automatically generates a changelog from commit messages since the last release
-5. **Release Notes**: Updates the central RELEASE_NOTES.md file with the new version information
-6. **Build & Package**: Creates builds for both frontend and backend components
-7. **RPM Creation**: Generates RPM packages for deployment
-8. **GitHub Release**: Publishes a new GitHub release with all artifacts and notes
+Set environment variables or create `.env.local`:
 
-### Dynamic Versioning (Development)
+```bash
+# Optional: Custom backend URL
+VITE_API_BASE_URL=http://localhost:8081/api/v1
 
-```shell
-# During development, use Git tags for displaying versions in your app
-npm run dev
-
-# When preparing a release (after tagging)
-npm run prepare-release
-
-# Just to check or update package.json versions 
-npm run sync-versions
+# SSL Certificate paths (for HTTPS development)
+VITE_SSL_KEY=/path/to/server.key
+VITE_SSL_CERT=/path/to/server.crt
 ```
 
-### Release Process
+### Code Style and Standards
 
-The release process is fully automated via GitHub Actions and triggers on pushes to the `master` branch.
+#### Go Backend Standards
 
-The automation workflow performs the following tasks:
+- Follow [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
+- Use `gofmt` and `goimports` for formatting
+- Run linting with `golangci-lint`
+- Maintain test coverage > 80%
 
-1. **Version Determination** - Automatically calculates the next version numbers based on existing tags
-2. **Tag Creation** - Creates and pushes new version tags for global, frontend, and backend components 
-3. **Package.json Updates** - Updates version information in package.json files
-4. **Changelog Generation** - Automatically generates a changelog from commit messages
-5. **Release Notes** - Updates the central RELEASE_NOTES.md file with the new version information
+#### Vue.js Frontend Standards
 
-There is no need for manual version management or release note updates - everything is handled by the CI/CD pipeline.
+- Follow [Vue.js Style Guide](https://vuejs.org/style-guide/)
+- Use ESLint and Prettier for code formatting
+- Follow TypeScript best practices where applicable
+- Use composition API for new components
 
-## CI/CD Workflows
+#### Commit Message Format
 
-The project uses GitHub Actions for continuous integration and delivery, with several workflows that handle different aspects of the development and release process.
+Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-### CI/CD Workflow Diagrams
+```text
+type(scope): description
 
-#### 1. Version Tag Push Workflow (Release Process)
+[optional body]
 
-When a version tag like "v0.13.9" is pushed, it triggers the following sequence:
-
-```
-Tag Push (v0.13.9)
-  ↓
-  ↓ [Triggers]
-  ↓
-┌─────────────────────────────┐
-│ version-tag-processor.yml   │
-├─────────────────────────────┤
-│ 1. determine-versions       │
-│ 2. update-package-versions  │
-│ 3. update-changelog         │ 
-│ 4. generate-changelog       │
-│ 5. update-release-notes     │
-└──────────────┬──────────────┘
-               │
-               │ [On workflow_run completion]
-               ▼
-┌─────────────────────────────┐
-│ publish-release.yml         │
-├─────────────────────────────┤
-│ 1. prepare-release          │
-│ 2. create-component-tags    │ ← Creates web/v0.13.9 and app/v0.13.9
-│ 3. build-frontend           │
-│ 4. build-backend            │
-│ 5. build-rpms               │ ← Uses build-rpm.yml reusable workflow
-│ 6. publish-release          │ ← Creates GitHub Release
-└─────────────────────────────┘
+[optional footer]
 ```
 
-#### 2. Pull Requests and Pushes to Master
+Examples:
 
-```
-┌───────────────────────────────────────────────────────────┐
-│                  Push to master OR PR                     │
-└───────────┬─────────────────────────────┬─────────────────┘
-            │                             │
-            ▼                             ▼
-┌───────────────────────┐     ┌───────────────────────┐
-│ Backend Changes       │     │ Frontend Changes      │
-│ (app/** files)        │     │ (web/** files)        │
-└──────────┬────────────┘     └─────────┬─────────────┘
-           │                            │
-           ▼                            ▼
-┌──────────────────────┐    ┌───────────────────────┐
-│ backend.yml          │    │ frontend.yml          │
-├──────────────────────┤    ├───────────────────────┤
-│ 1. build             │    │ 1. build              │
-│ 2. test-and-coverage │    │ 2. security-scan      │
-│ 3. lint              │    │ 3. build-rpm          │
-│ 4. build-rpm         │    └───────────────────────┘
-└──────────────────────┘
+```text
+feat(backend): add file staging endpoint
+fix(frontend): resolve authentication redirect loop
+docs(readme): update installation instructions
 ```
 
-#### 3. Reusable Workflow (build-rpm.yml)
+### Testing Requirements
 
-This workflow is used by multiple other workflows for building RPM packages:
+#### Before Submitting PR
 
-```
-┌─────────────────────────────┐
-│ build-rpm.yml               │
-├─────────────────────────────┤
-│ [Input parameters]          │
-│ - component                 │ ← "frontend", "backend", or "both"
-│ - version                   │ ← Optional, uses package.json if not provided
-│ - is_pr_build               │ ← Adds PR-specific version suffix if true
-│                             │
-│ [Jobs]                      │
-│ 1. build                    │ ← Builds RPM packages and uploads as artifacts
-└─────────────────────────────┘
-```
+```bash
+# Run all backend tests
+cd app && go test -v ./...
 
-These workflows ensure that:
-- Code is properly built, tested and linted
-- RPM packages are created for both frontend and backend components
-- Releases are automatically published with proper changelogs
-- Version management is handled consistently across components
+# Run frontend tests (when available)
+cd web && npm test
 
-## How to run locally
+# Check code coverage
+cd app && go test -cover ./...
 
-This setup ensures that both the Vue 3 Frontend and Go Backend are running simultaneously in development mode, making development more efficient.
-
-### Install dependencies
-
-```shell
-npm install
+# Run linting
+cd app && golangci-lint run
+cd web && npm run lint
 ```
 
-Since the project defines npm workspaces, this command can be run from the root folder of the project or from the Frontend subdirectory `./web`.
+#### Test Coverage Requirements
 
-### Start Development Servers
+- **Backend**: Minimum 80% overall coverage
+- **Critical paths** (auth, file operations): 90% coverage
+- **New features**: Must include tests
+- **Bug fixes**: Must include regression tests## Release Management
 
-To start both the Frontend and Backend servers in development mode (with a hot-reload support), run:
+### Versioning Strategy
 
-```shell
-npm run dev
+DataHarbor follows [Semantic Versioning](https://semver.org/) with the following structure:
+
+- **Global Versions**: `vX.Y.Z` (e.g., `v1.0.0`) for complete releases
+- **Component Versions**: Automatically generated from global versions
+  - Backend: `app/vX.Y.Z`
+  - Frontend: `web/vX.Y.Z`
+
+### Creating a Release
+
+1. **Prepare Release**
+
+   ```bash
+   # Ensure all changes are committed and pushed
+   git checkout master
+   git pull origin master
+   
+   # Run tests and build
+   npm run test
+   npm run build
+   ```
+
+2. **Create Release Tag**
+
+   ```bash
+   # Create annotated tag with release notes
+   git tag -a v1.2.3 -m "Release v1.2.3
+   
+   Features:
+   - Added file staging improvements
+   - Enhanced authentication security
+   
+   Bug Fixes:
+   - Fixed directory navigation issue
+   - Resolved authentication timeout"
+   
+   # Push tag to trigger release automation
+   git push origin v1.2.3
+   ```
+
+3. **Automated Release Process**
+
+   The CI/CD pipeline automatically:
+   - Generates component tags (`app/v1.2.3`, `web/v1.2.3`)
+   - Updates package.json versions
+   - Creates changelog entries
+   - Builds and packages components
+   - Creates GitHub release with artifacts
+
+### CI/CD Workflows
+
+#### Main Workflows
+
+1. **Backend CI** (`.github/workflows/backend.yml`)
+   - Triggers on changes to `app/**` files
+   - Runs tests, linting, coverage reporting
+   - Builds RPM packages for deployment
+
+2. **Frontend CI** (`.github/workflows/frontend.yml`)
+   - Triggers on changes to `web/**` files
+   - Runs build, security scanning
+   - Creates deployable artifacts
+
+3. **Release Automation** (`.github/workflows/version-tag-processor.yml`)
+   - Triggers on version tag pushes
+   - Manages versioning across components
+   - Generates changelogs and release notes
+
+#### Workflow Dependencies
+
+```text
+Tag Push (vX.Y.Z)
+    ↓
+version-tag-processor.yml
+    ├─ Update package versions
+    ├─ Generate changelog
+    └─ Update release notes
+    ↓
+publish-release.yml
+    ├─ Create component tags
+    ├─ Build components
+    ├─ Create RPM packages
+    └─ Publish GitHub release
 ```
 
-This will start the Vue Frontend server and the Go Backend server concurrently.  
-The Frontend will be running on [localhost:5173](http://localhost:5173/) (or on the port specified by Vite).
+## Development Best Practices
 
-### Configuration
+### Code Organization
 
-#### Provide Configuration File
+#### Backend Structure
 
-If you need to provide an optional configuration file path to the Go Backend, set the `CONFIG_FILE_PATH` environment variable before running the npm run dev command:
-
-```shell
-CONFIG_FILE_PATH=/path/to/config.yaml npm run dev
+```text
+app/
+├── controller/         # HTTP request handlers
+├── middleware/         # Cross-cutting concerns
+├── route/             # API route definitions
+├── config/            # Configuration management
+├── common/            # Shared utilities
+├── core/              # Business logic
+├── request/           # Request DTOs
+└── response/          # Response DTOs
 ```
 
-### Build the Project
+#### Frontend Structure
 
-To build both the Frontend and Backend, run:
-
-```shell
-npm run build
+```text
+web/src/
+├── components/        # Reusable UI components
+├── views/             # Page-level components
+├── composables/       # Vue 3 composition functions
+├── stores/            # Pinia state management
+├── router/            # Vue Router configuration
+├── api/               # HTTP client and endpoints
+└── utils/             # Helper functions
 ```
 
-This will build the Vue Frontend using Vite and compile the Go Backend.
+### Error Handling
 
-## RPM Packaging
+#### Backend Error Handling
 
-The project provides RPM packages for both parts, [the frontend](./web/README.md#rpm) and [the backend](./app/README.md#rpm).
+```go
+// Use consistent error response format
+func HandleError(c *gin.Context, err error, code int) {
+    logger.Error("Request failed", zap.Error(err))
+    
+    c.JSON(code, response.ErrorResponse{
+        Code:    code,
+        Message: err.Error(),
+    })
+}
 
-## Containerization
+// Example usage
+func FileHandler(c *gin.Context) {
+    files, err := xrdClient.ListDirectory(path)
+    if err != nil {
+        HandleError(c, err, http.StatusInternalServerError)
+        return
+    }
+    
+    c.JSON(http.StatusOK, response.SuccessResponse{
+        Code:    http.StatusOK,
+        Message: "success",
+        Data:    files,
+    })
+}
+```
 
-The project can provide Two Containers ([One for Frontend](./web/README.md#containerization), [One for Backend](./app/README.md#containerization)). The Backend can be treated as a microservice.  The Backend is relatively compact, therefore container is not really needed, as it can be deployed as an app. But splitting Frontend and Backend deployment is still advisable, see below.
+#### Frontend Error Handling
 
-* **Isolation**:
-Each service runs in its own container, which means they are isolated from each other. This can make debugging easier and improve security.
-* **Scalability**:  
-You can scale the Frontend and Backend independently based on their respective loads. For example, if your Backend needs more resources, you can scale it up without affecting the Frontend.
-* **Flexibility**:  
-You can update or redeploy one service without affecting the other. This is particularly useful for continuous deployment and integration.
-* **Best Practices**:  
-This approach aligns with the microservices architecture, which is a widely adopted best practice in modern application development.
+```javascript
+// Use consistent error handling in composables
+export function useFileOperations() {
+  const error = ref(null)
+  const loading = ref(false)
+  
+  const listDirectory = async (path) => {
+    try {
+      loading.value = true
+      error.value = null
+      
+      const response = await api.get(`/dir`, { params: { path } })
+      return response.data
+    } catch (err) {
+      error.value = err.response?.data?.message || 'An error occurred'
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  return { listDirectory, error, loading }
+}
+```
+
+### Security Considerations
+
+#### Input Validation
+
+```go
+// Backend: Always validate and sanitize inputs
+func validatePath(path string) error {
+    if strings.Contains(path, "..") {
+        return errors.New("path traversal not allowed")
+    }
+    
+    if !filepath.IsAbs(path) {
+        return errors.New("absolute path required")
+    }
+    
+    return nil
+}
+```
+
+#### Authentication Middleware
+
+```go
+// Verify authentication on protected routes
+func AuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        session := sessions.Default(c)
+        
+        if session.Get("access_token") == nil {
+            c.JSON(http.StatusUnauthorized, gin.H{
+                "code": http.StatusUnauthorized,
+                "message": "authentication required",
+            })
+            c.Abort()
+            return
+        }
+        
+        c.Next()
+    }
+}
+```
+
+### Performance Optimization
+
+#### Backend Performance
+
+- Use connection pooling for XROOTD operations
+- Implement request timeouts
+- Add response caching where appropriate
+- Monitor memory usage with file operations
+- Use structured logging for debugging
+
+#### Frontend Performance
+
+- Implement lazy loading for large directory listings
+- Use virtual scrolling for file lists
+- Optimize bundle size with tree shaking
+- Implement service worker for caching
+- Use appropriate loading states
+
+### Configuration Management
+
+#### Environment-Specific Configuration
+
+```yaml
+# app/config/application.development.yaml
+server:
+  debug: true
+  port: 8081
+
+logging:
+  level: debug
+  format: console
+
+# app/config/application.production.yaml
+server:
+  debug: false
+  port: 8081
+
+logging:
+  level: info
+  format: json
+```
+
+#### Configuration Validation
+
+```go
+// Validate configuration on startup
+func ValidateConfig(cfg *Config) error {
+    if cfg.Auth.OIDC.ClientID == "" {
+        return errors.New("OIDC client ID required")
+    }
+    
+    if len(cfg.XROOTD.Servers) == 0 {
+        return errors.New("at least one XROOTD server required")
+    }
+    
+    return nil
+}
+```
+
+## Troubleshooting
+
+### Common Development Issues
+
+#### Backend Issues
+
+1. **XROOTD Connection Failures**
+
+   ```bash
+   # Test XROOTD connectivity
+   xrdfs root://server.gsi.de:1094 ls /
+
+   # Check server configuration
+   cat app/config/application.development.yaml
+   ```
+
+2. **Authentication Problems**
+
+   ```bash
+   # Verify OIDC configuration
+   curl -s https://keycloak.gsi.de/realms/dataharbor/.well-known/openid_configuration
+
+   # Check session cookies
+   # Use browser dev tools -> Application -> Cookies
+   ```
+
+#### Frontend Issues
+
+1. **SSL Certificate Problems**
+
+   ```bash
+   # Check certificate status
+   npm run cert:check
+   
+   # Setup development certificates
+   npm run cert:setup
+   ```
+
+2. **API Connection Issues**
+
+   ```bash
+   # Verify backend is running
+   curl http://localhost:8081/api/v1/health
+   
+   # Check CORS configuration
+   # Look for CORS errors in browser console
+   ```
+
+### Debugging Tools
+
+#### Backend Debugging
+
+```bash
+# Run with debug logging
+cd app
+CONFIG_FILE_PATH=config/application.development.yaml go run .
+
+# Run with race detection
+go run -race .
+
+# Profile memory usage
+go build -o dataharbor .
+./dataharbor --cpuprofile=cpu.prof --memprofile=mem.prof
+```
+
+#### Frontend Debugging
+
+```bash
+# Run in debug mode
+npm run dev:debug
+
+# Analyze bundle size
+npm run build:analyze
+
+# Run with verbose logging
+DEBUG=* npm run dev
+```
+
+## Contributing Guidelines
+
+### Pull Request Process
+
+1. **Create Feature Branch**
+
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+2. **Make Changes**
+   - Follow coding standards
+   - Add appropriate tests
+   - Update documentation
+
+3. **Test Changes**
+
+   ```bash
+   # Run all tests
+   cd app && go test -v ./...
+   cd web && npm test
+   
+   # Check code coverage
+   cd app && go test -cover ./...
+   ```
+
+4. **Submit Pull Request**
+   - Use descriptive title and description
+   - Reference related issues
+   - Ensure CI checks pass
+
+### Code Review Checklist
+
+- [ ] Code follows project standards
+- [ ] Tests are included and passing
+- [ ] Documentation is updated
+- [ ] No sensitive information exposed
+- [ ] Error handling is appropriate
+- [ ] Performance impact considered
+
+### Internal Development Guidelines
+
+Since DataHarbor is for internal GSI use:
+
+- Focus on developer experience and maintainability
+- Document integration points with GSI infrastructure
+- Consider security requirements for internal networks
+- Plan for integration with existing GSI authentication systems
+- Design for internal deployment and monitoring tools
