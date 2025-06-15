@@ -25,7 +25,7 @@
                 <div class="features-grid">
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="32" color="var(--el-color-primary)">
+                            <el-icon size="24" color="var(--el-color-primary)">
                                 <FolderOpened />
                             </el-icon>
                         </div>
@@ -35,7 +35,7 @@
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="32" color="var(--el-color-success)">
+                            <el-icon size="24" color="var(--el-color-success)">
                                 <Download />
                             </el-icon>
                         </div>
@@ -45,7 +45,7 @@
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="32" color="var(--el-color-warning)">
+                            <el-icon size="24" color="var(--el-color-warning)">
                                 <Monitor />
                             </el-icon>
                         </div>
