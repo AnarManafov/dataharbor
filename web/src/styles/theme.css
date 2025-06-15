@@ -174,3 +174,36 @@
 .dh-transition-slow {
   transition: all 0.5s ease;
 }
+
+/* Icon Size System */
+:root {
+  /* Standard icon sizes following industry practices */
+  --dh-icon-xs: 12px;
+  --dh-icon-sm: 16px;
+  --dh-icon-md: 20px;
+  --dh-icon-lg: 24px;
+  --dh-icon-xl: 32px;
+  
+  /* Component sizing standards */
+  --dh-header-height: 52px;
+  --dh-sidebar-width: 260px;
+  --dh-sidebar-width-collapsed: 56px;
+  --dh-button-height-sm: 28px;
+  --dh-button-height-md: 32px;
+  --dh-button-height-lg: 40px;
+  --dh-avatar-sm: 32px;
+  --dh-avatar-md: 36px;
+  --dh-avatar-lg: 48px;
+}
+
+/* Icon utility classes */
+.dh-icon-xs { font-size: var(--dh-icon-xs) !important; }
+.dh-icon-sm { font-size: var(--dh-icon-sm) !important; }
+.dh-icon-md { font-size: var(--dh-icon-md) !important; }
+.dh-icon-lg { font-size: var(--dh-icon-lg) !important; }
+.dh-icon-xl { font-size: var(--dh-icon-xl) !important; }
+
+/* Component utility classes */
+.dh-compact-spacing { gap: 8px !important; }
+.dh-normal-spacing { gap: 12px !important; }
+.dh-loose-spacing { gap: 16px !important; }

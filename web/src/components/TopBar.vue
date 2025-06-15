@@ -1,5 +1,5 @@
 <template>
-    <el-header class="top-bar" height="60px">
+    <el-header class="top-bar" height="52px">
         <div class="top-bar-content">
             <!-- Left: Logo and Toggle Button -->
             <div class="left-section">
@@ -35,7 +35,7 @@
                                 <div class="user-name">{{ userFullName || userLogin }}</div>
                                 <div class="user-email">{{ userEmail }}</div>
                             </div>
-                            <el-avatar :size="40" :src="userAvatar" :icon="User" class="user-avatar">
+                            <el-avatar :size="36" :src="userAvatar" :icon="User" class="user-avatar">
                                 {{ userInitials }}
                             </el-avatar>
                             <el-icon class="dropdown-icon">
@@ -222,13 +222,13 @@ const handleUserAction = async (command) => {
 .left-section {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
 }
 
 .toggle-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     background: transparent;
     border: 1px solid var(--el-border-color-light);
     transition: all 0.2s ease;
@@ -249,7 +249,7 @@ const handleUserAction = async (command) => {
 }
 
 .logo {
-    height: 36px;
+    height: 30px;
     width: auto;
     color: var(--el-color-primary);
 }
@@ -265,8 +265,8 @@ const handleUserAction = async (command) => {
 }
 
 .login-btn {
-    height: 36px;
-    padding: 0 16px;
+    height: 32px;
+    padding: 0 14px;
     border-radius: 6px;
     font-weight: 500;
 }
@@ -279,11 +279,11 @@ const handleUserAction = async (command) => {
 .user-info {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
-    border-radius: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
     cursor: pointer;
     transition: background-color 0.2s;
-    gap: 12px;
+    gap: 10px;
 }
 
 .user-info:hover {
@@ -341,12 +341,12 @@ const handleUserAction = async (command) => {
     }
 
     .user-info {
-        padding: 8px;
-        gap: 8px;
+        padding: 6px;
+        gap: 6px;
     }
 
     .logo {
-        height: 32px;
+        height: 28px;
     }
 }
 

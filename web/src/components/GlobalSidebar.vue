@@ -6,7 +6,7 @@
         <!-- Main Layout -->
         <div class="main-layout">
             <!-- Sidebar -->
-            <el-aside :width="isCollapsed ? '64px' : '280px'" class="sidebar" :class="{ 'collapsed': isCollapsed }">
+            <el-aside :width="isCollapsed ? '56px' : '260px'" class="sidebar" :class="{ 'collapsed': isCollapsed }">
                 <div class="sidebar-content">
                     <!-- Navigation Menu -->
                     <div class="navigation-section">
@@ -157,7 +157,7 @@ watch(isCollapsed, (newValue) => {
 .navigation-section {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 0;
+    padding: 12px 0;
 }
 
 .sidebar-menu {
@@ -166,7 +166,7 @@ watch(isCollapsed, (newValue) => {
 }
 
 .sidebar-menu .el-menu-item {
-    margin: 2px 8px;
+    margin: 1px 6px;
     border-radius: 6px;
     height: 40px;
     line-height: 40px;
@@ -184,7 +184,7 @@ watch(isCollapsed, (newValue) => {
 }
 
 .sidebar-menu .el-sub-menu .el-sub-menu__title {
-    margin: 2px 8px;
+    margin: 1px 6px;
     border-radius: 6px;
     height: 40px;
     line-height: 40px;
@@ -206,8 +206,8 @@ watch(isCollapsed, (newValue) => {
 @media (max-width: 768px) {
     .sidebar {
         position: fixed;
-        height: calc(100vh - 60px);
-        top: 60px;
+        height: calc(100vh - 52px);
+        top: 52px;
         z-index: 2000;
     }
 

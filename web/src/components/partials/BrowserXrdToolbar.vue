@@ -5,7 +5,7 @@
             <el-col :span='12' class='toolbar-left-content'>
                 <div>
                     <el-tooltip class='box-item' effect='dark' :content='serviceStatusTooltip' placement='bottom-start'>
-                        <el-icon :style='{ color: serviceStatusColor }' @click='changeDirToInitialPath' :size='18'
+                        <el-icon :style='{ color: serviceStatusColor }' @click='changeDirToInitialPath' :size='16'
                             style='margin-right: 5px; margin-top: 3px'>
                             <HomeFilled />
                         </el-icon>
@@ -37,13 +37,18 @@
         <el-row class='full-size-row second-row'>
             <el-col :span='24' class='toolbar-left-content column-layout'>
                 <div class="current-page-stats">
-                    Current page: <span style='font-weight: bold'>{{ folderCount +  fileCount}}</span> (<span style='font-weight: bold; color: var(--el-color-primary)'>{{ folderCount }} folders</span>,
-                    <span style='font-weight: bold; color: var(--el-color-success)'>{{ fileCount }} files</span>), cumulative file size:
+                    Current page: <span style='font-weight: bold'>{{ folderCount + fileCount }}</span> (<span
+                        style='font-weight: bold; color: var(--el-color-primary)'>{{ folderCount }} folders</span>,
+                    <span style='font-weight: bold; color: var(--el-color-success)'>{{ fileCount }} files</span>),
+                    cumulative
+                    file size:
                     <span style='font-weight: bold;'>{{ totalOnPageFileSize }}</span>
                 </div>
                 <div class="total-stats">
-                    Total: <span style='font-weight: bold'>{{ totalFileCount +  totalFolderCount}}</span> (<span style='font-weight: bold; color: var(--el-color-primary)'>{{ totalFolderCount }} folders</span>,
-                    <span style='font-weight: bold; color: var(--el-color-success)'>{{ totalFileCount }} files</span>), cumulative file
+                    Total: <span style='font-weight: bold'>{{ totalFileCount + totalFolderCount }}</span> (<span
+                        style='font-weight: bold; color: var(--el-color-primary)'>{{ totalFolderCount }} folders</span>,
+                    <span style='font-weight: bold; color: var(--el-color-success)'>{{ totalFileCount }} files</span>),
+                    cumulative file
                     size: <span style='font-weight: bold;'>{{ totalFileSize }}</span>
                 </div>
             </el-col>
