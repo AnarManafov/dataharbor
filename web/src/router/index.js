@@ -18,11 +18,12 @@ const routes = [
         meta: { isPublic: true }
     },
     {
-        path: '/browse',
+        path: '/browse/:path(.*)*',
         name: 'browse',
         component: BrowseXrdView,
         // Protected routes will redirect to login when user isn't authenticated
-        meta: { requiresAuth: true }
+        meta: { requiresAuth: true },
+        props: true
     },
     {
         path: '/about',

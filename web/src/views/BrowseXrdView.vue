@@ -35,6 +35,7 @@
 import { getHostName, getInitialDirPath, getItemsInDir, getFileStagedForDownload, getBackendHealth, getPagedItemsInDir } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { saveAs } from 'file-saver';
 import axios from 'axios';
 import { useStorage } from '@vueuse/core'
@@ -172,8 +173,22 @@ onMounted(() => {
     getInitialDirPath()
         .then(resp => {
             let homeDir = resp.data.data
-            // Use new data only if there no value in the storage
-            if (!currentDirectory.value) currentDirectory.value = homeDir
+
+            // Check if we have a path from props (route parameter)
+            let targetPath = homeDir;
+            if (props.path) {
+                try {
+                    targetPath = decodeURIComponent(props.path);
+                } catch (e) {
+                    console.warn('Failed to decode path prop:', props.path, e);
+                    targetPath = props.path;
+                }
+            }
+
+            // Use new data only if there no value in the storage, or use the path from props
+            if (!currentDirectory.value || props.path) {
+                currentDirectory.value = targetPath;
+            }
             initialPath.value = homeDir
             getXrdHostName()
         })
@@ -324,6 +339,15 @@ onBeforeRouteUpdate((to, from, next) => {
         path = path.join('/');
     }
 
+    // Decode the path parameter if it was encoded
+    if (path && path !== initialPath.value) {
+        try {
+            path = decodeURIComponent(path);
+        } catch (e) {
+            console.warn('Failed to decode path parameter:', path, e);
+        }
+    }
+
     loadDirectory(path);
     next();
 });
@@ -364,10 +388,12 @@ const routerPushNewPath = (_path) => {
     console.log('routerPushNewPath: %s', _path);
     let pathTmp = _path || initialPath.value;
     if (Array.isArray(pathTmp)) {
-        _path = pathTmp.join('/');
+        pathTmp = pathTmp.join('/');
     }
 
-    router.push({ name: 'browse', params: { path: _path } }); // No need to encode the path
+    // Encode the path for URL safety
+    const encodedPath = encodeURIComponent(pathTmp);
+    router.push({ name: 'browse', params: { path: encodedPath } });
 };
 
 /**
@@ -390,7 +416,7 @@ const listDir = async () => {
     }
 
     try {
-        const resp = await getItemsInDir(currentDirectory.value, PAGE_SIZE);
+        const resp = await getItemsInDir(currentDirectory.value);
         if (resp.data.items != null) {
             tableData.value = resp.data.items;
             pageSize.value = resp.data.pageSize; // Update pageSize

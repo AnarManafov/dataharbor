@@ -136,8 +136,14 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 		})
 	} else {
 		ctx.JSON(http.StatusOK, gin.H{
-			"code":  200,
-			"items": items,
+			"code":               200,
+			"items":              items,
+			"totalItems":         totalItems,
+			"pageSize":           pageSize,
+			"totalPages":         totalPages,
+			"totalFileCount":     totalFileCount,
+			"totalFolderCount":   totalFolderCount,
+			"cumulativeFileSize": cumulativeFileSize,
 		})
 	}
 }
