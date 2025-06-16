@@ -25,10 +25,10 @@
                 </div>
             </el-col>
             <el-col :span='12' class='toolbar-right-content'>
-                <div style='font-size: 12px;'>
+                <div style='font-size: 10px;'>
                     Data Server Host: <span style='font-weight: bold;'>{{ xrdHostName }}</span>
                 </div>
-                <div style='font-size: 12px;'>
+                <div style='font-size: 10px;'>
                     Initial Path: <span style='font-weight: bold;'>{{ initialPath }}</span>
                 </div>
             </el-col>
@@ -109,7 +109,7 @@ const changeDir = (index: number) => {
 }
 
 .el-breadcrumb {
-    font-size: 14px;
+    font-size: 16px;
 }
 
 .second-row {
@@ -119,6 +119,7 @@ const changeDir = (index: number) => {
 }
 
 .second-row .toolbar-left-content>div {
+    font-size: 12px;
     /* Adjust this value to control the spacing between folder and file counts */
     margin-bottom: 5px;
     /* Add space between folder and file counters */
