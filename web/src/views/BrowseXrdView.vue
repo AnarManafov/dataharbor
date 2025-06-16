@@ -86,9 +86,38 @@ const totalItems = ref(0);
 // Computed property of the table data.
 // A filter or other modifiers can be added to change the data representation for the user
 const filteredData = computed(() => {
-    return tableData.value/*.filter(item => 
-        item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      );*/
+    let data = [...tableData.value];
+    let parentDirItem = null;
+
+    // Check if we should show the ".." folder (parent directory)
+    const shouldShowParentDir = currentDirectory.value && initialPath.value &&
+        currentDirectory.value !== initialPath.value &&
+        currentDirectory.value.startsWith(initialPath.value);
+
+    if (shouldShowParentDir) {
+        parentDirItem = {
+            name: '..',
+            type: 'dir',
+            size: 0,
+            dateTime: '',
+            date_time: '',
+            isParentDir: true
+        };
+    }
+
+    // Apply any filtering logic here (search, type filters, etc.)
+    // ... existing filter logic can be added here ...
+
+    // Apply sorting to the data (excluding the parent directory)
+    // Note: The sorting logic would go here when it's implemented
+    // For now, we'll just maintain the original order
+
+    // Add the parent directory at the top if it should be shown
+    if (parentDirItem) {
+        data.unshift(parentDirItem);
+    }
+
+    return data;
 });
 
 // Define the table loading state
@@ -96,7 +125,7 @@ const tableLoading = ref(false);
 
 // Computed properties to count folders and files
 const folderCount = computed(() => {
-    return filteredData.value.filter(item => item.type === 'dir').length;
+    return filteredData.value.filter(item => item.type === 'dir' && item.name !== '..').length;
 });
 const fileCount = computed(() => {
     return filteredData.value.filter(item => item.type !== 'dir').length;
@@ -248,13 +277,32 @@ const changeDir = async (index: number) => {
 const selectDir = async (row: { type: string; name: string; }) => {
     console.log('selectDir row element: %s', row.name);
     if (row.type == 'dir') {
+        if (row.name === '..') {
+            // Navigate up one level
+            const pathParts = currentDirectory.value.split('/').filter(part => part !== '');
+            if (pathParts.length > 0) {
+                pathParts.pop(); // Remove the last directory
+                const parentPath = pathParts.length > 0 ? '/' + pathParts.join('/') : '/';
 
-        // Change the current directory value
-        currentDirectory.value = joinPaths(currentDirectory.value, row.name);
-        console.log('selectDir: %s', currentDirectory.value);
+                // Make sure we don't go above the initial path
+                if (parentPath === initialPath.value ||
+                    (initialPath.value.startsWith(parentPath) && parentPath !== '/') ||
+                    (parentPath.startsWith(initialPath.value) && parentPath.length >= initialPath.value.length)) {
+                    currentDirectory.value = parentPath;
+                    console.log('selectDir go up to: %s', currentDirectory.value);
 
-        // Push the new path to the router
-        routerPushNewPath(currentDirectory.value);
+                    // Push the new path to the router
+                    routerPushNewPath(currentDirectory.value);
+                }
+            }
+        } else {
+            // Regular directory navigation
+            currentDirectory.value = joinPaths(currentDirectory.value, row.name);
+            console.log('selectDir: %s', currentDirectory.value);
+
+            // Push the new path to the router
+            routerPushNewPath(currentDirectory.value);
+        }
     } else {
         const srcFileToDownload = joinPaths(currentDirectory.value, row.name);
         // @ts-ignore: TS2304: cannot find name ' require'
@@ -560,6 +608,7 @@ onBeforeUnmount(() => {
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+
     .toolbar-header,
     .file-table-container,
     .pagination-header {

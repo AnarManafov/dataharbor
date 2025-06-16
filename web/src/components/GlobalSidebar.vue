@@ -6,7 +6,7 @@
         <!-- Main Layout -->
         <div class="main-layout">
             <!-- Sidebar -->
-            <el-aside :width="isCollapsed ? '56px' : '260px'" class="sidebar" :class="{ 'collapsed': isCollapsed }">
+            <el-aside :width="isCollapsed ? '56px' : '200px'" class="sidebar" :class="{ 'collapsed': isCollapsed }">
                 <div class="sidebar-content">
                     <!-- Navigation Menu -->
                     <div class="navigation-section">
