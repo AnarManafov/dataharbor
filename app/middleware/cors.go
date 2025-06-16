@@ -6,7 +6,6 @@ import (
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 )
 
 // CORS returns a middleware that adds CORS headers to responses
@@ -14,16 +13,12 @@ func CORS() gin.HandlerFunc {
 	logger := common.GetLogger()
 	logger.Info("Initializing CORS middleware")
 
-	// Get configuration values with fallbacks
-	allowOrigins := getConfiguredOrigins()
-	allowMethods := getConfiguredMethods()
-	allowHeaders := getConfiguredHeaders()
-	allowCredentials := viper.GetBool("server.cors.allow_credentials")
-
-	// Check if custom config is set (for tests)
-	if cfg := config.GetConfig(); cfg != nil && cfg.Server.CORS.AllowCredentials {
-		allowCredentials = true
-	}
+	// Get configuration values from main config
+	cfg := config.GetConfig()
+	allowOrigins := getConfiguredOrigins(cfg)
+	allowMethods := getConfiguredMethods(cfg)
+	allowHeaders := getConfiguredHeaders(cfg)
+	allowCredentials := cfg.Server.CORS.AllowCredentials
 
 	// TODO: Production security settings:
 	// 1. Use HTTPS for both frontend and backend
@@ -71,9 +66,9 @@ func CORS() gin.HandlerFunc {
 }
 
 // Helper function to determine allowed origins
-func getConfiguredOrigins() []string {
+func getConfiguredOrigins(cfg *config.Config) []string {
 	logger := common.GetLogger()
-	allowOrigins := viper.GetStringSlice("server.cors.allow_origins")
+	allowOrigins := cfg.Server.CORS.AllowOrigins
 
 	// Add development server origins if not present
 	devOrigins := []string{
@@ -81,7 +76,7 @@ func getConfiguredOrigins() []string {
 		"http://127.0.0.1:5173",  // Alternative localhost address
 		"http://localhost:3000",  // Common React dev port
 		"http://localhost:8080",  // Common Vue/Webpack port
-		"http://localhost:22000", // Your API port
+		"http://localhost:22000", // Alternative dev server port
 		"https://id.gsi.de",      // Keycloak domain
 	}
 
@@ -102,8 +97,8 @@ func getConfiguredOrigins() []string {
 }
 
 // Helper function to get default methods if not configured
-func getConfiguredMethods() []string {
-	methods := viper.GetStringSlice("server.cors.allow_methods")
+func getConfiguredMethods(cfg *config.Config) []string {
+	methods := cfg.Server.CORS.AllowMethods
 	if len(methods) == 0 {
 		return []string{
 			"GET",
@@ -117,8 +112,8 @@ func getConfiguredMethods() []string {
 }
 
 // Helper function to get default headers if not configured
-func getConfiguredHeaders() []string {
-	headers := viper.GetStringSlice("server.cors.allow_headers")
+func getConfiguredHeaders(cfg *config.Config) []string {
+	headers := cfg.Server.CORS.AllowHeaders
 	if len(headers) == 0 {
 		return []string{
 			"Origin",

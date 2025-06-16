@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 )
 
 // Helper function to determine if a file/directory exceeds the retention period
@@ -17,10 +18,11 @@ func isOlderThanXHours(t time.Time, x uint) bool {
 // NewSanitationScheduler creates a background process to prevent disk space exhaustion
 // by periodically cleaning up abandoned downloads and temporary files
 func NewSanitationScheduler() (*time.Ticker, chan bool) {
+	cfg := config.GetConfig()
 	common.Logger.Info("Creating a sanitation check job...")
 
 	// Default to 30 minutes if not configured to prevent zero interval
-	interval := common.XrdConfig.SanitationJobInterval
+	interval := cfg.XRD.SanitationJobInterval
 	if interval == 0 {
 		interval = 30
 	}
@@ -33,7 +35,8 @@ func NewSanitationScheduler() (*time.Ticker, chan bool) {
 // CheckAndRemoveOldFiles cleans up the staging directory by removing files
 // older than 24 hours to prevent disk space exhaustion from abandoned transfers
 func CheckAndRemoveOldFiles() {
-	stagingPath := common.XrdConfig.StagingPath
+	cfg := config.GetConfig()
+	stagingPath := cfg.XRD.StagingPath
 	if stagingPath == "" {
 		common.Logger.Warn("Staging path is not configured, skipping sanitation")
 		return
@@ -47,8 +50,8 @@ func CheckAndRemoveOldFiles() {
 
 	for _, entry := range entries {
 		// Only process directories with our prefix to avoid removing unrelated files
-		if !entry.IsDir() || (common.XrdConfig.StagingTmpDirPrefix != "" &&
-			!strings.HasPrefix(entry.Name(), common.XrdConfig.StagingTmpDirPrefix)) {
+		if !entry.IsDir() || (cfg.XRD.StagingTmpDirPrefix != "" &&
+			!strings.HasPrefix(entry.Name(), cfg.XRD.StagingTmpDirPrefix)) {
 			continue
 		}
 

@@ -9,9 +9,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/AnarManafov/dataharbor/app/controller"
 	"github.com/AnarManafov/dataharbor/app/middleware"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -32,7 +32,8 @@ func SetupRouter(r *gin.Engine) {
 	r.Use(middleware.CORS())
 
 	// Enable request/response logging in debug mode to aid development
-	if viper.GetBool("server.debug") {
+	cfg := config.GetConfig()
+	if cfg.Server.Debug {
 		r.Use(middleware.DebugRequestBody())
 	}
 
@@ -73,9 +74,10 @@ func SetupRouter(r *gin.Engine) {
 // setupStaticFiles configures routes to serve frontend static files
 func setupStaticFiles(r *gin.Engine) {
 	logger := common.GetLogger()
+	cfg := config.GetConfig()
 
 	// Get frontend config settings
-	distDir := viper.GetString("frontend.dist_dir")
+	distDir := cfg.Frontend.DistDir
 	if distDir == "" {
 		distDir = DefaultDistDir
 	}
@@ -143,7 +145,8 @@ func findFrontendPath(distDir string) (string, bool, []string) {
 	}
 
 	// 3. Try configured asset paths
-	assetPaths := viper.GetStringSlice("frontend.asset_paths")
+	cfg := config.GetConfig()
+	assetPaths := cfg.Frontend.AssetPaths
 	for _, path := range assetPaths {
 		// Try absolute path
 		possiblePath := filepath.Join(path, distDir)

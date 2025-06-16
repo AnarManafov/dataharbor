@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/AnarManafov/dataharbor/app/common"
@@ -56,40 +55,39 @@ func initialize() {
 		common.Logger.Warn("Warning: viper config loading issue:", err)
 	}
 
-	// 5. Parse XRD config from viper values
-	common.ParseXrdConfig()
-
-	// 6. Parse system config
-	common.ParseSystemConfig()
-
-	// 7. Log full configuration if debug is enabled
-	if viper.GetBool("server.debug") {
+	// 5. Log full configuration if debug is enabled
+	if cfg.Server.Debug {
 		common.Logger.Debug("Full configuration:", viper.AllSettings())
 	}
 }
 
 func startServer(stop chan struct{}) {
-	if !common.ServerConfig.Debug {
+	cfg := config.GetConfig()
+
+	if !cfg.Server.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.New()
 	route.RegisterRoutes(r)
 
-	cfg := config.GetConfig()
-	port := strconv.Itoa(common.ServerConfig.Port)
+	// Use address from main config instead of separate port
+	address := cfg.Server.Address
+	if address == "" {
+		address = ":8080" // Default fallback
+	}
 
 	ticker, done := core.NewSanitationScheduler()
 	go core.SanitationJob(ticker, done)
 
 	srv := &http.Server{
-		Addr:    ":" + port,
+		Addr:    address,
 		Handler: r,
 	}
 
 	// Start server with SSL/TLS support if enabled
 	if cfg.Server.SSL.Enabled {
-		fmt.Printf("Starting HTTPS server on port: %s\n", port)
+		fmt.Printf("Starting HTTPS server on address: %s\n", address)
 		common.Logger.Infof("SSL enabled - cert: %s, key: %s", cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile)
 
 		// Validate certificate files exist
@@ -103,7 +101,7 @@ func startServer(stop chan struct{}) {
 			}
 		}()
 	} else {
-		fmt.Printf("Starting HTTP server on port: %s\n", port)
+		fmt.Printf("Starting HTTP server on address: %s\n", address)
 		go func() {
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				common.Logger.Fatal("HTTP server failed:", err)

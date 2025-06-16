@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/AnarManafov/dataharbor/app/request"
 	"github.com/AnarManafov/dataharbor/app/response"
 
@@ -22,19 +23,23 @@ const (
 )
 
 func FetchInitialDir(ctx *gin.Context) {
-	response.Success(ctx, common.XrdConfig.InitialDir)
+	cfg := config.GetConfig()
+	response.Success(ctx, cfg.XRD.InitialDir)
 }
 
 func FetchHostName(ctx *gin.Context) {
-	response.Success(ctx, common.XrdConfig.Host)
+	cfg := config.GetConfig()
+	response.Success(ctx, cfg.XRD.Host)
 }
 
 func FetchDirItems(ctx *gin.Context) {
-	fetchDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, false)
+	cfg := config.GetConfig()
+	fetchDirItems(ctx, ReadDir, cfg.XRD.Host, cfg.XRD.Port, false)
 }
 
 func FetchDirItemsByPage(ctx *gin.Context) {
-	fetchDirItems(ctx, ReadDir, common.XrdConfig.Host, common.XrdConfig.Port, true)
+	cfg := config.GetConfig()
+	fetchDirItems(ctx, ReadDir, cfg.XRD.Host, cfg.XRD.Port, true)
 }
 
 // Handles directory listing with unified business logic for both paginated
@@ -149,7 +154,8 @@ func fetchDirItems(ctx *gin.Context, readDir ReadDirFunc, host string, port uint
 }
 
 func FetchFileStagedForDownload(ctx *gin.Context) {
-	fetchFileStagedForDownload(ctx, stageFileLocal, common.XrdConfig.Host, common.XrdConfig.Port)
+	cfg := config.GetConfig()
+	fetchFileStagedForDownload(ctx, stageFileLocal, cfg.XRD.Host, cfg.XRD.Port)
 }
 
 func fetchFileStagedForDownload(ctx *gin.Context, stageFile StageFileFunc, host string, port uint) {

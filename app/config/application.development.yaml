@@ -2,7 +2,6 @@ env: development
 
 server:
   address: ":22000"  # Match the port expected by the sandbox proxy
-  port: 22000
   debug: true        # Enable debugging for development
   shutdown_timeout: 30s
   cors:

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,13 +35,13 @@ func TestIsOlderThanXHours(t *testing.T) {
 
 // TestNewSanitationScheduler tests the NewSanitationScheduler function.
 func TestNewSanitationScheduler(t *testing.T) {
-	// Set a non-zero interval for the test to avoid the panic
-	oldInterval := common.XrdConfig.SanitationJobInterval
-	common.XrdConfig.SanitationJobInterval = 30 // 30 minutes
-	defer func() {
-		// Restore the original value after the test
-		common.XrdConfig.SanitationJobInterval = oldInterval
-	}()
+	// Set up config for testing
+	testConfig := &config.Config{
+		XRD: config.XRDConfig{
+			SanitationJobInterval: 30, // 30 minutes
+		},
+	}
+	config.SetConfig(testConfig)
 
 	// Call the function to be tested
 	ticker, done := NewSanitationScheduler()
@@ -73,19 +73,14 @@ func TestCheckAndRemoveOldFiles(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	// Store the original config values
-	originalPath := common.XrdConfig.StagingPath
-	originalPrefix := common.XrdConfig.StagingTmpDirPrefix
-
-	// Set up the common.XrdConfig for testing
-	common.XrdConfig.StagingPath = dir
-	common.XrdConfig.StagingTmpDirPrefix = "tmp_"
-
-	// Restore the original values after the test
-	defer func() {
-		common.XrdConfig.StagingPath = originalPath
-		common.XrdConfig.StagingTmpDirPrefix = originalPrefix
-	}()
+	// Set up config for testing
+	testConfig := &config.Config{
+		XRD: config.XRDConfig{
+			StagingPath:         dir,
+			StagingTmpDirPrefix: "tmp_",
+		},
+	}
+	config.SetConfig(testConfig)
 
 	// Create a temporary subdirectory
 	tmpDir := filepath.Join(dir, "tmp_test")
