@@ -296,8 +296,8 @@ const handleUserAction = async (command) => {
 }
 
 .user-name {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: var(--dh-font-size-sm);
+    font-weight: var(--dh-font-weight-medium);
     color: var(--el-text-color-primary);
     white-space: nowrap;
     overflow: hidden;
@@ -306,7 +306,7 @@ const handleUserAction = async (command) => {
 }
 
 .user-email {
-    font-size: 12px;
+    font-size: var(--dh-font-size-xs);
     color: var(--el-text-color-secondary);
     white-space: nowrap;
     overflow: hidden;

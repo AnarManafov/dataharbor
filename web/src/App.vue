@@ -28,7 +28,10 @@ export default {
 
 <style lang="scss">
 #app {
-    font-family: Avenir, Helvetica, Arial, sans-serif;
+    font-family: var(--dh-font-family);
+    font-size: var(--dh-font-size-base);
+    line-height: var(--dh-line-height-normal);
+    font-weight: var(--dh-font-weight-normal);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     color: #2c3e50;

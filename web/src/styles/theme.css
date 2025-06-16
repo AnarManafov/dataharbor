@@ -88,6 +88,36 @@
   --dh-border-dark: #64748b;
 }
 
+/* Global Font System - Modern Typography Stack */
+:root {
+  /* Modern system font stack following current design guidelines */
+  --dh-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --dh-font-family-mono: 'SFMono-Regular', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+  
+  /* Typography scale */
+  --dh-font-size-xs: 0.75rem;    /* 12px */
+  --dh-font-size-sm: 0.875rem;   /* 14px */
+  --dh-font-size-base: 1rem;     /* 16px */
+  --dh-font-size-lg: 1.125rem;   /* 18px */
+  --dh-font-size-xl: 1.25rem;    /* 20px */
+  --dh-font-size-2xl: 1.5rem;    /* 24px */
+  --dh-font-size-3xl: 1.875rem;  /* 30px */
+  
+  /* Line heights */
+  --dh-line-height-tight: 1.25;
+  --dh-line-height-snug: 1.375;
+  --dh-line-height-normal: 1.5;
+  --dh-line-height-relaxed: 1.625;
+  --dh-line-height-loose: 2;
+  
+  /* Font weights */
+  --dh-font-weight-light: 300;
+  --dh-font-weight-normal: 400;
+  --dh-font-weight-medium: 500;
+  --dh-font-weight-semibold: 600;
+  --dh-font-weight-bold: 700;
+}
+
 /* Override Element Plus variables for better integration */
 :root {
   --el-color-primary: var(--dh-primary);
@@ -208,43 +238,188 @@
 .dh-normal-spacing { gap: 12px !important; }
 .dh-loose-spacing { gap: 16px !important; }
 
-/* Element Plus Table Font Size Overrides */
+/* Global Element Plus Font Override - Ensures consistent typography across all components */
+.el-popper,
+.el-tooltip__popper,
+.el-dropdown__popper,
+.el-select-dropdown,
+.el-picker-panel,
+.el-date-picker,
+.el-time-picker,
+.el-cascader-panel,
+.el-color-picker__panel,
+.el-autocomplete-suggestion,
+.el-tree-select__popper,
+.el-popconfirm__popper,
+.el-popover__popper,
+.el-message,
+.el-message-box,
+.el-notification,
+.el-drawer,
+.el-dialog,
+.el-loading-mask,
+*[class*="el-"] {
+  font-family: var(--dh-font-family) !important;
+  font-size: var(--dh-font-size-sm) !important;
+  line-height: var(--dh-line-height-normal) !important;
+}
+
+/* Critical overrides for teleported/portal elements to ensure font consistency */
+/* These selectors target common teleported components with high specificity */
+div[class*="el-popper"],
+div[class*="el-dropdown"],
+div[class*="el-select-dropdown"],
+div[class*="el-picker"],
+div[class*="el-cascader"],
+div[class*="el-color-picker"],
+div[class*="el-autocomplete"],
+div[class*="el-tree-select"],
+div[class*="el-popconfirm"],
+div[class*="el-popover"],
+div[class*="el-tooltip"],
+.el-overlay .el-overlay-message-box,
+.el-overlay .el-message-box,
+.el-overlay .el-dialog,
+.el-overlay .el-drawer,
+body > .el-message,
+body > .el-notification {
+  font-family: var(--dh-font-family) !important;
+}
+
+/* Additional specificity for nested elements within teleported components */
+div[class*="el-popper"] *,
+div[class*="el-dropdown"] *,
+div[class*="el-select-dropdown"] *,
+.el-overlay * {
+  font-family: var(--dh-font-family) !important;
+}
+
+/* Ensure message box buttons use consistent styling */
+.el-message-box__btns .el-button {
+  font-family: var(--dh-font-family) !important;
+  font-size: var(--dh-font-size-sm) !important;
+  font-weight: var(--dh-font-weight-medium) !important;
+}
+
+/* Message and notification text consistency */
+.el-message__content,
+.el-notification__content {
+  font-family: var(--dh-font-family) !important;
+  font-size: var(--dh-font-size-sm) !important;
+  line-height: var(--dh-line-height-normal) !important;
+}
+
+/* Global body and html styles - ensures teleported components inherit proper fonts */
+html {
+  font-family: var(--dh-font-family);
+  font-size: var(--dh-font-size-base);
+  line-height: var(--dh-line-height-normal);
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--dh-font-family);
+  font-size: var(--dh-font-size-base);
+  line-height: var(--dh-line-height-normal);
+  font-weight: var(--dh-font-weight-normal);
+  margin: 0;
+  padding: 0;
+}
+
+/* Ensure all child elements inherit the font properly */
+* {
+  font-family: inherit;
+}
+
+/* Special handling for monospace elements */
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--dh-font-family-mono);
+}
+
+/* Typography utility classes for consistent text styling */
+.dh-text-xs { font-size: var(--dh-font-size-xs) !important; }
+.dh-text-sm { font-size: var(--dh-font-size-sm) !important; }
+.dh-text-base { font-size: var(--dh-font-size-base) !important; }
+.dh-text-lg { font-size: var(--dh-font-size-lg) !important; }
+.dh-text-xl { font-size: var(--dh-font-size-xl) !important; }
+.dh-text-2xl { font-size: var(--dh-font-size-2xl) !important; }
+.dh-text-3xl { font-size: var(--dh-font-size-3xl) !important; }
+
+.dh-font-light { font-weight: var(--dh-font-weight-light) !important; }
+.dh-font-normal { font-weight: var(--dh-font-weight-normal) !important; }
+.dh-font-medium { font-weight: var(--dh-font-weight-medium) !important; }
+.dh-font-semibold { font-weight: var(--dh-font-weight-semibold) !important; }
+.dh-font-bold { font-weight: var(--dh-font-weight-bold) !important; }
+
+.dh-leading-tight { line-height: var(--dh-line-height-tight) !important; }
+.dh-leading-snug { line-height: var(--dh-line-height-snug) !important; }
+.dh-leading-normal { line-height: var(--dh-line-height-normal) !important; }
+.dh-leading-relaxed { line-height: var(--dh-line-height-relaxed) !important; }
+.dh-leading-loose { line-height: var(--dh-line-height-loose) !important; }
+
+/* Specific component typography improvements */
+.el-button {
+  font-family: var(--dh-font-family) !important;
+  font-weight: var(--dh-font-weight-medium) !important;
+}
+
+.el-input__inner,
+.el-textarea__inner {
+  font-family: var(--dh-font-family) !important;
+  font-size: var(--dh-font-size-sm) !important;
+}
+
+/* Menu items - consistent with sidebar styling */
+.el-menu-item,
+.el-sub-menu__title,
+.el-dropdown-menu__item {
+  font-family: var(--dh-font-family) !important;
+  font-size: var(--dh-font-size-sm) !important;
+  font-weight: var(--dh-font-weight-normal) !important;
+}
+
+/* Table typography - now consistent with global theme */
 .el-table {
-  font-size: 14px !important;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+  font-family: var(--dh-font-family) !important;
+  font-size: var(--dh-font-size-sm) !important;
 }
 
 .el-table .el-table__cell {
-  font-size: 14px !important;
-  line-height: 1.5 !important;
+  font-size: var(--dh-font-size-sm) !important;
+  line-height: var(--dh-line-height-normal) !important;
 }
 
 .el-table .el-table__header .el-table__cell {
-  font-size: 14px !important;
-  font-weight: 600 !important;
+  font-size: var(--dh-font-size-sm) !important;
+  font-weight: var(--dh-font-weight-semibold) !important;
 }
 
 .el-table .el-table__body .el-table__row .el-table__cell {
-  font-size: 14px !important;
+  font-size: var(--dh-font-size-sm) !important;
 }
 
 .el-table .el-table__cell .cell {
-  font-size: 14px !important;
+  font-size: var(--dh-font-size-sm) !important;
 }
 
 /* Table size variants */
 .el-table--small {
-  font-size: 12px !important;
+  font-size: var(--dh-font-size-xs) !important;
 }
 
 .el-table--small .el-table__cell {
-  font-size: 12px !important;
+  font-size: var(--dh-font-size-xs) !important;
 }
 
 .el-table--large {
-  font-size: 16px !important;
+  font-size: var(--dh-font-size-base) !important;
 }
 
 .el-table--large .el-table__cell {
-  font-size: 16px !important;
+  font-size: var(--dh-font-size-base) !important;
 }

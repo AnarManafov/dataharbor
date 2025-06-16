@@ -170,7 +170,8 @@ watch(isCollapsed, (newValue) => {
     border-radius: 6px;
     height: 40px;
     line-height: 40px;
-    font-size: 14px;
+    font-size: var(--dh-font-size-sm);
+    font-weight: var(--dh-font-weight-normal);
 }
 
 .sidebar-menu .el-menu-item:hover {
@@ -181,7 +182,7 @@ watch(isCollapsed, (newValue) => {
 .sidebar-menu .el-menu-item.is-active {
     background-color: var(--el-color-primary-light-8);
     color: var(--el-color-primary);
-    font-weight: 500;
+    font-weight: var(--dh-font-weight-medium);
 }
 
 .sidebar-menu .el-sub-menu .el-sub-menu__title {
@@ -189,7 +190,8 @@ watch(isCollapsed, (newValue) => {
     border-radius: 6px;
     height: 40px;
     line-height: 40px;
-    font-size: 14px;
+    font-size: var(--dh-font-size-sm);
+    font-weight: var(--dh-font-weight-normal);
 }
 
 .sidebar-menu .el-menu-item[disabled] {
