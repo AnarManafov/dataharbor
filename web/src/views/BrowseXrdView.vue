@@ -1,33 +1,30 @@
 <template>
     <div class="browse-view">
-        <el-container class="file-browser-container">
-            <el-header class="toolbar-header">
-                <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
-                    :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
-                    :folderCount="folderCount" :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
-                    :totalFolderCount="totalFolderCount" :totalFileCount="totalFileCount"
-                    :totalFileSize="cumulativeFileSize" @changeDirToInitialPath="changeDirToInitialPath"
-                    @changeDir="changeDir" />
-            </el-header>
-            <el-container>
-                <el-header class="pagination-header">
+        <div class="file-browser-container">
+            <!-- Sticky header section that contains toolbar and pagination -->
+            <div class="sticky-header-section">
+                <div class="toolbar-header">
+                    <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
+                        :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
+                        :folderCount="folderCount" :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
+                        :totalFolderCount="totalFolderCount" :totalFileCount="totalFileCount"
+                        :totalFileSize="cumulativeFileSize" @changeDirToInitialPath="changeDirToInitialPath"
+                        @changeDir="changeDir" />
+                </div>
+                <div class="pagination-header">
                     <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
                         :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
-                </el-header>
-                <el-main class="file-table-main">
-                    <el-scrollbar>
-                        <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
-                            @selectDir="selectDir" />
-                        <!-- Show a button to back to top -->
-                        <el-backtop :right="40" :bottom="40" />
-                    </el-scrollbar>
-                </el-main>
-                <el-footer class="pagination-footer">
-                    <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
-                        :total="totalItems" :current-page="currentPage" @current-change="handlePageChange" />
-                </el-footer>
-            </el-container>
-        </el-container>
+                </div>
+            </div>
+
+            <!-- Scrollable content area -->
+            <div class="file-table-container">
+                <FileTable :tableLoading="tableLoading" :filteredData="filteredData" :filters="filters"
+                    @selectDir="selectDir" />
+                <!-- Show a button to back to top -->
+                <el-backtop :right="40" :bottom="40" />
+            </div>
+        </div>
     </div>
 </template>
 
@@ -486,60 +483,70 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Main container styles */
 .browse-view {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
-
-.file-browser-container {
     height: 100%;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+    /* Hide overflow on the main container */
 }
 
-.file-browser-container .el-header {
+.file-browser-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    /* Hide overflow on the file browser container */
+    min-height: 0;
+    /* Important: allows flex child to shrink below content size */
+}
+
+/* Sticky header section that contains toolbar and pagination */
+.sticky-header-section {
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 1000;
+    /* Higher z-index to ensure it stays above content */
     background: var(--el-bg-color);
     border-bottom: 1px solid var(--el-border-color-light);
-    color: var(--el-text-color-primary);
-    text-align: center;
-    height: auto;
-    padding: 16px 24px;
-}
-
-.file-table-main {
-    flex: 1;
-    padding: 16px 24px;
-    background: var(--el-bg-color-page);
-    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: visible;
+    /* Allow content to be visible but prevent scrollbars */
+    flex-shrink: 0;
+    /* Prevent shrinking */
 }
 
 .toolbar-header {
-    /* Ensure the toolbar is above other elements */
-    z-index: 12;
-}
-
-.pagination-header,
-.pagination-footer {
-    z-index: 11;
-    display: flex;
-    justify-content: center;
     background: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-light);
-    padding: 12px 24px;
-    height: auto;
+    color: var(--el-text-color-primary);
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    overflow: hidden;
+    /* Prevent scrollbars on toolbar */
 }
 
 .pagination-header {
-    border-top: 1px solid var(--el-border-color-light);
+    display: flex;
+    justify-content: center;
+    background: var(--el-bg-color);
+    padding: 12px 24px;
+    border-top: 1px solid var(--el-border-color-lighter);
+    overflow: hidden;
+    /* Prevent scrollbars on pagination */
 }
 
-.pagination-footer {
-    border-top: 1px solid var(--el-border-color-light);
-    border-bottom: none;
+/* Scrollable file table container */
+.file-table-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Hide horizontal scrollbar */
+    padding: 16px 24px;
+    background: var(--el-bg-color-page);
+    min-height: 0;
+    /* Important: allows flex child to shrink below content size */
 }
 
 /* GitHub-style pagination sizing */
@@ -553,11 +560,9 @@ onBeforeUnmount(() => {
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-
-    .file-browser-container .el-header,
-    .file-table-main,
-    .pagination-header,
-    .pagination-footer {
+    .toolbar-header,
+    .file-table-container,
+    .pagination-header {
         padding: 12px 16px;
     }
 }
