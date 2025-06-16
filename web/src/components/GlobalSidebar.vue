@@ -170,6 +170,7 @@ watch(isCollapsed, (newValue) => {
     border-radius: 6px;
     height: 40px;
     line-height: 40px;
+    font-size: 14px;
 }
 
 .sidebar-menu .el-menu-item:hover {
@@ -188,6 +189,7 @@ watch(isCollapsed, (newValue) => {
     border-radius: 6px;
     height: 40px;
     line-height: 40px;
+    font-size: 14px;
 }
 
 .sidebar-menu .el-menu-item[disabled] {

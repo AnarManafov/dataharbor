@@ -1,4 +1,4 @@
-import 'bulma/css/bulma.css';
+import 'element-plus/dist/index.css';
 import './styles/theme.css';
 
 import { createApp } from "vue";
