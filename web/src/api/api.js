@@ -61,7 +61,7 @@ export function getInitialDirPath() {
  * @param {string} path - Directory to explore
  */
 export function getItemsInDir(path) {
-    return apiClient.post('/xrd/ls', { path })
+    return apiClient.post('/xrd/ls/paged', { path, page: 1, pageSize: 500 })
         .catch(handleApiError);
 }
 
