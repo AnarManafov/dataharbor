@@ -3,10 +3,10 @@
         <el-table-column prop='name' label='Name' sortable>
             <template #default='scope'>
                 <div style='display: flex; align-items: center'>
-                    <el-icon :size='20' color='#409EFF' v-if='scope.row.type === "dir"'>
+                    <el-icon :size='14' color='#409EFF' v-if='scope.row.type === "dir"'>
                         <Folder />
                     </el-icon>
-                    <el-icon :size='20' color='#67C23A' v-else>
+                    <el-icon :size='14' color='#67C23A' v-else>
                         <Document />
                     </el-icon>
                     <span class='clickable' style='margin-left: 10px'

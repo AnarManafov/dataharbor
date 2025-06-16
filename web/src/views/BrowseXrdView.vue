@@ -485,7 +485,6 @@ onBeforeUnmount(() => {
 });
 </script>
 
-
 <style scoped>
 .browse-view {
     height: 100vh;
@@ -541,6 +540,15 @@ onBeforeUnmount(() => {
 .pagination-footer {
     border-top: 1px solid var(--el-border-color-light);
     border-bottom: none;
+}
+
+/* GitHub-style pagination sizing */
+:deep(.el-pagination) {
+    font-size: 12px;
+}
+
+:deep(.el-pagination .el-pager li) {
+    font-size: 12px;
 }
 
 /* Responsive adjustments */

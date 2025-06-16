@@ -109,7 +109,7 @@ const changeDir = (index: number) => {
 }
 
 .el-breadcrumb {
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .second-row {
