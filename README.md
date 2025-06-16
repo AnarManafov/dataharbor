@@ -1,7 +1,7 @@
 # DataHarbor
 
 ![CI Backend](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)
-![Coverage](https://img.shields.io/badge/Coverage-32.8%25-yellow)
+![Coverage](https://img.shields.io/badge/Coverage-32.4%25-yellow)
 ![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)
 
 DataHarbor is a full-stack web application that provides developers with a secure interface to access and manage GSI Lustre cluster data. Built with a Go backend and Vue.js frontend, it offers file browsing, directory navigation, and secure file downloads through XROOTD integration.
