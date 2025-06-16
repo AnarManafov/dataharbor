@@ -37,6 +37,7 @@ type FrontendConfig struct {
 // ServerConfig represents the server configuration
 type ServerConfig struct {
 	Address         string     `yaml:"address"`
+	Debug           bool       `yaml:"debug"`
 	ShutdownTimeout string     `yaml:"shutdown_timeout"`
 	CORS            CORSConfig `yaml:"cors"`
 	SSL             SSLConfig  `yaml:"ssl"`
@@ -65,14 +66,22 @@ type LogConfig struct {
 
 // XRDConfig represents the XRootD configuration
 type XRDConfig struct {
-	URL          string `yaml:"url"`
-	User         string `yaml:"user"`
-	UserGroup    string `yaml:"usergroup"`
-	UserPwd      string `yaml:"userpwd"`
-	UserRequired bool   `yaml:"user_required"`
-	TLS          bool   `yaml:"tls"`
-	ClientCert   string `yaml:"client_cert"`
-	ClientKey    string `yaml:"client_key"`
+	URL                   string `yaml:"url"`
+	Host                  string `yaml:"host"`
+	Port                  uint   `yaml:"port"`
+	InitialDir            string `yaml:"initial_dir"`
+	XrdClientBinPath      string `yaml:"xrd_client_bin_path"`
+	ProcessTimeout        uint   `yaml:"process_timeout"`
+	StagingPath           string `yaml:"staging_path"`
+	StagingTmpDirPrefix   string `yaml:"staging_tmp_dir_prefix"`
+	SanitationJobInterval uint   `yaml:"sanitation_job_interval"`
+	User                  string `yaml:"user"`
+	UserGroup             string `yaml:"usergroup"`
+	UserPwd               string `yaml:"userpwd"`
+	UserRequired          bool   `yaml:"user_required"`
+	TLS                   bool   `yaml:"tls"`
+	ClientCert            string `yaml:"client_cert"`
+	ClientKey             string `yaml:"client_key"`
 }
 
 // AuthConfig represents the authentication configuration

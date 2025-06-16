@@ -8,24 +8,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/spf13/viper"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"go.uber.org/zap"
 )
 
-// XrdConfigType contains XRD configuration
-type XrdConfigType struct {
-	Host                  string
-	Port                  uint
-	InitialDir            string
-	XrdClientBinPath      string
-	ProcessTimeout        uint
-	StagingPath           string
-	SanitationJobInterval uint
-	StagingTmpDirPrefix   string
-}
-
 var (
-	XrdConfig     XrdConfigType
 	xrdClient     *XRDClient
 	xrdClientOnce sync.Once
 )
@@ -41,8 +28,9 @@ type XRDClient struct {
 func GetXRDClient() *XRDClient {
 	xrdClientOnce.Do(func() {
 		logger := GetLogger()
+		cfg := config.GetConfig()
 
-		url := viper.GetString("xrd.url")
+		url := cfg.XRD.URL
 		if url == "" {
 			url = "root://localhost:1094"
 		}
@@ -92,6 +80,8 @@ func (c *XRDClient) BuildXRDURLWithCGI(path string, extraParams map[string]strin
 
 // Helper method to add authentication parameters
 func (c *XRDClient) addAuthParams(params *[]string) error {
+	cfg := config.GetConfig()
+
 	// Prefer token-based authentication if available
 	if c.XRDToken != "" {
 		*params = append(*params, fmt.Sprintf("authz=Bearer %s", c.XRDToken))
@@ -99,8 +89,8 @@ func (c *XRDClient) addAuthParams(params *[]string) error {
 	}
 
 	// Fall back to user credentials if token isn't available but auth is required
-	if viper.GetBool("xrd.user_required") {
-		user := viper.GetString("xrd.user")
+	if cfg.XRD.UserRequired {
+		user := cfg.XRD.User
 		if user == "" {
 			return errors.New("xrootd user is required but not configured")
 		}
@@ -108,13 +98,13 @@ func (c *XRDClient) addAuthParams(params *[]string) error {
 		*params = append(*params, fmt.Sprintf("xrd.u=%s", user))
 
 		// Add optional user group
-		if userGroup := viper.GetString("xrd.usergroup"); userGroup != "" {
-			*params = append(*params, fmt.Sprintf("xrd.g=%s", userGroup))
+		if cfg.XRD.UserGroup != "" {
+			*params = append(*params, fmt.Sprintf("xrd.g=%s", cfg.XRD.UserGroup))
 		}
 
 		// Add optional user password
-		if userPwd := viper.GetString("xrd.userpwd"); userPwd != "" {
-			*params = append(*params, fmt.Sprintf("xrd.k=%s", userPwd))
+		if cfg.XRD.UserPwd != "" {
+			*params = append(*params, fmt.Sprintf("xrd.k=%s", cfg.XRD.UserPwd))
 		}
 	}
 
@@ -123,15 +113,14 @@ func (c *XRDClient) addAuthParams(params *[]string) error {
 
 // CreateTLSConfig creates a TLS configuration for the client
 func (c *XRDClient) CreateTLSConfig() (*tls.Config, error) {
+	cfg := config.GetConfig()
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
 
 	// Load client certificate if configured
-	clientCert := viper.GetString("xrd.client_cert")
-	clientKey := viper.GetString("xrd.client_key")
-	if clientCert != "" && clientKey != "" {
-		cert, err := tls.LoadX509KeyPair(clientCert, clientKey)
+	if cfg.XRD.ClientCert != "" && cfg.XRD.ClientKey != "" {
+		cert, err := tls.LoadX509KeyPair(cfg.XRD.ClientCert, cfg.XRD.ClientKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load client certificate: %w", err)
 		}
@@ -146,7 +135,8 @@ func (c *XRDClient) CreateTLSConfig() (*tls.Config, error) {
 
 // CreateHTTPClient creates an HTTP client for XRD requests
 func (c *XRDClient) CreateHTTPClient() (*http.Client, error) {
-	if !viper.GetBool("xrd.tls") {
+	cfg := config.GetConfig()
+	if !cfg.XRD.TLS {
 		return http.DefaultClient, nil
 	}
 
@@ -162,16 +152,4 @@ func (c *XRDClient) CreateHTTPClient() (*http.Client, error) {
 	return &http.Client{
 		Transport: transport,
 	}, nil
-}
-
-// ParseXrdConfig initializes XrdConfig from viper settings
-func ParseXrdConfig() {
-	XrdConfig.Host = viper.GetString("xrd.host")
-	XrdConfig.Port = viper.GetUint("xrd.port")
-	XrdConfig.InitialDir = viper.GetString("xrd.initial_dir")
-	XrdConfig.XrdClientBinPath = viper.GetString("xrd.xrd_client_bin_path")
-	XrdConfig.ProcessTimeout = viper.GetUint("xrd.process_timeout")
-	XrdConfig.StagingPath = viper.GetString("xrd.staging_path")
-	XrdConfig.SanitationJobInterval = viper.GetUint("xrd.sanitation_job_interval")
-	XrdConfig.StagingTmpDirPrefix = viper.GetString("xrd.staging_tmp_dir_prefix")
 }

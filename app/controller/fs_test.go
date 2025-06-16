@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/AnarManafov/dataharbor/app/request"
 	"github.com/AnarManafov/dataharbor/app/response"
 
@@ -51,8 +51,13 @@ func TestFetchInitialDir(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	// Set the initial dir value for testing
-	common.XrdConfig.InitialDir = "/tmp/"
+	// Set up test config
+	testConfig := &config.Config{
+		XRD: config.XRDConfig{
+			InitialDir: "/tmp/",
+		},
+	}
+	config.SetConfig(testConfig)
 
 	// Call the function
 	FetchInitialDir(c)
@@ -74,8 +79,13 @@ func TestFetchHostName(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	// Set the host value for testing
-	common.XrdConfig.Host = "localhost"
+	// Set up test config
+	testConfig := &config.Config{
+		XRD: config.XRDConfig{
+			Host: "localhost",
+		},
+	}
+	config.SetConfig(testConfig)
 
 	// Call the function
 	FetchHostName(c)
@@ -235,6 +245,12 @@ func TestFetchDirItemsByPage(t *testing.T) {
 					{Name: "file6", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 123, Type: "file"},
 					{Name: "dir6", DateTime: time.Now().Format("2006-01-02 15:04:05"), Size: 0, Type: "dir"},
 				},
+				"totalItems":         float64(12),
+				"pageSize":           float64(6),
+				"totalPages":         float64(2),
+				"totalFileCount":     float64(3),
+				"totalFolderCount":   float64(3),
+				"cumulativeFileSize": float64(369),
 			},
 		},
 		{

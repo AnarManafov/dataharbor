@@ -34,16 +34,19 @@ func TestMain(m *testing.M) {
 	common.InitLogger()
 	config.InitCmd()
 
-	// Create a minimal common.XrdConfig for testing
-	common.XrdConfig = common.XrdConfigType{
-		Host:                "localhost",
-		Port:                1094,
-		InitialDir:          "/tmp/",
-		XrdClientBinPath:    "/usr/bin/",
-		ProcessTimeout:      1, // Short timeout for tests
-		StagingPath:         os.TempDir(),
-		StagingTmpDirPrefix: "test_",
+	// Set up test config
+	testConfig := &config.Config{
+		XRD: config.XRDConfig{
+			Host:                "localhost",
+			Port:                1094,
+			InitialDir:          "/tmp/",
+			XrdClientBinPath:    "/usr/bin/",
+			ProcessTimeout:      1, // Short timeout for tests
+			StagingPath:         os.TempDir(),
+			StagingTmpDirPrefix: "test_",
+		},
 	}
+	config.SetConfig(testConfig)
 
 	// Backup original functions
 	originalRunXrdFs = RunXrdFs

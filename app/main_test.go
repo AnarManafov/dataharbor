@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -25,16 +26,17 @@ func TestInitialize(t *testing.T) {
 
 	// Add assertions to verify initialization
 	assert.NotNil(t, common.Logger)
-	assert.NotNil(t, common.XrdConfig)
-	assert.NotNil(t, common.ServerConfig)
 }
 
 func TestStartServer_DebugMode(t *testing.T) {
-	// Mock the server configuration
-	common.ServerConfig = common.ServerConfigType{
-		Debug: true,
-		Port:  20222,
+	// Set up a test configuration with debug enabled
+	testConfig := &config.Config{
+		Server: config.ServerConfig{
+			Address: ":20222",
+			Debug:   true,
+		},
 	}
+	config.SetConfig(testConfig)
 
 	// Mock gin router
 	gin.SetMode(gin.TestMode)
@@ -47,18 +49,20 @@ func TestStartServer_DebugMode(t *testing.T) {
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.TestMode, gin.Mode())
-	assert.Equal(t, 20222, common.ServerConfig.Port)
 
 	// Send stop signal to stop the server
 	close(stop)
 }
 
 func TestStartServer_ReleaseMode(t *testing.T) {
-	// Mock the server configuration
-	common.ServerConfig = common.ServerConfigType{
-		Debug: false,
-		Port:  20222,
+	// Set up a test configuration with debug disabled
+	testConfig := &config.Config{
+		Server: config.ServerConfig{
+			Address: ":20222",
+			Debug:   false,
+		},
 	}
+	config.SetConfig(testConfig)
 
 	// Mock gin router
 	gin.SetMode(gin.ReleaseMode)
@@ -71,35 +75,7 @@ func TestStartServer_ReleaseMode(t *testing.T) {
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.ReleaseMode, gin.Mode())
-	assert.Equal(t, 20222, common.ServerConfig.Port)
 
 	// Send stop signal to stop the server
 	close(stop)
 }
-
-// func TestStartServer_Error(t *testing.T) {
-// 	// Mock the server configuration
-// 	common.ServerConfig = common.ServerConfigType{
-// 		Debug: true,
-// 		Port:  20222,
-// 	}
-
-// 	// Mock gin router
-// 	gin.SetMode(gin.TestMode)
-
-// 	// Mock the gin.Engine to return an error
-// 	mockEngine := new(MockEngine)
-// 	mockEngine.On("Run", ":"+strconv.Itoa(common.ServerConfig.Port)).Return(errors.New("server error"))
-
-// 	originalGinNew := gin.New
-// 	defer func() { gin.New = originalGinNew }()
-// 	gin.New = func() *gin.Engine {
-// 		return mockEngine
-// 	}
-
-// 	// Call the startServer function
-// 	go startServer()
-
-// 	// Add assertions to verify server start
-// 	mockEngine.AssertCalled(t, "Run", ":"+strconv.Itoa(common.ServerConfig.Port))
-// }

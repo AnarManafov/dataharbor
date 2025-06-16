@@ -1,6 +1,6 @@
 env: development
 server:
-    address: :8080
+    address: :22000
     shutdown_timeout: ""
     cors:
         allow_origins: []

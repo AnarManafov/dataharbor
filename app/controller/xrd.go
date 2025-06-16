@@ -19,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/AnarManafov/dataharbor/app/common"
+	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/AnarManafov/dataharbor/app/middleware"
 	"github.com/AnarManafov/dataharbor/app/response"
 )
@@ -98,15 +99,17 @@ var (
 // Interfaces with the XRootD server by executing the xrdfs command
 // which provides file and directory operations against XRootD storage
 func runXrdFsImpl(execCmd execCommandFunc, arg ...string) (string, error) {
+	cfg := config.GetConfig()
 	common.Logger.Info("RunXrdFs: ", arg)
-	return runCommand(execCmd, common.XrdConfig.ProcessTimeout, path.Join(common.XrdConfig.XrdClientBinPath, "xrdfs"), arg...)
+	return runCommand(execCmd, cfg.XRD.ProcessTimeout, path.Join(cfg.XRD.XrdClientBinPath, "xrdfs"), arg...)
 }
 
 // Creates a temporary staging area for XRD files before download
 // Avoids filename collisions by using unique temporary directories
 func stageFileLocalImpl(host string, port uint, file string) (string, error) {
+	cfg := config.GetConfig()
 	srdAddr := host + ":" + strconv.FormatUint(uint64(port), 10)
-	tmpDir, err := os.MkdirTemp(common.XrdConfig.StagingPath, common.XrdConfig.StagingTmpDirPrefix)
+	tmpDir, err := os.MkdirTemp(cfg.XRD.StagingPath, cfg.XRD.StagingTmpDirPrefix)
 	if err != nil {
 		return "", err
 	}
@@ -124,8 +127,9 @@ func stageFileLocalImpl(host string, port uint, file string) (string, error) {
 // Copies files from XRootD server to local filesystem using xrdcp utility
 // which handles authentication and transfer protocol details
 func RunXrdCp(xrdAddr string, src string, dest string) error {
+	cfg := config.GetConfig()
 	common.Logger.Info("XRD: Staging " + src + " to " + dest)
-	_, err := runCommand(exec.CommandContext, common.XrdConfig.ProcessTimeout, path.Join(common.XrdConfig.XrdClientBinPath, "xrdcp"), "--force", "xroot://"+xrdAddr+"/"+src, dest)
+	_, err := runCommand(exec.CommandContext, cfg.XRD.ProcessTimeout, path.Join(cfg.XRD.XrdClientBinPath, "xrdcp"), "--force", "xroot://"+xrdAddr+"/"+src, dest)
 	return err
 }
 
