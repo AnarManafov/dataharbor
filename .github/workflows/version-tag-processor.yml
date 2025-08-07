@@ -3,7 +3,9 @@ name: Version Tag Processor
 on:
   push:
     tags:
-      - "v[0-9]+.[0-9]+.[0-9]+" # Trigger only on global version tags (vX.Y.Z)
+      - "release-v[0-9]+.[0-9]+.[0-9]+" # Trigger release preparation
+      - "hotfix-v[0-9]+.[0-9]+.[0-9]+" # Trigger hotfix release preparation
+      - "prerelease-v[0-9]+.[0-9]+.[0-9]+-*" # Trigger pre-release preparation
 
 # Prevent concurrent workflow runs to avoid versioning conflicts
 concurrency:
@@ -14,14 +16,16 @@ env:
   NODE_VERSION: "23"
 
 jobs:
-  # Job to extract tag info
+  # Job to extract tag info and determine target release version
   determine-versions:
-    name: Determine Versions
+    name: Determine Release Versions
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      global_tag: ${{ steps.versions.outputs.global_tag }}
-      global_version: ${{ steps.versions.outputs.global_version }}
+      trigger_tag: ${{ steps.versions.outputs.trigger_tag }}
+      trigger_type: ${{ steps.versions.outputs.trigger_type }}
+      target_tag: ${{ steps.versions.outputs.target_tag }}
+      target_version: ${{ steps.versions.outputs.target_version }}
       frontend_version: ${{ steps.versions.outputs.frontend_version }}
       backend_version: ${{ steps.versions.outputs.backend_version }}
     steps:
@@ -30,32 +34,51 @@ jobs:
         with:
           fetch-depth: 0 # Fetch all history for versioning
 
-      - name: Extract version info
+      - name: Extract version info from trigger tag
         id: versions
         run: |
           # Get the pushed tag (remove refs/tags/ prefix)
-          GLOBAL_TAG=${GITHUB_REF#refs/tags/}
-          GLOBAL_VERSION=${GLOBAL_TAG#v}
+          TRIGGER_TAG=${GITHUB_REF#refs/tags/}
 
-          # Generate versions for frontend and backend based on global version
-          FRONTEND_VERSION=$GLOBAL_VERSION
-          BACKEND_VERSION=$GLOBAL_VERSION
+          # Determine trigger type and extract target version
+          if [[ $TRIGGER_TAG =~ ^release-v(.+)$ ]]; then
+            TRIGGER_TYPE="release"
+            TARGET_VERSION="${BASH_REMATCH[1]}"
+          elif [[ $TRIGGER_TAG =~ ^hotfix-v(.+)$ ]]; then
+            TRIGGER_TYPE="hotfix"
+            TARGET_VERSION="${BASH_REMATCH[1]}"
+          elif [[ $TRIGGER_TAG =~ ^prerelease-v(.+)$ ]]; then
+            TRIGGER_TYPE="prerelease"
+            TARGET_VERSION="${BASH_REMATCH[1]}"
+          else
+            echo "::error::Unknown trigger tag format: $TRIGGER_TAG"
+            exit 1
+          fi
+
+          TARGET_TAG="v${TARGET_VERSION}"
+
+          # Generate versions for frontend and backend based on target version
+          FRONTEND_VERSION=$TARGET_VERSION
+          BACKEND_VERSION=$TARGET_VERSION
 
           # Set output for next steps
-          echo "global_tag=$GLOBAL_TAG" >> $GITHUB_OUTPUT
-          echo "global_version=$GLOBAL_VERSION" >> $GITHUB_OUTPUT
+          echo "trigger_tag=$TRIGGER_TAG" >> $GITHUB_OUTPUT
+          echo "trigger_type=$TRIGGER_TYPE" >> $GITHUB_OUTPUT
+          echo "target_tag=$TARGET_TAG" >> $GITHUB_OUTPUT
+          echo "target_version=$TARGET_VERSION" >> $GITHUB_OUTPUT
           echo "frontend_version=$FRONTEND_VERSION" >> $GITHUB_OUTPUT
           echo "backend_version=$BACKEND_VERSION" >> $GITHUB_OUTPUT
 
-          echo "Version information:"
-          echo "- Global: $GLOBAL_TAG"
+          echo "Release preparation triggered:"
+          echo "- Trigger: $TRIGGER_TAG ($TRIGGER_TYPE)"
+          echo "- Target: $TARGET_TAG"
           echo "- Frontend: web/v$FRONTEND_VERSION"
           echo "- Backend: app/v$BACKEND_VERSION"
 
           # Store version info for next workflow
           mkdir -p /tmp/version-info
-          echo "$GLOBAL_TAG" > /tmp/version-info/global_tag.txt
-          echo "$GLOBAL_VERSION" > /tmp/version-info/global_version.txt
+          echo "$TARGET_TAG" > /tmp/version-info/global_tag.txt
+          echo "$TARGET_VERSION" > /tmp/version-info/global_version.txt
           echo "$FRONTEND_VERSION" > /tmp/version-info/frontend_version.txt
           echo "$BACKEND_VERSION" > /tmp/version-info/backend_version.txt
 
@@ -98,7 +121,7 @@ jobs:
       - name: Sync versions in files
         run: npm run sync-versions
         env:
-          GLOBAL_VERSION: ${{ needs.determine-versions.outputs.global_version }}
+          GLOBAL_VERSION: ${{ needs.determine-versions.outputs.target_version }}
           FRONTEND_VERSION: ${{ needs.determine-versions.outputs.frontend_version }}
           BACKEND_VERSION: ${{ needs.determine-versions.outputs.backend_version }}
 
@@ -133,9 +156,9 @@ jobs:
       - name: Update CHANGELOG.md
         run: |
           # Generate a changelog for the new version tag
-          python tools/changelog.py update --version ${{ needs.determine-versions.outputs.global_version }} --to-tag ${{ needs.determine-versions.outputs.global_tag }}
+          python tools/changelog.py update --version ${{ needs.determine-versions.outputs.target_version }} --to-tag ${{ needs.determine-versions.outputs.target_tag }}
 
-          echo "CHANGELOG.md updated successfully for ${{ needs.determine-versions.outputs.global_tag }}"
+          echo "CHANGELOG.md updated successfully for ${{ needs.determine-versions.outputs.target_tag }}"
 
       # Save the changes for later commit
       - name: Upload updated changelog
@@ -172,7 +195,7 @@ jobs:
           mkdir -p /tmp/changelog
 
           # Generate release notes using the Python script
-          python3 tools/generate_release_notes.py --version ${{ needs.determine-versions.outputs.global_version }} > /tmp/changelog/changelog_content.md
+          python3 tools/generate_release_notes.py --version ${{ needs.determine-versions.outputs.target_version }} > /tmp/changelog/changelog_content.md
 
           echo "Release notes generated successfully."
 
@@ -211,7 +234,7 @@ jobs:
           # This follows the best practice of keeping only the latest release in RELEASE_NOTES.md
           echo "# Release Notes" > RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          echo "## ${{ needs.determine-versions.outputs.global_tag }} ($(date '+%Y-%m-%d'))" >> RELEASE_NOTES.md
+          echo "## ${{ needs.determine-versions.outputs.target_tag }} ($(date '+%Y-%m-%d'))" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "Changelog:" >> RELEASE_NOTES.md
           echo "$CHANGELOG_CONTENT" >> RELEASE_NOTES.md
@@ -228,9 +251,9 @@ jobs:
           path: RELEASE_NOTES.md
           retention-days: 1
 
-  # Job to consolidate all changes and commit them at once
+  # Job to consolidate all changes, commit them, and create the actual release tag
   commit-all-changes:
-    name: Commit All Version-Related Changes
+    name: Commit All Changes and Create Release Tag
     needs:
       [
         determine-versions,
@@ -241,7 +264,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write # For committing changes
+      contents: write # For committing changes and creating tags
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -268,7 +291,7 @@ jobs:
           name: updated-release-notes
           path: .
 
-      - name: Commit and push all changes
+      - name: Commit changes and create release tag
         run: |
           git config user.name "GitHub Actions"
           git config user.email "github-actions@github.com"
@@ -276,20 +299,36 @@ jobs:
           # Fetch from remote to ensure we have the latest changes
           git fetch origin master
 
-          # Reset to match remote branch if necessary to avoid conflicts
-          git reset --hard origin/master
-
-          # Apply the changes from artifacts (they overwrite the files)
-          # No need for git add as the files are already overwritten
-
           # Stage the changed files
           git add package.json web/package.json CHANGELOG.md RELEASE_NOTES.md
 
           # Check if there are any changes to commit
           if git diff-index --quiet HEAD --; then
-            echo "No files changed, skipping commit"
+            echo "No files changed, this might indicate an issue with artifact download"
+            echo "Listing current directory contents:"
+            ls -la
+            echo "Checking git status:"
+            git status
+            exit 1
           else
             # Create a single commit with all changes
-            git commit -m "chore: Version ${{ needs.determine-versions.outputs.global_tag }} documentation and package updates [skip ci]"
-            git push origin HEAD:master  # Explicitly push to master branch
+            git commit -m "chore: Prepare release ${{ needs.determine-versions.outputs.target_tag }} [skip ci]"
+            
+            # Create the actual release tag on this commit
+            git tag ${{ needs.determine-versions.outputs.target_tag }}
+            
+            # Create component tags for frontend and backend
+            git tag web/v${{ needs.determine-versions.outputs.frontend_version }}
+            git tag app/v${{ needs.determine-versions.outputs.backend_version }}
+            
+            # Push both the commit and all new tags
+            git push origin HEAD:master
+            git push origin ${{ needs.determine-versions.outputs.target_tag }}
+            git push origin web/v${{ needs.determine-versions.outputs.frontend_version }}
+            git push origin app/v${{ needs.determine-versions.outputs.backend_version }}
+            
+            echo "Successfully created release preparation commit and tags:"
+            echo "- Commit: Prepare release ${{ needs.determine-versions.outputs.target_tag }}"
+            echo "- Release tag: ${{ needs.determine-versions.outputs.target_tag }}"
+            echo "- Component tags: web/v${{ needs.determine-versions.outputs.frontend_version }}, app/v${{ needs.determine-versions.outputs.backend_version }}"
           fi
