@@ -1,11 +1,12 @@
 {
   "name": "dataharbor",
-  "version": "0.13.7",
+  "version": "0.14.0",
   "type": "module",
   "workspaces": [
     ".",
     "web"
-  ],  "scripts": {
+  ],
+  "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd web && npm run dev",
     "dev:backend": "cd app && go run . ${CONFIG_FILE_PATH:+-config $CONFIG_FILE_PATH}",
