@@ -280,16 +280,30 @@ def update_changelog_file(changelog_path: str, version: str, version_content: st
                         f"Version {version} already exists in the changelog. Skipping update.")
                     return False
 
-                # Find position to insert (after header)
+                # Find position to insert (after header but before first version)
+                # Look for the end of the changelog header section
+                header_pattern = r'^# Changelog\s*\n+All notable changes.*?(?=\n## \[|$)'
                 header_match = re.search(
-                    r'^# Changelog.*?(?=^## \[|$)', content, re.DOTALL | re.MULTILINE)
+                    header_pattern, content, re.DOTALL | re.MULTILINE)
+
                 if header_match:
                     header_end = header_match.end()
-                    new_content = content[:header_end] + \
+                    # Insert new content after header with proper spacing
+                    new_content = content[:header_end] + '\n\n' + \
                         version_content + content[header_end:]
                 else:
-                    # If no proper header found, just prepend
-                    new_content = version_content + content
+                    # Try simpler pattern - just find the header and description
+                    simple_pattern = r'^(# Changelog.*?\n.*?\.org/spec/v2\.0\.0\.html\)\.\s*\n+)'
+                    simple_match = re.search(
+                        simple_pattern, content, re.DOTALL | re.MULTILINE)
+
+                    if simple_match:
+                        header_end = simple_match.end()
+                        new_content = content[:header_end] + \
+                            version_content + content[header_end:]
+                    else:
+                        # If no proper header found, just prepend with proper newline
+                        new_content = version_content + '\n' + content
         else:
             # Create new changelog with template
             new_content = """# Changelog

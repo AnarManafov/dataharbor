@@ -95,19 +95,19 @@ def find_prev_and_current_tags(version: str) -> Tuple[Optional[str], Optional[st
         if version_tags:
             prev_tag = version_tags[-1]  # Most recent tag
             print(
-                f"Note: Target tag v{version} not found yet (likely during CI processing). Using {prev_tag} as previous tag.")
+                f"Note: Target tag v{version} not found yet (likely during CI processing). Using {prev_tag} as previous tag.", file=sys.stderr)
         else:
             # No version tags at all - use first commit
             prev_tag = run_git_command(["rev-list", "--max-parents=0", "HEAD"])
             print(
-                f"Note: No version tags found. Using first commit as previous reference.")
+                f"Note: No version tags found. Using first commit as previous reference.", file=sys.stderr)
 
         return prev_tag, None
 
 
 def get_commits_by_type_with_tickets(from_tag: str, to_tag: str) -> Dict[str, Dict[str, List[str]]]:
     """Get commits by conventional commit type between two Git references with ticket references."""
-    print(f"Getting commits between {from_tag}..{to_tag}")
+    print(f"Getting commits between {from_tag}..{to_tag}", file=sys.stderr)
 
     # Use the `get_commits` function from changelog.py to fetch structured commit data
     commits = get_commits(from_tag, to_tag)
@@ -155,19 +155,20 @@ def generate_release_notes(version: str, from_tag: str = None, to_tag: str = Non
             to_tag = curr_tag if curr_tag else "HEAD"
 
     if not from_tag:
-        print("Error: Could not determine from_tag")
+        print("Error: Could not determine from_tag", file=sys.stderr)
         sys.exit(1)
 
     if not to_tag:
-        print("Error: Could not determine to_tag")
+        print("Error: Could not determine to_tag", file=sys.stderr)
         sys.exit(1)
 
-    # Print information to console only, not in release notes
+    # Print information to stderr so it doesn't interfere with output redirection
     commit_count = run_git_command(
         ["rev-list", "--count", f"{from_tag}..{to_tag}"]
     ).strip()
-    print(f"Generating changelog from {from_tag} to {to_tag}...")
-    print(f"Found {commit_count} commits.")
+    print(
+        f"Generating changelog from {from_tag} to {to_tag}...", file=sys.stderr)
+    print(f"Found {commit_count} commits.", file=sys.stderr)
 
     # Generate commit summary from the specific range
     commit_summary = get_commit_summary(from_tag, to_tag)
@@ -203,7 +204,7 @@ def update_release_notes(release_notes_content: str, output_file: str) -> None:
         with open(release_notes_path, "w", encoding="utf-8") as f:
             f.write(f"# Release Notes\n\n{release_notes_content}")
 
-        print(f"Successfully updated {output_file}")
+        print(f"Successfully updated {output_file}", file=sys.stderr)
 
     except Exception as e:
         print(f"Error updating release notes: {e}")
@@ -218,7 +219,8 @@ def save_raw_changelog(raw_content: str, version: str) -> None:
     try:
         with open(raw_path, "w", encoding="utf-8") as f:
             f.write(f"GENERATED_CHANGELOG<<EOF\n{raw_content}\nEOF\n")
-        print(f"Saved raw changelog to {raw_path} for CI tools")
+        print(
+            f"Saved raw changelog to {raw_path} for CI tools", file=sys.stderr)
     except Exception as e:
         print(f"Error saving raw changelog: {e}")
 
@@ -233,8 +235,9 @@ if __name__ == "__main__":
         to_tag=args.to_tag
     )
 
-    # Update release notes file with only the latest version
-    update_release_notes(release_notes_content, args.output_file)
+    # For CI workflows that use shell redirection, output the raw changelog content to stdout
+    # The workflow expects just the changelog content, not the full release notes format
+    print(raw_changelog)
 
-    # Save raw changelog in a separate file for CI tools that might need it
+    # Also save to file for local use and CI tools
     save_raw_changelog(raw_changelog, args.version)
