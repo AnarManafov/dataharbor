@@ -90,8 +90,19 @@ def find_prev_and_current_tags(version: str) -> Tuple[Optional[str], Optional[st
 
         return prev_tag, current_tag
     else:
-        print(f"Warning: Tag v{version} not found")
-        return None, None
+        # Tag doesn't exist yet - this is likely during CI processing of a trigger tag
+        # Find the most recent version tag as the previous tag
+        if version_tags:
+            prev_tag = version_tags[-1]  # Most recent tag
+            print(
+                f"Note: Target tag v{version} not found yet (likely during CI processing). Using {prev_tag} as previous tag.")
+        else:
+            # No version tags at all - use first commit
+            prev_tag = run_git_command(["rev-list", "--max-parents=0", "HEAD"])
+            print(
+                f"Note: No version tags found. Using first commit as previous reference.")
+
+        return prev_tag, None
 
 
 def get_commits_by_type_with_tickets(from_tag: str, to_tag: str) -> Dict[str, Dict[str, List[str]]]:
@@ -139,7 +150,9 @@ def generate_release_notes(version: str, from_tag: str = None, to_tag: str = Non
             from_tag = prev_tag
 
         if not to_tag:
-            to_tag = curr_tag if curr_tag else f"v{version}"
+            # If curr_tag doesn't exist (e.g., during CI processing), use HEAD
+            # which represents the current state that will become the release
+            to_tag = curr_tag if curr_tag else "HEAD"
 
     if not from_tag:
         print("Error: Could not determine from_tag")
