@@ -77,46 +77,10 @@ jobs:
           path: /tmp/changelog
           retention-days: 1
 
-  # New job to create component tags
-  # NOTE: This job was moved from the version-tag-processor workflow
-  # WHY: When creating tags from within a workflow triggered by a tag push,
-  # GitHub enforces stricter permission restrictions to prevent potential
-  # infinite workflow loops. Moving this logic here avoids these permission
-  # issues while still maintaining the same functionality.
-  create-component-tags:
-    name: Create Component Tags
-    needs: prepare-release
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write # For tag creation and pushing
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create and push component tags
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "github-actions@github.com"
-
-          # Create component tags
-          git tag web/v${{ needs.prepare-release.outputs.frontend_version }}
-          git tag app/v${{ needs.prepare-release.outputs.backend_version }}
-
-          # Push the component tags
-          git push origin web/v${{ needs.prepare-release.outputs.frontend_version }}
-          git push origin app/v${{ needs.prepare-release.outputs.backend_version }}
-
-          echo "Created and pushed component tags:"
-          echo "- web/v${{ needs.prepare-release.outputs.frontend_version }}"
-          echo "- app/v${{ needs.prepare-release.outputs.backend_version }}"
-
   # Job to build the frontend
   build-frontend:
     name: Build Frontend
-    needs: [prepare-release, create-component-tags]
+    needs: [prepare-release]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -149,7 +113,7 @@ jobs:
   # Job to build the backend
   build-backend:
     name: Build Backend
-    needs: [prepare-release, create-component-tags]
+    needs: [prepare-release]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

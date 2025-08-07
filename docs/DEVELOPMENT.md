@@ -156,6 +156,8 @@ DataHarbor follows [Semantic Versioning](https://semver.org/) with the following
 
 ### Creating a Release
 
+DataHarbor uses a **pre-release trigger** approach to ensure consistent repository state and proper documentation updates.
+
 1. **Prepare Release**
 
    ```bash
@@ -163,16 +165,18 @@ DataHarbor follows [Semantic Versioning](https://semver.org/) with the following
    git checkout master
    git pull origin master
    
-   # Run tests and build
+   # Run tests and build to verify everything works
    npm run test
    npm run build
    ```
 
-2. **Create Release Tag**
+2. **Create Pre-Release Trigger Tag**
+
+   Instead of creating the final release tag directly, create a **trigger tag** that initiates the release preparation process:
 
    ```bash
-   # Create annotated tag with release notes
-   git tag -a v1.2.3 -m "Release v1.2.3
+   # For regular releases
+   git tag -a release-v1.2.3 -m "Prepare release v1.2.3
    
    Features:
    - Added file staging improvements
@@ -182,18 +186,43 @@ DataHarbor follows [Semantic Versioning](https://semver.org/) with the following
    - Fixed directory navigation issue
    - Resolved authentication timeout"
    
-   # Push tag to trigger release automation
-   git push origin v1.2.3
+   # For hotfix releases
+   git tag -a hotfix-v1.2.4 -m "Prepare hotfix v1.2.4"
+   
+   # For pre-releases
+   git tag -a prerelease-v1.3.0-beta.1 -m "Prepare pre-release v1.3.0-beta.1"
+   
+   # Push trigger tag to start the automated release process
+   git push origin release-v1.2.3
    ```
 
 3. **Automated Release Process**
 
    The CI/CD pipeline automatically:
-   - Generates component tags (`app/v1.2.3`, `web/v1.2.3`)
-   - Updates package.json versions
-   - Creates changelog entries
-   - Builds and packages components
-   - Creates GitHub release with artifacts
+   - **Updates all version files** (package.json, web/package.json)
+   - **Generates and updates CHANGELOG.md** with commit history
+   - **Creates RELEASE_NOTES.md** with release-specific notes
+   - **Commits all changes** to master branch
+   - **Creates the actual release tag** (`v1.2.3`) pointing to the prepared commit
+   - **Creates component tags** (`app/v1.2.3`, `web/v1.2.3`)
+   - **Builds and packages components**
+   - **Publishes GitHub release** with artifacts and changelog
+
+#### Release Tag Types
+
+- **`release-v1.2.3`** → Creates final release `v1.2.3`
+- **`hotfix-v1.2.4`** → Creates hotfix release `v1.2.4`  
+- **`prerelease-v1.3.0-beta.1`** → Creates pre-release `v1.3.0-beta.1`
+
+#### Why Pre-Release Triggers?
+
+This approach ensures:
+
+- ✅ **Consistent State**: Release tags always point to commits with updated changelog and versions
+- ✅ **Automated Documentation**: CHANGELOG.md and version files are automatically maintained
+- ✅ **No Manual Steps**: No need to manually update package.json or changelog files
+- ✅ **Rollback Safety**: Failed preparation doesn't create invalid release tags
+- ✅ **Clear Audit Trail**: Separate commits for preparation vs. development changes
 
 ### CI/CD Workflows
 
@@ -217,18 +246,19 @@ DataHarbor follows [Semantic Versioning](https://semver.org/) with the following
 #### Workflow Dependencies
 
 ```text
-Tag Push (vX.Y.Z)
+Trigger Tag Push (release-vX.Y.Z)
     ↓
 version-tag-processor.yml
     ├─ Update package versions
-    ├─ Generate changelog
-    └─ Update release notes
+    ├─ Generate changelog & release notes
+    ├─ Commit all changes
+    ├─ Create actual release tag (vX.Y.Z)
+    └─ Create component tags (app/vX.Y.Z, web/vX.Y.Z)
     ↓
-publish-release.yml
-    ├─ Create component tags
-    ├─ Build components
+publish-release.yml (triggered by vX.Y.Z tag)
+    ├─ Build frontend & backend
     ├─ Create RPM packages
-    └─ Publish GitHub release
+    └─ Publish GitHub release with artifacts
 ```
 
 ## Development Best Practices
