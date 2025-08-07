@@ -1,4 +1,16 @@
-# Changelog
+# Changelog## [0.14.2] - 2025-08-07
+
+### Added
+
+- enhance changelog and release notes generation (ci) (e1dfcd7)
+
+### Maintenance
+
+- update dependencies (eb72acc)
+- Updated coverage badge. (c13e4e6)
+- update release workflows (e090393)
+
+
 
 All notable changes to this project will be documented in this file.
 
@@ -33,12 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Maintenance
 
 - Rename from data-lake-ui to dataharbor [GH-36] (342996a)
-- Updated coverage badge. (d91ade9)
+- Updated coverage badge. (d91ade9, de78671, cf87325, 0aff3de, 0a7b63a)
 - Update dependencies for improved stability (577d7de)
-- Updated coverage badge. (de78671)
-- Updated coverage badge. (cf87325)
-- Updated coverage badge. (0aff3de)
-- Updated coverage badge. (0a7b63a)
 
 ### Style
 
@@ -56,13 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refactor views for improved layout and styling (0573f31)
 - doc: Refactor project documentation (fd6f7ae)
-
-
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.13.13] - 2025-05-19
 
