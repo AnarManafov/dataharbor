@@ -1,8 +1,8 @@
 # Release Notes
 
-## v0.14.3 (2025-08-07)
+## v0.14.4 (2025-08-07)
 
 Changelog:
 ### Maintenance
-- update changelog formatting and release notes output (3d2075a)
+- clean up release notes formatting (d31fde9)
 
