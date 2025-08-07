@@ -1,6 +1,6 @@
 {
   "name": "dataharbor",
-  "version": "0.14.0",
+  "version": "0.14.2",
   "type": "module",
   "workspaces": [
     ".",
