@@ -155,8 +155,21 @@ jobs:
 
       - name: Update CHANGELOG.md
         run: |
-          # Generate a changelog for the new version tag
-          python tools/changelog.py update --version ${{ needs.determine-versions.outputs.target_version }} --to-tag ${{ needs.determine-versions.outputs.target_tag }}
+          # Get the previous version tag for changelog generation
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "v*" HEAD~1 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            # Generate a changelog for the new version tag using explicit tag range
+            python tools/changelog.py update \
+              --version ${{ needs.determine-versions.outputs.target_version }} \
+              --from-tag $PREV_TAG \
+              --to-tag HEAD
+          else
+            # No previous tag found, generate from beginning
+            python tools/changelog.py update \
+              --version ${{ needs.determine-versions.outputs.target_version }} \
+              --to-tag HEAD
+          fi
 
           echo "CHANGELOG.md updated successfully for ${{ needs.determine-versions.outputs.target_tag }}"
 
@@ -194,8 +207,21 @@ jobs:
         run: |
           mkdir -p /tmp/changelog
 
-          # Generate release notes using the Python script
-          python3 tools/generate_release_notes.py --version ${{ needs.determine-versions.outputs.target_version }} > /tmp/changelog/changelog_content.md
+          # Get the previous version tag for release notes generation
+          PREV_TAG=$(git describe --tags --abbrev=0 --match "v*" HEAD~1 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            # Generate release notes using explicit tag range
+            python3 tools/generate_release_notes.py \
+              --version ${{ needs.determine-versions.outputs.target_version }} \
+              --from-tag $PREV_TAG \
+              --to-tag HEAD > /tmp/changelog/changelog_content.md
+          else
+            # No previous tag found, generate from beginning
+            python3 tools/generate_release_notes.py \
+              --version ${{ needs.determine-versions.outputs.target_version }} \
+              --to-tag HEAD > /tmp/changelog/changelog_content.md
+          fi
 
           echo "Release notes generated successfully."
 

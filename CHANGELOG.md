@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2025-08-07
+
+### Maintenance
+
+- update dependencies (eb72acc)
+- Updated coverage badge. (c13e4e6)
+- update release workflows (e090393)
+
+## [0.14.0] - 2025-08-05
+
+### Added
+
+- enhance user authentication display in navbar (nav) (c4b50fe)
+- backend to support HTTPS for Keycloak [GH-34] (108357d)
+- enhance directory listing response structure (api) (652dffb)
+- native XRD client with streaming downloads [GH-10] (0efbf27)
+
+### Changed
+
+- migrate from viper to config package (config) (5c13038)
+
+### Documentation
+
+- Update README and add detailed dev doc (4c17380)
+
+### Maintenance
+
+- Rename from data-lake-ui to dataharbor [GH-36] (342996a)
+- Updated coverage badge. (d91ade9)
+- Update dependencies for improved stability (577d7de)
+- Updated coverage badge. (de78671)
+- Updated coverage badge. (cf87325)
+- Updated coverage badge. (0aff3de)
+- Updated coverage badge. (0a7b63a)
+
+### Style
+
+- Adjust component sizes and spacing (e0497ac)
+- update font sizes and remove Bulma dependency (cd257d9)
+- unify typography across components and styles (664d782)
+- enhance layout and structure of file browser (5983dff)
+- adjust sidebar width and improve table sorting (4bd70b5)
+
+### Build
+
+- update vue and babel dependencies to latest (deps) (c07b2e0)
+
+### Other
+
+- Refactor views for improved layout and styling (0573f31)
+- doc: Refactor project documentation (fd6f7ae)
+
+
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [0.13.13] - 2025-05-19
 
 ### Added
