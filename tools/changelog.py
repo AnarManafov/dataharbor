@@ -269,6 +269,16 @@ def generate_version_section(version: str, tag_date: str, commits_by_type: Dict[
 def update_changelog_file(changelog_path: str, version: str, version_content: str, no_consolidate: bool = False) -> bool:
     """Update the changelog file with a new version section."""
     try:
+        # Define the standard header
+        standard_header = """# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+"""
+
         # Check if file exists
         if os.path.exists(changelog_path):
             with open(changelog_path, 'r', encoding='utf-8') as file:
@@ -280,40 +290,22 @@ def update_changelog_file(changelog_path: str, version: str, version_content: st
                         f"Version {version} already exists in the changelog. Skipping update.")
                     return False
 
-                # Find position to insert (after header but before first version)
-                # Look for the end of the changelog header section
-                header_pattern = r'^# Changelog\s*\n+All notable changes.*?(?=\n## \[|$)'
-                header_match = re.search(
-                    header_pattern, content, re.DOTALL | re.MULTILINE)
+                # Find the first version section to preserve existing versions
+                version_pattern = r'^## \['
+                version_match = re.search(
+                    version_pattern, content, re.MULTILINE)
 
-                if header_match:
-                    header_end = header_match.end()
-                    # Insert new content after header with proper spacing
-                    new_content = content[:header_end] + '\n\n' + \
-                        version_content + content[header_end:]
+                if version_match:
+                    # Extract existing versions (everything from first version onward)
+                    existing_versions = content[version_match.start():]
+                    # Build new content: standard header + new version + existing versions
+                    new_content = standard_header + version_content + '\n' + existing_versions
                 else:
-                    # Try simpler pattern - just find the header and description
-                    simple_pattern = r'^(# Changelog.*?\n.*?\.org/spec/v2\.0\.0\.html\)\.\s*\n+)'
-                    simple_match = re.search(
-                        simple_pattern, content, re.DOTALL | re.MULTILINE)
-
-                    if simple_match:
-                        header_end = simple_match.end()
-                        new_content = content[:header_end] + \
-                            version_content + content[header_end:]
-                    else:
-                        # If no proper header found, just prepend with proper newline
-                        new_content = version_content + '\n' + content
+                    # No existing versions, just header + new version
+                    new_content = standard_header + version_content
         else:
-            # Create new changelog with template
-            new_content = """# Changelog
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-""" + version_content
+            # Create new changelog with standard header
+            new_content = standard_header + version_content
 
         # Perform consolidation if not disabled
         if not no_consolidate:
