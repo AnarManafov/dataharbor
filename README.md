@@ -103,6 +103,19 @@ DataHarbor is designed for **internal use by developers and system administrator
 npm run build
 ```
 
+### Update Dependencies
+
+```shell
+# Update all frontend dependencies
+npx npm-check-updates --workspaces -u
+npm install
+
+# Update backend dependencies
+cd app && go get -u ./... && go mod tidy && cd ..
+```
+
+See [DEVELOPMENT.md](./docs/DEVELOPMENT.md#dependency-management) for detailed dependency management guidelines.
+
 ### Run Tests
 
 ```shell

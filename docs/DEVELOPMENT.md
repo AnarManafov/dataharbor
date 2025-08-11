@@ -119,6 +119,186 @@ fix(frontend): resolve authentication redirect loop
 docs(readme): update installation instructions
 ```
 
+### Dependency Management
+
+DataHarbor uses different package managers for different components. This section covers how to update dependencies safely and maintain compatibility.
+
+#### Frontend Dependencies (npm workspaces)
+
+The project uses npm workspaces with a single `package-lock.json` at the root level for consistent dependency resolution.
+
+**Check for updates:**
+
+```bash
+# Check all workspaces from root (recommended)
+npx npm-check-updates --workspaces
+
+# Check only web dependencies
+npx npm-check-updates --workspace=web
+
+# Or from web directory
+cd web && npx npm-check-updates
+```
+
+**Update dependencies:**
+
+```bash
+# Update all workspaces (recommended approach)
+npx npm-check-updates --workspaces -u
+npm install
+
+# Update only web dependencies
+npx npm-check-updates --workspace=web -u
+npm install
+
+# Update specific packages only
+npx npm-check-updates --workspace=web -u vue axios element-plus
+npm install
+```
+
+**Best practices:**
+
+- Always run `npm install` from the root after updating package.json files
+- Test the application after dependency updates
+- Update dependencies in small batches to isolate potential issues
+- Check breaking changes in changelogs before major version updates
+
+#### Backend Dependencies (Go modules)
+
+Go uses modules for dependency management with semantic versioning.
+
+**Check for updates:**
+
+```bash
+cd app
+
+# List all dependencies and their versions
+go list -m all
+
+# Check for available updates
+go list -u -m all
+
+# Check for updates of specific module
+go list -u -m github.com/gin-gonic/gin
+```
+
+**Update dependencies:**
+
+```bash
+cd app
+
+# Update all dependencies to latest compatible versions
+go get -u ./...
+
+# Update specific dependency
+go get -u github.com/gin-gonic/gin
+
+# Update to specific version
+go get github.com/gin-gonic/gin@v1.9.1
+
+# Update to latest patch version only
+go get -u=patch ./...
+
+# Clean up unused dependencies
+go mod tidy
+```
+
+**Verify updates:**
+
+```bash
+cd app
+
+# Run tests after updates
+go test -v ./...
+
+# Check for security vulnerabilities
+go list -json -deps ./... | nancy sleuth
+
+# Build to ensure compilation works
+go build .
+```
+
+**Best practices:**
+
+- Always run `go mod tidy` after updating dependencies
+- Test thoroughly after updates, especially for major version changes
+- Read release notes for breaking changes before updating
+- Update dependencies regularly but in controlled batches
+- Pin versions for critical production dependencies
+
+#### Full Project Dependency Update Workflow
+
+**Complete update process:**
+
+```bash
+# 1. Update frontend dependencies
+npx npm-check-updates --workspaces -u
+npm install
+
+# 2. Update backend dependencies
+cd app
+go get -u ./...
+go mod tidy
+cd ..
+
+# 3. Test everything
+npm run build
+cd app && go test -v ./... && cd ..
+
+# 4. Commit changes
+git add .
+git commit -m "chore: update dependencies
+
+- Updated frontend dependencies to latest versions
+- Updated Go modules to latest compatible versions
+- All tests passing after updates"
+```
+
+#### Security Updates
+
+**Check for security vulnerabilities:**
+
+```bash
+# Frontend security audit
+npm audit
+npm audit fix  # Apply automatic fixes
+
+# Backend security check (requires nancy)
+cd app
+go list -json -deps ./... | nancy sleuth
+```
+
+**Handle security issues:**
+
+- Address `npm audit` warnings promptly
+- For Go modules, update to patched versions immediately
+- Monitor security advisories for critical dependencies
+- Consider using automated tools like Dependabot for alerts
+
+#### Dependency Version Constraints
+
+**Frontend (package.json):**
+
+```json
+{
+  "dependencies": {
+    "vue": "^3.5.18",        // Compatible version updates
+    "axios": "~1.11.0",      // Patch-level updates only
+    "element-plus": "2.10.5" // Exact version (use sparingly)
+  }
+}
+```
+
+**Backend (go.mod):**
+
+```go
+require (
+    github.com/gin-gonic/gin v1.9.1
+    // Go modules use minimal version selection
+    // Major version changes require import path changes
+)
+```
+
 ### Testing Requirements
 
 #### Before Submitting PR
