@@ -113,9 +113,18 @@ function main() {
         if (updated) updates.push('Frontend package.json');
     }
 
-    // Print summary
+    // Update package-lock.json files if any package.json was updated
     if (updates.length) {
         console.log(`\n🔄 Updated ${updates.length} package.json files: ${updates.join(', ')}`);
+        console.log('\n📦 Updating package-lock.json files...');
+        
+        try {
+            // Run npm install to update package-lock.json files
+            execSync('npm install', { encoding: 'utf8', stdio: 'inherit' });
+            console.log('✅ Successfully updated package-lock.json files');
+        } catch (error) {
+            console.error('❌ Failed to update package-lock.json files:', error.message);
+        }
     } else {
         console.log(`\n🔄 No package.json files needed updating.`);
     }
