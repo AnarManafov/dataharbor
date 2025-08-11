@@ -133,6 +133,7 @@ jobs:
           path: |
             package.json
             web/package.json
+            package-lock.json
           retention-days: 1
 
   # Job to prepare changelog update (but not commit it)
@@ -325,7 +326,7 @@ jobs:
           git fetch origin master
 
           # Stage the changed files
-          git add package.json web/package.json CHANGELOG.md RELEASE_NOTES.md
+          git add package.json web/package.json package-lock.json CHANGELOG.md RELEASE_NOTES.md
 
           # Check if there are any changes to commit
           if git diff-index --quiet HEAD --; then
