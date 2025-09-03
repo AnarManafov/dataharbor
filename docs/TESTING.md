@@ -2,13 +2,6 @@
 
 This document covers the existing test structure and commands for running tests in DataHarbor.
 
-## Test Coverage Requirements
-
-- **Backend Minimum Coverage**: 80% for all packages
-- **Controller Coverage**: 90% (critical path)
-- **Middleware Coverage**: 85% (security critical)
-- **Frontend Coverage**: 75% minimum
-
 ## Backend Testing (Go)
 
 ### Test Structure

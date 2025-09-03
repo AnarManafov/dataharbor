@@ -2,13 +2,130 @@
 
 This document covers production deployment, containerization, and packaging for DataHarbor.
 
-## Overview
+## Deployment Architecture Diagrams
 
-DataHarbor can be deployed in multiple ways depending on your infrastructure requirements:
+### Container Deployment Architecture
 
-- **Container Deployment**: Using Podman/Docker containers (recommended)
-- **RPM Packages**: For RHEL/CentOS/Fedora systems
-- **Manual Deployment**: Direct binary deployment
+```mermaid
+graph TB
+    subgraph "External Services"
+        User[👤 User] --> LoadBalancer[Load Balancer<br/>nginx/HAProxy]
+        XROOTD[📁 XROOTD Server<br/>Port 1094]
+        OIDC[🔐 OIDC Provider<br/>Keycloak]
+    end
+    
+    subgraph "Container Environment"
+        LoadBalancer --> Frontend[📱 dataharbor-frontend<br/>nginx + Vue SPA<br/>Port 443/80]
+        Frontend --> Backend[⚙️ dataharbor-backend<br/>Go Binary<br/>Port 8081]
+    end
+    
+    subgraph "Storage & Configuration"
+        ConfigVol[📁 Config Volume<br/>/app/config]
+        LogVol[📁 Log Volume<br/>/var/log/dataharbor]
+        CertVol[🔒 Certificate Volume<br/>/etc/ssl/certs]
+    end
+    
+    Backend --> XROOTD
+    Backend --> OIDC
+    Backend --> ConfigVol
+    Backend --> LogVol
+    Frontend --> CertVol
+    
+    classDef external fill:#e3f2fd
+    classDef container fill:#f1f8e9
+    classDef storage fill:#fff3e0
+    
+    class User,LoadBalancer,XROOTD,OIDC external
+    class Frontend,Backend container
+    class ConfigVol,LogVol,CertVol storage
+```
+
+### Multi-Environment Deployment Strategy
+
+```mermaid
+graph LR
+    subgraph "Development Environment"
+        DevFE[Frontend<br/>localhost:5173<br/>HTTP]
+        DevBE[Backend<br/>localhost:8081<br/>HTTP]
+        DevXRD[Dev XROOTD<br/>test-server:1094]
+        DevOIDC[Dev Keycloak<br/>local instance]
+    end
+    
+    subgraph "Staging Environment"
+        StageFE[Frontend<br/>staging.dataharbor.com<br/>HTTPS]
+        StageBE[Backend<br/>staging-api.dataharbor.com<br/>HTTPS]
+        StageXRD[Staging XROOTD<br/>staging-xrd.gsi.de:1094]
+        StageOIDC[Staging Keycloak<br/>staging-auth.gsi.de]
+    end
+    
+    subgraph "Production Environment"
+        ProdFE[Frontend<br/>dataharbor.gsi.de<br/>HTTPS]
+        ProdBE[Backend<br/>api.dataharbor.gsi.de<br/>HTTPS]
+        ProdXRD[Production XROOTD<br/>xrootd.gsi.de:1094]
+        ProdOIDC[Production Keycloak<br/>id.gsi.de]
+    end
+    
+    DevFE --> DevBE
+    DevBE --> DevXRD
+    DevBE --> DevOIDC
+    
+    StageFE --> StageBE
+    StageBE --> StageXRD
+    StageBE --> StageOIDC
+    
+    ProdFE --> ProdBE
+    ProdBE --> ProdXRD
+    ProdBE --> ProdOIDC
+    
+    classDef dev fill:#e8f5e8
+    classDef staging fill:#fff3e0
+    classDef prod fill:#ffebee
+    
+    class DevFE,DevBE,DevXRD,DevOIDC dev
+    class StageFE,StageBE,StageXRD,StageOIDC staging
+    class ProdFE,ProdBE,ProdXRD,ProdOIDC prod
+```
+
+### Network Flow & Security
+
+```mermaid
+flowchart TD
+    Internet[🌐 Internet] --> Firewall[🔥 Firewall<br/>Port 443, 80]
+    Firewall --> ReverseProxy[🔄 Reverse Proxy<br/>nginx]
+    
+    ReverseProxy --> Frontend[📱 Frontend Container<br/>Static Files + SPA]
+    ReverseProxy -->|/api/*| Backend[⚙️ Backend Container<br/>Go Application]
+    
+    Backend --> XRDNetwork[🔒 Private Network<br/>XROOTD Protocol]
+    XRDNetwork --> XRDServer[📁 XROOTD Server<br/>Port 1094]
+    
+    Backend --> OIDCNetwork[🔒 External HTTPS<br/>OIDC Protocol]
+    OIDCNetwork --> OIDCProvider[🔐 OIDC Provider<br/>Port 443]
+    
+    subgraph "Security Layers"
+        TLS[🔒 TLS Termination]
+        CORS[🔒 CORS Headers]
+        Auth[🔒 Authentication]
+        CSP[🔒 Content Security Policy]
+    end
+    
+    ReverseProxy --> TLS
+    Frontend --> CORS
+    Backend --> Auth
+    Frontend --> CSP
+    
+    classDef internet fill:#e3f2fd
+    classDef proxy fill:#fff3e0
+    classDef app fill:#f1f8e9
+    classDef network fill:#fce4ec
+    classDef security fill:#f3e5f5
+    
+    class Internet,Firewall internet
+    class ReverseProxy proxy
+    class Frontend,Backend app
+    class XRDNetwork,XRDServer,OIDCNetwork,OIDCProvider network
+    class TLS,CORS,Auth,CSP security
+```
 
 ## Container Deployment
 
@@ -265,7 +382,7 @@ Update `web/public/config.json`:
     "scope": "openid profile email"
   },
   "features": {
-    "fileStaging": true,
+    "directStreaming": true,
     "directoryListing": true,
     "fileDownload": true
   }
@@ -362,47 +479,9 @@ tar -czf dataharbor-config-backup-$(date +%Y%m%d).tar.gz \
 ### Data Backup
 
 ```bash
-# Backup staged files and temporary data
+# Backup files and temporary data
 tar -czf dataharbor-data-backup-$(date +%Y%m%d).tar.gz \
   /opt/dataharbor/data/
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Service fails to start**
-   - Check systemd logs: `journalctl -u dataharbor-backend -f`
-   - Verify configuration file syntax
-   - Check file permissions
-
-2. **OIDC authentication fails**
-   - Verify OIDC provider configuration
-   - Check redirect URIs match
-   - Validate client credentials
-
-3. **XROOTD connection issues**
-   - Test XROOTD connectivity: `xrdfs root://server.com:1094 ls /`
-   - Check firewall rules
-   - Verify XROOTD server accessibility
-
-4. **SSL certificate issues**
-   - Validate certificate chain
-   - Check certificate expiration
-   - Verify certificate permissions
-
-### Log Analysis
-
-```bash
-# View backend logs
-journalctl -u dataharbor-backend -f --since "1 hour ago"
-
-# View nginx logs
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
-
-# Check application logs
-tail -f /opt/dataharbor/logs/application.log
 ```
 
 ## Performance Tuning
@@ -427,3 +506,15 @@ tail -f /opt/dataharbor/logs/application.log
 - Tune kernel parameters for network performance
 - Monitor system resources (CPU, memory, disk I/O)
 - Set up log rotation to prevent disk space issues
+
+### Need Help?
+
+For troubleshooting deployment and production issues, see the **[Troubleshooting Guide](./TROUBLESHOOTING.md)**.
+
+## Related Documentation
+
+- **[Backend Configuration](./BACKEND_CONFIGURATION.md)** - Complete backend configuration reference
+- **[Frontend Configuration](./FRONTEND_CONFIGURATION.md)** - Frontend deployment and configuration
+- **[Setup Guide](./SETUP.md)** - Development environment setup
+- **[Architecture Guide](./ARCHITECTURE.md)** - System architecture overview
+- **[XROOTD Integration](./xrootd.md)** - XROOTD server configuration and integration

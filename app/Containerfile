@@ -1,14 +1,13 @@
 # A podman container
 #
-# Use the official Node.js image as the base image
+# Build stage
 FROM golang:latest as build-stage
 
-WORKDIR /app
+# Install XRootD client tools
+RUN apt-get update && apt-get install -y xrootd-client && rm -rf /var/lib/apt/lists/*
 
-# XRD Staging directory
-ENV XRD_STAGING_DIR=/tmp/delete_me
-# Create Staging dir
-RUN mkdir -p $XRD_STAGING_DIR
+# Set working directory
+WORKDIR /app
 
 # copy project files and folders to the current working directory (i.e. 'app' folder)
 COPY ./ .
