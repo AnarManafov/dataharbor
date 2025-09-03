@@ -86,10 +86,35 @@ python3 ../packaging/build_rpm.py -f
 
 ## Documentation
 
-| Topic                     | Location                                           |
-| ------------------------- | -------------------------------------------------- |
-| **Complete Setup Guide**  | [../docs/SETUP.md](../docs/SETUP.md)               |
-| **Frontend Development**  | [../docs/FRONTEND.md](../docs/FRONTEND.md)         |
-| **Architecture Overview** | [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) |
-| **Testing Guide**         | [../docs/TESTING.md](../docs/TESTING.md)           |
-| **Deployment Guide**      | [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md)     |
+### Getting Started
+
+| Topic                      | Location                                                               |
+| -------------------------- | ---------------------------------------------------------------------- |
+| **Complete Setup Guide**   | [../docs/SETUP.md](../docs/SETUP.md)                                   |
+| **Development Guide**      | [../docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md)                       |
+| **Backend Configuration**  | [../docs/BACKEND_CONFIGURATION.md](../docs/BACKEND_CONFIGURATION.md)   |
+| **Frontend Configuration** | [../docs/FRONTEND_CONFIGURATION.md](../docs/FRONTEND_CONFIGURATION.md) |
+
+### Frontend Development
+
+| Topic                    | Location                                               |
+| ------------------------ | ------------------------------------------------------ |
+| **Frontend Development** | [../docs/FRONTEND.md](../docs/FRONTEND.md)             |
+| **Authentication**       | [../docs/AUTHENTICATION.md](../docs/AUTHENTICATION.md) |
+| **Testing Guide**        | [../docs/TESTING.md](../docs/TESTING.md)               |
+
+### Architecture & Operations
+
+| Topic                     | Location                                                 |
+| ------------------------- | -------------------------------------------------------- |
+| **Architecture Overview** | [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)       |
+| **API Documentation**     | [../docs/API.md](../docs/API.md)                         |
+| **Deployment Guide**      | [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md)           |
+| **Troubleshooting**       | [../docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) |
+
+### Quick Navigation
+
+- **📁 All Documentation**: [../docs/](../docs/)
+- **🎨 Frontend Development**: [../docs/FRONTEND.md](../docs/FRONTEND.md)
+- **🔒 Authentication**: [../docs/AUTHENTICATION.md](../docs/AUTHENTICATION.md)
+- **🏗️ Architecture**: [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)
