@@ -1,29 +1,199 @@
 # XROOTD Integration
 
-This document describes how DataHarbor integrates with XROOTD for file system operations and provides guidance for XROOTD setup and configuration.
+This document describes how DataHarbor integrates with XROOTD for file system operations, focusing on XROOTD concepts, the XRD Go native client, and protocol interactions.
 
-## Overview
+## XROOTD Integration Architecture
 
-XROOTD (eXtended ROOT daemon) is a high-performance, scalable data access system primarily used in high-energy physics environments. DataHarbor integrates with XROOTD through command-line client tools to provide file system operations such as directory listing, file staging, and metadata retrieval.
-
-## XROOTD Architecture
-
-### Components
-
-- **XROOTD Server**: The main data server that hosts files
-- **XROOTD Client**: Command-line tools for accessing XROOTD servers
-- **DataHarbor Backend**: Interfaces with XROOTD client tools
+DataHarbor integrates with XROOTD through the go-hep/xrootd Go native client, providing direct protocol communication without external dependencies.
 
 ### Integration Pattern
 
+- **XROOTD Server**: The main data server that hosts files and manages access
+- **XRD Go Native Client**: Pure Go implementation from go-hep/xrootd package for direct protocol communication
+- **DataHarbor Backend**: Orchestrates file operations through the Go native client
+
+```mermaid
+graph LR
+    subgraph "DataHarbor Application"
+        Backend[Backend Service]
+        Controllers[HTTP Controllers]
+        Auth[Authentication Layer]
+    end
+    
+    subgraph "XRD Go Native Client"
+        GoClient[go-hep/xrootd]
+        FileSystem[FileSystem Interface]
+        Connection[Connection Manager]
+    end
+    
+    subgraph "XROOTD Infrastructure"
+        XRDServer[XROOTD Server]
+        Storage[File Storage]
+        LoadBalancer[Load Balancer]
+    end
+    
+    Controllers --> Backend
+    Backend --> Auth
+    Backend --> GoClient
+    GoClient --> FileSystem
+    FileSystem --> Connection
+    Connection -->|XRD Protocol<br/>Port 1094| LoadBalancer
+    LoadBalancer --> XRDServer
+    XRDServer --> Storage
+    
+    Auth -.->|Token Auth| XRDServer
+    
+    classDef dataharbor fill:#e3f2fd,stroke:#1976d2
+    classDef goclient fill:#fff3e0,stroke:#f57c00
+    classDef xrootd fill:#f1f8e9,stroke:#388e3c
+    
+    class Backend,Controllers,Auth dataharbor
+    class GoClient,FileSystem,Connection goclient
+    class XRDServer,Storage,LoadBalancer xrootd
 ```
-┌─────────────────┐    Command Line    ┌─────────────────┐    Network     ┌─────────────────┐
-│                 │◄──────────────────►│                 │◄──────────────►│                 │
-│ DataHarbor      │     (xrdfs, etc.)  │ XROOTD Client   │   (XRD Proto)  │ XROOTD Server   │
-│ Backend (Go)    │                    │ Tools           │                │ (File System)   │
-│                 │                    │                 │                │                 │
-└─────────────────┘                    └─────────────────┘                └─────────────────┘
+
+### XROOTD Operation Sequences
+
+```mermaid
+sequenceDiagram
+    participant User as Web User
+    participant DH as DataHarbor Backend
+    participant XRD as XRD Go Client
+    participant XRDS as XROOTD Server
+    
+    Note over User,XRDS: Directory Listing Workflow
+    User->>DH: GET /api/v1/files?path=/data
+    DH->>DH: Validate authentication token
+    DH->>XRD: NewClient(server, username, token)
+    XRD->>XRDS: Connect + Authenticate
+    XRDS-->>XRD: Connection established
+    
+    DH->>XRD: fs.Dirlist(ctx, "/data")
+    XRD->>XRDS: XRD DIRLIST request
+    XRDS->>XRDS: Check permissions & access
+    XRDS-->>XRD: Directory entries (binary)
+    XRD->>XRD: Parse to []EntryStat
+    XRD-->>DH: Structured file list
+    DH->>DH: Format as JSON response
+    DH-->>User: HTTP 200 + file listing
+    
+    Note over User,XRDS: File Download Workflow
+    User->>DH: GET /api/v1/download?path=/data/file.dat
+    DH->>DH: Validate token & permissions
+    DH->>XRD: fs.Open(path, ReadOnly)
+    XRD->>XRDS: XRD OPEN request
+    XRDS->>XRDS: Validate file access
+    XRDS-->>XRD: File handle + metadata
+    
+    loop Stream file chunks
+        DH->>XRD: file.ReadAt(buffer, offset)
+        XRD->>XRDS: XRD READ (offset, length)
+        XRDS-->>XRD: File data chunk
+        XRD-->>DH: Data buffer
+        DH-->>User: HTTP chunk (streaming)
+    end
+    
+    DH->>XRD: file.Close()
+    XRD->>XRDS: XRD CLOSE
+    DH-->>User: End of stream
 ```
+
+### XROOTD Error Handling & Recovery
+
+```mermaid
+stateDiagram-v2
+    [*] --> OperationStart
+    
+    OperationStart --> XRDConnection: Initiate XROOTD operation
+    XRDConnection --> ConnectionSuccess: Connection established
+    XRDConnection --> ConnectionError: Connection failed
+    
+    ConnectionSuccess --> OperationExecution: Execute file operation
+    OperationExecution --> OperationSuccess: Operation completed
+    OperationExecution --> OperationError: Operation failed
+    
+    ConnectionError --> ErrorClassification: Classify error type
+    OperationError --> ErrorClassification
+    
+    state ErrorClassification {
+        [*] --> NetworkError: Timeout/Connection issues
+        [*] --> PermissionError: Access denied
+        [*] --> FileNotFound: File/directory not found
+        [*] --> ServerError: XROOTD server error
+        [*] --> ProtocolError: XRD protocol error
+    }
+    
+    NetworkError --> RetryLogic: Temporary failure
+    PermissionError --> SecurityHandling: Authentication issue
+    FileNotFound --> NotFoundHandling: Resource doesn't exist
+    ServerError --> ServerErrorHandling: Server-side issue
+    ProtocolError --> ProtocolErrorHandling: Protocol-level issue
+    
+    RetryLogic --> RetryAttempt: Retry with backoff
+    RetryAttempt --> ConnectionSuccess: Retry successful
+    RetryAttempt --> PermanentFailure: Max retries exceeded
+    
+    SecurityHandling --> [*]: Return 403 Forbidden
+    NotFoundHandling --> [*]: Return 404 Not Found
+    ServerErrorHandling --> [*]: Return 503 Service Unavailable
+    ProtocolErrorHandling --> [*]: Return 500 Internal Error
+    PermanentFailure --> [*]: Return 504 Gateway Timeout
+    
+    OperationSuccess --> [*]: Return success response
+    
+    note right of RetryLogic : Exponential backoff<br/>Max 3 attempts<br/>Timeout handling
+    note right of ErrorClassification : Parse XROOTD error codes<br/>Map to HTTP status codes<br/>Log for debugging
+```
+
+## XRD Go Native Client
+
+DataHarbor uses the **go-hep/xrootd** package, which provides a pure Go implementation of the XROOTD protocol. This eliminates dependencies on external XROOTD client tools and enables direct protocol communication.
+
+### Key Features
+
+- **Pure Go Implementation**: No external dependencies on XROOTD client tools
+- **Direct Protocol Support**: Native XROOTD protocol communication
+- **Type Safety**: Go struct-based API with compile-time safety
+- **Context Support**: Full Go context integration for timeouts and cancellation
+- **Connection Management**: Built-in connection pooling and management
+- **Error Handling**: Structured error responses with XROOTD error codes
+
+### Core Operations
+
+**Directory Listing**:
+- Uses `xrdfs.FileSystem.Dirlist()` method
+- Returns structured `EntryStat` objects with file metadata
+- Supports recursive directory traversal
+
+**File Reading**:
+- Implements `io.ReaderAt` interface for random access
+- Supports streaming reads with configurable buffer sizes
+- Handles large files efficiently with chunked reading
+
+**Authentication**:
+- Supports various XROOTD authentication mechanisms
+- Token-based authentication for secure access
+- User credential management
+
+## Configuration
+
+### Backend Configuration
+
+```yaml
+xrd:
+  server: "root://xrootd.example.com:1094"
+  timeout: 60  # seconds
+  initial_dir: "/store/data"
+```
+
+### Go Client Configuration
+
+The go-hep/xrootd client is configured programmatically:
+
+- **Server Address**: XROOTD server URL with protocol and port
+- **Authentication**: Username and authentication tokens
+- **Timeouts**: Operation-specific timeout settings
+- **Connection Options**: SSL/TLS settings, retry policies
 
 ## XROOTD Client Installation
 
@@ -67,231 +237,12 @@ xrdcp --help
 which xrdfs
 ```
 
-## DataHarbor XROOTD Integration
-
-### XROOTD Client Wrapper
-
-The DataHarbor backend includes a Go wrapper for XROOTD client operations:
-
-```go
-// common/xrd.go
-type XRDClient struct {
-    server  string
-    timeout time.Duration
-    logger  *zap.Logger
-}
-
-func NewXRDClient(server string, timeout time.Duration) *XRDClient {
-    return &XRDClient{
-        server:  server,
-        timeout: timeout,
-        logger:  common.Logger,
-    }
-}
-
-func (x *XRDClient) ExecuteCommand(cmd string, args ...string) ([]byte, error) {
-    ctx, cancel := context.WithTimeout(context.Background(), x.timeout)
-    defer cancel()
-    
-    // Build command with server prefix if needed
-    fullArgs := make([]string, 0, len(args)+1)
-    if len(args) > 0 && !strings.Contains(args[0], x.server) {
-        fullArgs = append(fullArgs, x.server)
-    }
-    fullArgs = append(fullArgs, args...)
-    
-    command := exec.CommandContext(ctx, cmd, fullArgs...)
-    
-    x.logger.Debug("Executing XROOTD command",
-        zap.String("cmd", cmd),
-        zap.Strings("args", fullArgs),
-    )
-    
-    output, err := command.Output()
-    if err != nil {
-        x.logger.Error("XROOTD command failed",
-            zap.String("cmd", cmd),
-            zap.Error(err),
-        )
-        return nil, fmt.Errorf("xrootd command failed: %w", err)
-    }
-    
-    return output, nil
-}
-```
-
-### Directory Listing Implementation
-
-```go
-func (x *XRDClient) ListDirectory(path string) ([]FileInfo, error) {
-    // Execute: xrdfs <server> ls -l <path>
-    output, err := x.ExecuteCommand("xrdfs", "ls", "-l", path)
-    if err != nil {
-        return nil, fmt.Errorf("directory listing failed: %w", err)
-    }
-    
-    return x.parseDirectoryOutput(output)
-}
-
-func (x *XRDClient) parseDirectoryOutput(output []byte) ([]FileInfo, error) {
-    lines := strings.Split(string(output), "\n")
-    var files []FileInfo
-    
-    for _, line := range lines {
-        line = strings.TrimSpace(line)
-        if line == "" {
-            continue
-        }
-        
-        // Parse xrdfs ls -l output format:
-        // -rw-r--r--   1 user group      1024 Oct 15 10:30 filename.txt
-        // drwxr-xr-x   1 user group         0 Oct 14 15:20 directory
-        
-        parts := strings.Fields(line)
-        if len(parts) < 9 {
-            continue // Skip malformed lines
-        }
-        
-        permissions := parts[0]
-        sizeStr := parts[4]
-        
-        // Parse size
-        size, err := strconv.ParseInt(sizeStr, 10, 64)
-        if err != nil {
-            size = 0
-        }
-        
-        // Determine file type
-        fileType := "file"
-        if strings.HasPrefix(permissions, "d") {
-            fileType = "dir"
-            size = 0 // Directories don't have meaningful sizes
-        }
-        
-        // Parse date and time (parts[5], parts[6], parts[7])
-        dateTime := fmt.Sprintf("%s %s %s", parts[5], parts[6], parts[7])
-        
-        // File name (rest of the parts)
-        fileName := strings.Join(parts[8:], " ")
-        
-        files = append(files, FileInfo{
-            Name:     fileName,
-            Type:     fileType,
-            Size:     size,
-            DateTime: dateTime,
-        })
-    }
-    
-    return files, nil
-}
-```
-
-### File Staging Implementation
-
-```go
-func (x *XRDClient) StageFile(remotePath, localStagingDir string) (string, error) {
-    // Generate unique staging directory
-    stagingID := fmt.Sprintf("stg_%d", time.Now().Unix())
-    stagingPath := filepath.Join(localStagingDir, stagingID)
-    
-    // Create staging directory
-    if err := os.MkdirAll(stagingPath, 0755); err != nil {
-        return "", fmt.Errorf("failed to create staging directory: %w", err)
-    }
-    
-    // Extract filename from remote path
-    fileName := filepath.Base(remotePath)
-    localFilePath := filepath.Join(stagingPath, fileName)
-    
-    // Build full remote URL
-    remoteURL := fmt.Sprintf("%s/%s", x.server, strings.TrimPrefix(remotePath, "/"))
-    
-    // Execute: xrdcp <remote_url> <local_path>
-    _, err := x.ExecuteCommand("xrdcp", remoteURL, localFilePath)
-    if err != nil {
-        // Clean up staging directory on failure
-        os.RemoveAll(stagingPath)
-        return "", fmt.Errorf("file staging failed: %w", err)
-    }
-    
-    x.logger.Info("File staged successfully",
-        zap.String("remote_path", remotePath),
-        zap.String("local_path", localFilePath),
-    )
-    
-    return localFilePath, nil
-}
-```
-
-### Server Information Retrieval
-
-```go
-func (x *XRDClient) GetServerInfo() (*ServerInfo, error) {
-    // Execute: xrdfs <server> query config version
-    output, err := x.ExecuteCommand("xrdfs", "query", "config", "version")
-    if err != nil {
-        return nil, fmt.Errorf("server info query failed: %w", err)
-    }
-    
-    version := strings.TrimSpace(string(output))
-    
-    // Parse server hostname from server URL
-    hostname := x.server
-    if strings.Contains(hostname, "://") {
-        parts := strings.Split(hostname, "://")
-        if len(parts) > 1 {
-            hostname = strings.Split(parts[1], ":")[0]
-        }
-    }
-    
-    return &ServerInfo{
-        Hostname: hostname,
-        Version:  version,
-        Server:   x.server,
-    }, nil
-}
-```
-
-## Configuration
-
-### Backend Configuration
-
-```yaml
-# app/config/application.yaml
-xrd:
-  server: "root://xrootd.example.com:1094"
-  timeout: 60  # seconds
-  initial_dir: "/store/data"
-  staging:
-    directory: "/tmp/dataharbor/staged"
-    cleanup_interval: 3600  # seconds (1 hour)
-    max_file_size: 1073741824  # bytes (1GB)
-    max_concurrent_stages: 10
-```
-
-### Go Configuration Structure
-
-```go
-type XRDConfig struct {
-    Server   string        `yaml:"server"`
-    Timeout  int          `yaml:"timeout"`
-    InitialDir string     `yaml:"initial_dir"`
-    Staging  StagingConfig `yaml:"staging"`
-}
-
-type StagingConfig struct {
-    Directory       string `yaml:"directory"`
-    CleanupInterval int    `yaml:"cleanup_interval"`
-    MaxFileSize     int64  `yaml:"max_file_size"`
-    MaxConcurrentStages int `yaml:"max_concurrent_stages"`
-}
-```
-
-## Command Reference
+## XROOTD Command Reference
 
 ### Common XROOTD Client Commands
 
-#### Directory Operations
+**Directory Operations**:
+
 ```bash
 # List directory contents
 xrdfs root://server.example.com:1094 ls /path/to/directory
@@ -303,7 +254,8 @@ xrdfs root://server.example.com:1094 ls -l /path/to/directory
 xrdfs root://server.example.com:1094 ls -R /path/to/directory
 ```
 
-#### File Operations
+**File Operations**:
+
 ```bash
 # Copy file from XROOTD to local
 xrdcp root://server.example.com:1094//path/to/file.txt /local/path/file.txt
@@ -318,50 +270,8 @@ xrdfs root://server.example.com:1094 stat /path/to/file.txt
 xrdfs root://server.example.com:1094 cat /path/to/file.txt
 ```
 
-#### File Streaming for Downloads
+**Server Information**:
 
-DataHarbor uses `xrdfs cat` for efficient file streaming without temporary storage. This approach provides several advantages over traditional staging:
-
-**Performance Benefits:**
-
-- **Zero Intermediate Storage**: Files stream directly from XROOTD to the client
-- **Memory Efficient**: Uses chunked transfer with configurable buffer sizes (32KB default)
-- **Binary Safe**: Handles any file type without corruption risk
-- **Scalable**: No disk space consumption on the backend server
-
-**Security Benefits:**
-
-- **No Temporary Files**: Eliminates security risks from staged files
-- **Direct Authentication**: Each download request is authenticated individually
-- **No Public Exposure**: Files are never exposed in public directories
-- **Audit Trail**: Every download attempt is logged with user context
-
-**Implementation Details:**
-
-```bash
-# Basic streaming command used by DataHarbor
-xrdfs root://server.example.com:1094 cat /path/to/file.txt
-
-# With timeout for large files
-timeout 300 xrdfs root://server.example.com:1094 cat /path/to/large-file.bin
-```
-
-**Why `xrdfs cat` is Optimal:**
-
-- **True Streaming**: Outputs data as soon as available from XROOTD
-- **Binary Preservation**: No encoding or transformation applied to file contents
-- **Efficient Protocol**: Uses XROOTD's native read operations
-- **Error Propagation**: Cleanly handles network issues and file access errors
-- **Resource Light**: Minimal memory footprint on both client and server
-
-**Compared to Alternatives:**
-
-- **vs. `xrdcp`**: `xrdcp` requires destination file, `cat` streams to stdout
-- **vs. HTTP staging**: No intermediate storage, better security, lower latency
-- **vs. Direct XROOTD URLs**: Backend authentication, centralized access control
-
-
-#### Server Information
 ```bash
 # Query server configuration
 xrdfs root://server.example.com:1094 query config version
@@ -373,286 +283,50 @@ xrdfs root://server.example.com:1094 query stats info
 xrdfs root://server.example.com:1094 query config hostname
 ```
 
-### URL Format
+### XROOTD URL Format
 
 XROOTD URLs follow this format:
+
 ```
 root://hostname:port//absolute/path/to/file
 ```
 
 Examples:
+
 ```
 root://xrootd.example.com:1094//store/data/file.txt
 root://192.168.1.100:1094//tmp/test.dat
 ```
 
-## Error Handling
+## File Streaming
 
-### Common XROOTD Errors
+DataHarbor implements efficient file streaming through the XRD Go native client, providing several key advantages:
 
-```go
-func (x *XRDClient) handleXRDError(err error) error {
-    errStr := err.Error()
-    
-    switch {
-    case strings.Contains(errStr, "No such file or directory"):
-        return &XRDError{
-            Code:    404,
-            Type:    "FileNotFound",
-            Message: "File or directory not found",
-            Detail:  errStr,
-        }
-    case strings.Contains(errStr, "Permission denied"):
-        return &XRDError{
-            Code:    403,
-            Type:    "PermissionDenied",
-            Message: "Access denied",
-            Detail:  errStr,
-        }
-    case strings.Contains(errStr, "Connection timeout"):
-        return &XRDError{
-            Code:    504,
-            Type:    "Timeout",
-            Message: "Connection timeout",
-            Detail:  errStr,
-        }
-    case strings.Contains(errStr, "Server not responding"):
-        return &XRDError{
-            Code:    503,
-            Type:    "ServerUnavailable",
-            Message: "XROOTD server unavailable",
-            Detail:  errStr,
-        }
-    default:
-        return &XRDError{
-            Code:    500,
-            Type:    "InternalError",
-            Message: "XROOTD operation failed",
-            Detail:  errStr,
-        }
-    }
-}
+### Performance Benefits
 
-type XRDError struct {
-    Code    int    `json:"code"`
-    Type    string `json:"type"`
-    Message string `json:"message"`
-    Detail  string `json:"detail"`
-}
+- **Zero Intermediate Storage**: Files stream directly from XROOTD to the client
+- **Memory Efficient**: Uses chunked transfer with configurable buffer sizes
+- **Binary Safe**: Handles any file type without corruption risk
+- **Scalable**: No disk space consumption on the backend server
 
-func (e *XRDError) Error() string {
-    return fmt.Sprintf("%s: %s", e.Type, e.Message)
-}
-```
+### Security Benefits
 
-## File Sanitation Service
+- **No Temporary Files**: Eliminates security risks from temporary files
+- **Direct Authentication**: Each download request is authenticated individually
+- **No Public Exposure**: Files are never exposed in public directories
+- **Audit Trail**: Every download attempt is logged with user context
 
-### Automatic Cleanup
+### Why Go Native Client is Optimal
 
-```go
-// core/sanitation.go
-type SanitationService struct {
-    stagingDir      string
-    cleanupInterval time.Duration
-    maxAge          time.Duration
-    logger          *zap.Logger
-}
+- **True Streaming**: Data flows directly through Go channels
+- **Binary Preservation**: No encoding or transformation applied to file contents
+- **Efficient Protocol**: Uses XROOTD's native read operations with optimal chunk sizes
+- **Error Propagation**: Cleanly handles network issues and file access errors
+- **Resource Light**: Minimal memory footprint on both client and server
 
-func (s *SanitationService) Start() {
-    ticker := time.NewTicker(s.cleanupInterval)
-    
-    go func() {
-        for {
-            select {
-            case <-ticker.C:
-                s.cleanupStagedFiles()
-            }
-        }
-    }()
-}
+### Need Help?
 
-func (s *SanitationService) cleanupStagedFiles() {
-    s.logger.Info("Starting staged file cleanup")
-    
-    err := filepath.Walk(s.stagingDir, func(path string, info os.FileInfo, err error) error {
-        if err != nil {
-            return err
-        }
-        
-        // Skip if it's the staging directory itself
-        if path == s.stagingDir {
-            return nil
-        }
-        
-        // Check if file/directory is older than maxAge
-        if time.Since(info.ModTime()) > s.maxAge {
-            s.logger.Info("Removing old staged file",
-                zap.String("path", path),
-                zap.Time("modified", info.ModTime()),
-            )
-            
-            if info.IsDir() {
-                return os.RemoveAll(path)
-            } else {
-                return os.Remove(path)
-            }
-        }
-        
-        return nil
-    })
-    
-    if err != nil {
-        s.logger.Error("File cleanup failed", zap.Error(err))
-    } else {
-        s.logger.Info("File cleanup completed")
-    }
-}
-```
-
-## Performance Optimization
-
-### Connection Pooling
-
-```go
-type XRDConnectionPool struct {
-    servers []string
-    current int
-    mutex   sync.RWMutex
-    clients map[string]*XRDClient
-}
-
-func (p *XRDConnectionPool) GetClient() *XRDClient {
-    p.mutex.RLock()
-    defer p.mutex.RUnlock()
-    
-    server := p.servers[p.current]
-    p.current = (p.current + 1) % len(p.servers)
-    
-    if client, exists := p.clients[server]; exists {
-        return client
-    }
-    
-    // Create new client if not exists
-    client := NewXRDClient(server, 60*time.Second)
-    p.clients[server] = client
-    return client
-}
-```
-
-### Concurrent Operations
-
-```go
-func (x *XRDClient) ListDirectoryConcurrent(paths []string) (map[string][]FileInfo, error) {
-    var wg sync.WaitGroup
-    results := make(map[string][]FileInfo)
-    errors := make(map[string]error)
-    mutex := sync.RWMutex{}
-    
-    for _, path := range paths {
-        wg.Add(1)
-        go func(p string) {
-            defer wg.Done()
-            
-            files, err := x.ListDirectory(p)
-            
-            mutex.Lock()
-            if err != nil {
-                errors[p] = err
-            } else {
-                results[p] = files
-            }
-            mutex.Unlock()
-        }(path)
-    }
-    
-    wg.Wait()
-    
-    if len(errors) > 0 {
-        return results, fmt.Errorf("some operations failed: %v", errors)
-    }
-    
-    return results, nil
-}
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Connection Timeouts**
-   - Increase timeout values in configuration
-   - Check network connectivity to XROOTD server
-   - Verify server availability
-
-2. **Permission Errors**
-   - Check XROOTD server access controls
-   - Verify user authentication
-   - Ensure proper path permissions
-
-3. **Command Not Found**
-   - Verify XROOTD client installation
-   - Check PATH environment variable
-   - Confirm client tools are executable
-
-4. **File Staging Failures**
-   - Check disk space in staging directory
-   - Verify write permissions
-   - Monitor staging directory cleanup
-
-### Debugging Commands
-
-```bash
-# Test server connectivity
-xrdfs root://server.example.com:1094 ping
-
-# Check server configuration
-xrdfs root://server.example.com:1094 query config all
-
-# Test file access
-xrdfs root://server.example.com:1094 stat /path/to/test/file
-
-# Monitor server performance
-xrdfs root://server.example.com:1094 query stats info
-```
-
-### Logging Configuration
-
-```go
-// Enable detailed XROOTD logging
-func (x *XRDClient) EnableDebugLogging() {
-    x.logger = x.logger.With(zap.String("component", "xrd_client"))
-    
-    // Set environment variables for XROOTD client debugging
-    os.Setenv("XRD_LOGLEVEL", "Debug")
-    os.Setenv("XRD_LOGFILE", "/tmp/xrd_debug.log")
-}
-```
-
-## Best Practices
-
-### Performance
-- Use connection pooling for multiple operations
-- Implement proper timeout handling
-- Cache directory listings when appropriate
-- Use concurrent operations for bulk tasks
-
-### Security
-- Validate all file paths to prevent directory traversal
-- Implement proper authentication with XROOTD server
-- Use secure staging directories with proper permissions
-- Regularly clean up staged files
-
-### Reliability
-- Implement retry logic for transient failures
-- Monitor XROOTD server availability
-- Use health checks to detect server issues
-- Log all operations for debugging
-
-### Monitoring
-- Track operation success/failure rates
-- Monitor response times
-- Alert on server unavailability
-- Log security-relevant events
+For troubleshooting XROOTD connection and operation issues, see the **[Troubleshooting Guide](./TROUBLESHOOTING.md)**.
 
 ## References
 

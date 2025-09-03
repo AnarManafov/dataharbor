@@ -121,11 +121,228 @@ The development server runs on `https://localhost:5173` with automatic HTTPS con
 | `npm test`           | Run unit tests (when available)          |
 | `npm run lint`       | Check code style and quality             |
 
-## Vue 3 Architecture Patterns
+## Frontend Architecture Diagrams
 
-### Composition API Adoption
+### Vue.js Application Architecture
 
-DataHarbor leverages Vue 3's Composition API for better code organization and logic reuse:
+```mermaid
+graph TB
+    subgraph "Application Entry Point"
+        Main[main.js] --> App[App.vue]
+        Main --> Router[Vue Router Setup]
+        Main --> Pinia[Pinia Store Setup]
+        Main --> Plugins[Plugin Registration]
+    end
+    
+    subgraph "Root Layout"
+        App --> TopBar[TopBar.vue]
+        App --> Sidebar[GlobalSidebar.vue]
+        App --> RouterView[<router-view>]
+    end
+    
+    subgraph "Views (Route Components)"
+        RouterView --> HomeView[HomeView.vue]
+        RouterView --> BrowseView[BrowseXrdView.vue]
+        RouterView --> LoginView[LoginView.vue]
+        RouterView --> DocsView[DocumentationView.vue]
+    end
+    
+    subgraph "Reusable Components"
+        FileExplorer[FileExplorer.vue]
+        DownloadManager[DownloadManager.vue]
+        BreadcrumbNav[BreadcrumbNavigation.vue]
+        LoadingSpinner[LoadingSpinner.vue]
+    end
+    
+    subgraph "Pinia Stores"
+        AuthStore[Auth Store]
+        FilesStore[Files Store]
+        UIStore[UI Store]
+    end
+    
+    subgraph "Composables (Business Logic)"
+        UseAuth[useAuth.js]
+        UseFileOps[useFileOps.js]
+        UseAPI[useAPI.js]
+        UseDownload[useDownload.js]
+    end
+    
+    subgraph "API Layer"
+        APIClient[api.js]
+        RequestInterceptors[Request Interceptors]
+        ResponseInterceptors[Response Interceptors]
+    end
+    
+    BrowseView --> FileExplorer
+    BrowseView --> DownloadManager
+    FileExplorer --> BreadcrumbNav
+    
+    TopBar --> AuthStore
+    BrowseView --> FilesStore
+    FileExplorer --> FilesStore
+    LoadingSpinner --> UIStore
+    
+    AuthStore --> UseAuth
+    FilesStore --> UseFileOps
+    UseFileOps --> UseAPI
+    UseDownload --> UseAPI
+    
+    UseAPI --> APIClient
+    APIClient --> RequestInterceptors
+    APIClient --> ResponseInterceptors
+    
+    classDef entry fill:#e3f2fd
+    classDef layout fill:#fff3e0
+    classDef views fill:#f1f8e9
+    classDef components fill:#fce4ec
+    classDef stores fill:#f3e5f5
+    classDef composables fill:#e8f5e8
+    classDef api fill:#fff8e1
+    
+    class Main,App,Router,Pinia,Plugins entry
+    class TopBar,Sidebar,RouterView layout
+    class HomeView,BrowseView,LoginView,DocsView views
+    class FileExplorer,DownloadManager,BreadcrumbNav,LoadingSpinner components
+    class AuthStore,FilesStore,UIStore stores
+    class UseAuth,UseFileOps,UseAPI,UseDownload composables
+    class APIClient,RequestInterceptors,ResponseInterceptors api
+```
+
+### Pinia State Management Flow
+
+```mermaid
+stateDiagram-v2
+    [*] --> StoreInitialization
+    
+    StoreInitialization --> AuthStore: Initialize auth state
+    StoreInitialization --> FilesStore: Initialize files state
+    StoreInitialization --> UIStore: Initialize UI state
+    
+    state AuthStore {
+        [*] --> CheckingAuth
+        CheckingAuth --> Authenticated: Valid session found
+        CheckingAuth --> Unauthenticated: No valid session
+        
+        Unauthenticated --> LoggingIn: User initiates login
+        LoggingIn --> Authenticated: Login successful
+        LoggingIn --> LoginFailed: Login failed
+        LoginFailed --> Unauthenticated: Reset state
+        
+        Authenticated --> LoggingOut: User initiates logout
+        LoggingOut --> Unauthenticated: Logout complete
+        
+        Authenticated --> TokenRefresh: Auto token refresh
+        TokenRefresh --> Authenticated: Refresh successful
+        TokenRefresh --> Unauthenticated: Refresh failed
+    }
+    
+    state FilesStore {
+        [*] --> EmptyState
+        EmptyState --> Loading: Directory request
+        Loading --> Loaded: Data received
+        Loading --> Error: Request failed
+        
+        Loaded --> Loading: Navigate to new directory
+        Loaded --> Refreshing: Refresh current directory
+        Refreshing --> Loaded: Refresh complete
+        
+        Error --> Loading: Retry request
+        Error --> EmptyState: Reset state
+    }
+    
+    state UIStore {
+        [*] --> Idle
+        Idle --> Loading: Show loading indicator
+        Loading --> Idle: Hide loading indicator
+        
+        Idle --> ShowingNotification: Display message
+        ShowingNotification --> Idle: Notification dismissed
+        
+        Idle --> ErrorState: Show error
+        ErrorState --> Idle: Error cleared
+    }
+```
+
+### Component Communication & Data Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Component as Vue Component
+    participant Store as Pinia Store
+    participant Composable as Composable
+    participant API as API Layer
+    participant Backend as Backend
+    
+    Note over User,Backend: User Interaction Example: Browse Directory
+    
+    User->>Component: Click on directory
+    Component->>Store: dispatch('navigateToDirectory', path)
+    
+    Store->>Store: Set loading state
+    Store->>Composable: Call navigation logic
+    
+    Composable->>API: makeRequest('/api/v1/dir', {path})
+    API->>API: Add auth headers, format request
+    API->>Backend: HTTP POST with directory path
+    
+    Backend-->>API: Directory listing response
+    API-->>Composable: Parsed response data
+    Composable-->>Store: Update files state
+    
+    Store->>Store: Set loaded state
+    Store->>Component: Reactive state update
+    Component->>User: Re-render with new directory data
+    
+    Note over Component,Store: Reactive Updates
+    Component->>Component: Watch store state changes
+    Store->>Component: Automatic re-render on state change
+    
+    Note over User,Backend: Error Handling Flow
+    Backend-->>API: Error response (404, 500, etc.)
+    API->>API: Parse error, format for UI
+    API-->>Composable: Error object
+    Composable-->>Store: Set error state
+    Store->>Component: Error state update
+    Component->>User: Display error message
+```
+
+### Vue Router & Authentication Guards
+
+```mermaid
+flowchart TD
+    Navigation[Route Navigation] --> BeforeGuard[beforeEach Guard]
+    
+    BeforeGuard --> CheckAuth{Route Requires Auth?}
+    CheckAuth -->|No| AllowNavigation[Allow Navigation]
+    CheckAuth -->|Yes| AuthCheck{User Authenticated?}
+    
+    AuthCheck -->|Yes| AllowNavigation
+    AuthCheck -->|No| AuthStore[Check Auth Store]
+    
+    AuthStore --> ValidateSession{Valid Session?}
+    ValidateSession -->|Yes| AllowNavigation
+    ValidateSession -->|No| RedirectLogin[Redirect to Login]
+    
+    AllowNavigation --> LoadComponent[Load Route Component]
+    LoadComponent --> RenderView[Render View]
+    
+    RedirectLogin --> LoginView[Login View]
+    LoginView --> AuthProcess[Authentication Process]
+    AuthProcess --> ReturnOriginal[Return to Original Route]
+    
+    ReturnOriginal --> LoadComponent
+    
+    classDef guard fill:#e3f2fd
+    classDef auth fill:#fff3e0
+    classDef navigation fill:#f1f8e9
+    classDef component fill:#fce4ec
+    
+    class BeforeGuard,CheckAuth,AuthCheck guard
+    class AuthStore,ValidateSession,RedirectLogin,LoginView,AuthProcess auth
+    class Navigation,AllowNavigation,ReturnOriginal navigation
+    class LoadComponent,RenderView component
+```
 
 - **Reactive State Management**: Using `ref()` and `reactive()` for component state
 - **Lifecycle Hooks**: Modern `onMounted()`, `onBeforeUnmount()` patterns
@@ -249,8 +466,8 @@ The application uses Vue Router with declarative route definitions and metadata-
 
 **Endpoint Definitions** (`api/api.js`):
 
-- File system operations (directory listing, file staging)
-- Authentication endpoints (login, logout, user info) 
+- File system operations (directory listing, file downloads)
+- Authentication endpoints (login, logout, user info)
 - System information (host details, health checks)
 
 **Error Handling**: Consistent error processing with user-friendly messages
@@ -263,9 +480,9 @@ The application uses Vue Router with declarative route definitions and metadata-
 
 **Pagination Support**: Efficient handling of large directory listings
 
-**File Download Flow**: Secure staging and download process for large files
+**File Download Flow**: Direct streaming download process for files of any size
 
-> For detailed information about the download system architecture and implementation, see [DOWNLOADS.md](./DOWNLOADS.md).
+> For detailed information about the download system architecture and implementation, see [System Architecture](./ARCHITECTURE.md#file-download-process-streaming-architecture) and [Backend Implementation](./BACKEND.md#file-streaming-implementation-technical-deep-dive).
 
 **Health Monitoring**: Periodic backend status checks for user feedback
 
@@ -501,7 +718,7 @@ DataHarbor supports automatic HTTPS configuration for secure local development:
 
 **Testing Coverage**: Maintain good test coverage for critical functionality
 
-### Development Workflow
+### Frontend Development Workflow
 
 **Version Control**: Use meaningful commit messages and branch naming conventions
 
@@ -511,35 +728,19 @@ DataHarbor supports automatic HTTPS configuration for secure local development:
 
 **Dependency Management**: Regular updates and security audits of dependencies
 
-## Troubleshooting Common Issues
-
-### Build Issues
-
-**Certificate Problems**: Verify SSL certificate paths and permissions
-
-**Dependency Conflicts**: Clear `node_modules` and reinstall dependencies
-
-**Memory Issues**: Increase Node.js memory limit for large builds
-
-### Runtime Issues
-
-**Authentication Failures**: Check OIDC configuration and backend connectivity
-
-**API Connection Problems**: Verify proxy configuration and backend availability
-
-**Performance Issues**: Monitor network requests and component re-renders
-
-### Development Environment
-
-**Hot Reload Issues**: Check file watchers and restart development server
-
-**HTTPS Certificate Warnings**: Install and trust development certificates
-
-**Port Conflicts**: Use alternative ports if default ports are occupied
-
 ## Related Documentation
 
 For additional information, see:
+
+- **[BACKEND.md](./BACKEND.md)** - Backend API development and integration
+- **[AUTHENTICATION.md](./AUTHENTICATION.md)** - OIDC authentication flow and security
+- **[API.md](./API.md)** - Complete API documentation
+- **[SETUP.md](./SETUP.md)** - Development environment setup
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment strategies
+
+### Need Help?
+
+For troubleshooting frontend development issues, see the **[Troubleshooting Guide](./TROUBLESHOOTING.md)**.
 
 - **[BACKEND.md](./BACKEND.md)** - Backend API development and integration
 - **[AUTHENTICATION.md](./AUTHENTICATION.md)** - OIDC authentication flow and security

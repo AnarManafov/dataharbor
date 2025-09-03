@@ -2,7 +2,7 @@
 
 This guide covers the complete setup process for DataHarbor development environment.
 
-## Prerequisites
+## Setup Process Overview
 
 ### System Requirements
 
@@ -174,9 +174,19 @@ If no certificates are found, the development server will run in HTTP mode.
 npm run dev
 ```
 
-This starts both frontend (https://localhost:5173) and backend (http://localhost:8081).
+This starts both frontend (<https://localhost:5173>) and backend (<http://localhost:8081>).
 
-#### Option 2: Start Services Separately
+## Developer Workflow
+
+### Starting Both Services Concurrently
+
+```shell
+npm run dev
+```
+
+This starts both frontend (<https://localhost:5173>) and backend (<http://localhost:8081>).
+
+### Starting Services Separately
 
 **Backend:**
 
@@ -280,34 +290,6 @@ go mod init github.com/AnarManafov/dataharbor/app  # Already done
 go mod tidy
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Port conflicts**: Change ports in configuration files
-2. **SSL certificate issues**: Use HTTP mode for development or setup proper certificates
-3. **Go module issues**: Run `go mod tidy` and `go mod download`
-4. **npm dependency issues**: Delete `node_modules` and run `npm install`
-
-### Environment Variables
-
-Set these for consistent development:
-
-```shell
-# Optional: Backend config file
-$env:CONFIG_FILE_PATH = "app/config/application.development.yaml"
-
-# Optional: SSL certificates
-$env:VITE_SSL_KEY = "path/to/server.key"
-$env:VITE_SSL_CERT = "path/to/server.crt"
-```
-
-### Logs and Debugging
-
-- Backend logs: Check console output when running `npm run dev:backend`
-- Frontend logs: Check browser console and terminal output
-- Network requests: Use browser DevTools Network tab
-
 ## Next Steps
 
 Once your environment is set up:
@@ -316,3 +298,13 @@ Once your environment is set up:
 2. Review [BACKEND.md](./BACKEND.md) for backend development
 3. Review [FRONTEND.md](./FRONTEND.md) for frontend development
 4. Check [API.md](./API.md) for available endpoints
+
+### Need Help?
+
+For troubleshooting common issues, see the **[Troubleshooting Guide](./TROUBLESHOOTING.md)**.
+
+### Logs and Debugging
+
+- Backend logs: Check console output when running `npm run dev:backend`
+- Frontend logs: Check browser console and terminal output
+- Network requests: Use browser DevTools Network tab

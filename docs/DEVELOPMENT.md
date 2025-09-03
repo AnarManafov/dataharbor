@@ -2,7 +2,135 @@
 
 This document covers the development workflow, contribution guidelines, CI/CD processes, and best practices for DataHarbor developers.
 
-## Development Workflow
+## Development Workflow Diagrams
+
+### Git Workflow & Branch Strategy
+
+```mermaid
+gitGraph
+    commit id: "Initial"
+    branch feature/auth-improvement
+    checkout feature/auth-improvement
+    commit id: "Add OIDC support"
+    commit id: "Add session management"
+    commit id: "Add tests"
+    
+    checkout master
+    commit id: "Hotfix: security patch"
+    
+    checkout feature/auth-improvement
+    commit id: "Fix merge conflicts"
+    
+    checkout master
+    merge feature/auth-improvement
+    commit id: "Merge auth improvements"
+    
+    branch release-prep
+    checkout release-prep
+    commit id: "Bump version to v1.2.0"
+    commit id: "Update changelog"
+    
+    checkout master
+    merge release-prep
+    commit id: "Release v1.2.0"
+    commit tag: "v1.2.0"
+```
+
+### CI/CD Pipeline Architecture
+
+```mermaid
+flowchart TD
+    subgraph "Developer Workflow"
+        DevStart[Developer starts work] --> FeatureBranch[Create feature branch]
+        FeatureBranch --> CodeChanges[Make code changes]
+        CodeChanges --> LocalTests[Run local tests]
+        LocalTests --> PushBranch[Push to feature branch]
+    end
+    
+    subgraph "Continuous Integration"
+        PushBranch --> TriggerCI[Trigger CI Pipeline]
+        TriggerCI --> BackendCI[Backend CI<br/>Go tests, linting, coverage]
+        TriggerCI --> FrontendCI[Frontend CI<br/>Build, security scan]
+        
+        BackendCI --> CISuccess{CI Success?}
+        FrontendCI --> CISuccess
+        
+        CISuccess -->|Yes| ReadyForReview[Ready for review]
+        CISuccess -->|No| FixIssues[Fix issues]
+        FixIssues --> CodeChanges
+    end
+    
+    subgraph "Release Process"
+        ReadyForReview --> CreatePR[Create Pull Request]
+        CreatePR --> CodeReview[Code Review]
+        CodeReview --> MergePR[Merge to master]
+        
+        MergePR --> ReleaseDecision{Ready for release?}
+        ReleaseDecision -->|Yes| CreateReleaseTag[Create release-vX.Y.Z tag]
+        ReleaseDecision -->|No| ContinueDev[Continue development]
+        
+        CreateReleaseTag --> AutomatedRelease[Automated Release Process]
+    end
+    
+    subgraph "Automated Release Process"
+        AutomatedRelease --> UpdateVersions[Update package.json versions]
+        UpdateVersions --> GenerateChangelog[Generate CHANGELOG.md]
+        GenerateChangelog --> CreateFinalTag[Create final vX.Y.Z tag]
+        CreateFinalTag --> BuildArtifacts[Build & package artifacts]
+        BuildArtifacts --> PublishRelease[Publish GitHub release]
+    end
+    
+    ContinueDev --> DevStart
+    
+    classDef dev fill:#e8f5e8
+    classDef ci fill:#e3f2fd
+    classDef release fill:#fff3e0
+    classDef auto fill:#fce4ec
+    
+    class DevStart,FeatureBranch,CodeChanges,LocalTests,PushBranch dev
+    class TriggerCI,BackendCI,FrontendCI,CISuccess,ReadyForReview,FixIssues ci
+    class CreatePR,CodeReview,MergePR,ReleaseDecision,CreateReleaseTag,ContinueDev release
+    class AutomatedRelease,UpdateVersions,GenerateChangelog,CreateFinalTag,BuildArtifacts,PublishRelease auto
+```
+
+### Release Management Process
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant GitHub as GitHub Repository
+    participant CI as CI/CD Pipeline
+    participant Registry as Package Registry
+    
+    Note over Dev,Registry: Release Preparation
+    Dev->>GitHub: Create release-v1.2.3 tag
+    GitHub->>CI: Trigger version-tag-processor workflow
+    
+    Note over CI: Automated Version Management
+    CI->>CI: Update package.json versions
+    CI->>CI: Generate CHANGELOG.md from commits
+    CI->>CI: Create RELEASE_NOTES.md
+    CI->>GitHub: Commit version changes to master
+    CI->>GitHub: Create final v1.2.3 tag
+    CI->>GitHub: Create component tags (app/v1.2.3, web/v1.2.3)
+    
+    Note over CI,Registry: Build & Package
+    CI->>CI: Build frontend (npm run build)
+    CI->>CI: Build backend (go build)
+    CI->>CI: Create RPM packages
+    CI->>CI: Run final tests
+    
+    Note over GitHub,Registry: Publish Release
+    CI->>GitHub: Create GitHub release with artifacts
+    CI->>GitHub: Upload built packages
+    CI->>GitHub: Publish release notes
+    CI->>Registry: Push container images (optional)
+    
+    Note over Dev,Registry: Post-Release
+    GitHub->>Dev: Notify release published
+    Dev->>Dev: Verify release artifacts
+    Dev->>Dev: Update local environment
+```
 
 ### Getting Started
 
@@ -13,7 +141,7 @@ This document covers the development workflow, contribution guidelines, CI/CD pr
    cd dataharbor
    ```
 
-2. **Install Dependencies**
+1. **Install Dependencies**
 
    ```bash
    # Install all dependencies (uses npm workspaces)
@@ -24,7 +152,7 @@ This document covers the development workflow, contribution guidelines, CI/CD pr
    cd app && go mod download && cd ..
    ```
 
-3. **Start Development Environment**
+1. **Start Development Environment**
 
    ```bash
    # Start both frontend and backend with hot reload
@@ -114,7 +242,7 @@ type(scope): description
 Examples:
 
 ```text
-feat(backend): add file staging endpoint
+feat(backend): add file download endpoint
 fix(frontend): resolve authentication redirect loop
 docs(readme): update installation instructions
 ```
@@ -359,7 +487,7 @@ DataHarbor uses a **pre-release trigger** approach to ensure consistent reposito
    git tag -a release-v1.2.3 -m "Prepare release v1.2.3
    
    Features:
-   - Added file staging improvements
+   - Added file streaming improvements
    - Enhanced authentication security
    
    Bug Fixes:
@@ -441,273 +569,6 @@ publish-release.yml (triggered by vX.Y.Z tag)
     └─ Publish GitHub release with artifacts
 ```
 
-## Development Best Practices
-
-### Code Organization
-
-#### Backend Structure
-
-```text
-app/
-├── controller/         # HTTP request handlers
-├── middleware/         # Cross-cutting concerns
-├── route/             # API route definitions
-├── config/            # Configuration management
-├── common/            # Shared utilities
-├── core/              # Business logic
-├── request/           # Request DTOs
-└── response/          # Response DTOs
-```
-
-#### Frontend Structure
-
-```text
-web/src/
-├── components/        # Reusable UI components
-├── views/             # Page-level components
-├── composables/       # Vue 3 composition functions
-├── stores/            # Pinia state management
-├── router/            # Vue Router configuration
-├── api/               # HTTP client and endpoints
-└── utils/             # Helper functions
-```
-
-### Error Handling
-
-#### Backend Error Handling
-
-```go
-// Use consistent error response format
-func HandleError(c *gin.Context, err error, code int) {
-    logger.Error("Request failed", zap.Error(err))
-    
-    c.JSON(code, response.ErrorResponse{
-        Code:    code,
-        Message: err.Error(),
-    })
-}
-
-// Example usage
-func FileHandler(c *gin.Context) {
-    files, err := xrdClient.ListDirectory(path)
-    if err != nil {
-        HandleError(c, err, http.StatusInternalServerError)
-        return
-    }
-    
-    c.JSON(http.StatusOK, response.SuccessResponse{
-        Code:    http.StatusOK,
-        Message: "success",
-        Data:    files,
-    })
-}
-```
-
-#### Frontend Error Handling
-
-```javascript
-// Use consistent error handling in composables
-export function useFileOperations() {
-  const error = ref(null)
-  const loading = ref(false)
-  
-  const listDirectory = async (path) => {
-    try {
-      loading.value = true
-      error.value = null
-      
-      const response = await api.get(`/dir`, { params: { path } })
-      return response.data
-    } catch (err) {
-      error.value = err.response?.data?.message || 'An error occurred'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-  
-  return { listDirectory, error, loading }
-}
-```
-
-### Security Considerations
-
-#### Input Validation
-
-```go
-// Backend: Always validate and sanitize inputs
-func validatePath(path string) error {
-    if strings.Contains(path, "..") {
-        return errors.New("path traversal not allowed")
-    }
-    
-    if !filepath.IsAbs(path) {
-        return errors.New("absolute path required")
-    }
-    
-    return nil
-}
-```
-
-#### Authentication Middleware
-
-```go
-// Verify authentication on protected routes
-func AuthMiddleware() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        session := sessions.Default(c)
-        
-        if session.Get("access_token") == nil {
-            c.JSON(http.StatusUnauthorized, gin.H{
-                "code": http.StatusUnauthorized,
-                "message": "authentication required",
-            })
-            c.Abort()
-            return
-        }
-        
-        c.Next()
-    }
-}
-```
-
-### Performance Optimization
-
-#### Backend Performance
-
-- Use connection pooling for XROOTD operations
-- Implement request timeouts
-- Add response caching where appropriate
-- Monitor memory usage with file operations
-- Use structured logging for debugging
-
-#### Frontend Performance
-
-- Implement lazy loading for large directory listings
-- Use virtual scrolling for file lists
-- Optimize bundle size with tree shaking
-- Implement service worker for caching
-- Use appropriate loading states
-
-### Configuration Management
-
-#### Environment-Specific Configuration
-
-```yaml
-# app/config/application.development.yaml
-server:
-  debug: true
-  port: 8081
-
-logging:
-  level: debug
-  format: console
-
-# app/config/application.production.yaml
-server:
-  debug: false
-  port: 8081
-
-logging:
-  level: info
-  format: json
-```
-
-#### Configuration Validation
-
-```go
-// Validate configuration on startup
-func ValidateConfig(cfg *Config) error {
-    if cfg.Auth.OIDC.ClientID == "" {
-        return errors.New("OIDC client ID required")
-    }
-    
-    if len(cfg.XROOTD.Servers) == 0 {
-        return errors.New("at least one XROOTD server required")
-    }
-    
-    return nil
-}
-```
-
-## Troubleshooting
-
-### Common Development Issues
-
-#### Backend Issues
-
-1. **XROOTD Connection Failures**
-
-   ```bash
-   # Test XROOTD connectivity
-   xrdfs root://server.gsi.de:1094 ls /
-
-   # Check server configuration
-   cat app/config/application.development.yaml
-   ```
-
-2. **Authentication Problems**
-
-   ```bash
-   # Verify OIDC configuration
-   curl -s https://keycloak.gsi.de/realms/dataharbor/.well-known/openid_configuration
-
-   # Check session cookies
-   # Use browser dev tools -> Application -> Cookies
-   ```
-
-#### Frontend Issues
-
-1. **SSL Certificate Problems**
-
-   ```bash
-   # Check certificate status
-   npm run cert:check
-   
-   # Setup development certificates
-   npm run cert:setup
-   ```
-
-2. **API Connection Issues**
-
-   ```bash
-   # Verify backend is running
-   curl http://localhost:8081/api/v1/health
-   
-   # Check CORS configuration
-   # Look for CORS errors in browser console
-   ```
-
-### Debugging Tools
-
-#### Backend Debugging
-
-```bash
-# Run with debug logging
-cd app
-CONFIG_FILE_PATH=config/application.development.yaml go run .
-
-# Run with race detection
-go run -race .
-
-# Profile memory usage
-go build -o dataharbor .
-./dataharbor --cpuprofile=cpu.prof --memprofile=mem.prof
-```
-
-#### Frontend Debugging
-
-```bash
-# Run in debug mode
-npm run dev:debug
-
-# Analyze bundle size
-npm run build:analyze
-
-# Run with verbose logging
-DEBUG=* npm run dev
-```
-
 ## Contributing Guidelines
 
 ### Pull Request Process
@@ -739,21 +600,14 @@ DEBUG=* npm run dev
    - Reference related issues
    - Ensure CI checks pass
 
-### Code Review Checklist
+### Need Help?
 
-- [ ] Code follows project standards
-- [ ] Tests are included and passing
-- [ ] Documentation is updated
-- [ ] No sensitive information exposed
-- [ ] Error handling is appropriate
-- [ ] Performance impact considered
+For troubleshooting development issues, see the **[Troubleshooting Guide](./TROUBLESHOOTING.md)**.
 
-### Internal Development Guidelines
+## Related Documentation
 
-Since DataHarbor is for internal GSI use:
-
-- Focus on developer experience and maintainability
-- Document integration points with GSI infrastructure
-- Consider security requirements for internal networks
-- Plan for integration with existing GSI authentication systems
-- Design for internal deployment and monitoring tools
+- **[Backend Configuration](./BACKEND_CONFIGURATION.md)** - Complete backend configuration reference
+- **[Frontend Configuration](./FRONTEND_CONFIGURATION.md)** - Frontend development and deployment configuration
+- **[Setup Guide](./SETUP.md)** - Initial environment setup
+- **[Testing Guide](./TESTING.md)** - Testing strategies and practices
+- **[Architecture Guide](./ARCHITECTURE.md)** - System architecture overview
