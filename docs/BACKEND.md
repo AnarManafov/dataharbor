@@ -2,9 +2,122 @@
 
 This guide covers backend development for DataHarbor's Go-based REST API server.
 
-## Overview
+## Backend Architecture Diagrams
 
-The backend is a Go web application built with the Gin framework, providing RESTful APIs for file system operations through XROOTD integration, user authentication via OIDC, and secure session management.
+### HTTP Request Processing Pipeline
+
+```mermaid
+flowchart TD
+    Request[HTTP Request] --> GinEngine[Gin HTTP Engine]
+    
+    GinEngine --> Recovery[Recovery Middleware]
+    Recovery --> Logger[Logger Middleware]
+    Logger --> CORS[CORS Middleware]
+    CORS --> AuthCheck{Auth Required?}
+    
+    AuthCheck -->|No| Controller[Controller Handler]
+    AuthCheck -->|Yes| AuthMW[Auth Middleware]
+    
+    AuthMW --> SessionCheck{Valid Session?}
+    SessionCheck -->|Yes| TokenValidation{Valid Access Token?}
+    SessionCheck -->|No| Return401[Return 401 Unauthorized]
+    
+    TokenValidation -->|Valid| Controller
+    TokenValidation -->|Expired| TokenRefresh[Attempt Token Refresh]
+    
+    TokenRefresh --> RefreshSuccess{Refresh Successful?}
+    RefreshSuccess -->|Yes| Controller
+    RefreshSuccess -->|No| Return401
+    
+    Controller --> BusinessLogic[Business Logic]
+    BusinessLogic --> XRDOperation{XROOTD Operation?}
+    
+    XRDOperation -->|Yes| XRDClient[XROOTD Client]
+    XRDOperation -->|No| Response[Format Response]
+    
+    XRDClient --> XRDResult{Operation Success?}
+    XRDResult -->|Success| Response
+    XRDResult -->|Error| ErrorHandler[Error Handler]
+    
+    ErrorHandler --> ErrorResponse[Error Response]
+    Response --> JSONResponse[JSON Response]
+    ErrorResponse --> JSONResponse
+    
+    JSONResponse --> Client[Return to Client]
+    Return401 --> Client
+    
+    classDef middleware fill:#e3f2fd
+    classDef auth fill:#fff3e0
+    classDef controller fill:#f1f8e9
+    classDef xrootd fill:#fce4ec
+    classDef response fill:#f3e5f5
+    
+    class Recovery,Logger,CORS middleware
+    class AuthMW,SessionCheck,TokenValidation,TokenRefresh,RefreshSuccess,Return401 auth
+    class Controller,BusinessLogic controller
+    class XRDOperation,XRDClient,XRDResult xrootd
+    class Response,ErrorHandler,ErrorResponse,JSONResponse response
+```
+
+### XROOTD Client Architecture (Detailed)
+
+```mermaid
+graph TB
+    subgraph "Controller Layer"
+        XRDController[XRD Controller]
+        DownloadEndpoint[Download Endpoint]
+        ListEndpoint[List Directory Endpoint]
+        FileInfoEndpoint[File Info Endpoint]
+    end
+    
+    subgraph "XROOTD Client Wrapper"
+        XRDClient[XRD Client Singleton]
+        ClientFactory[Client Factory]
+        AuthTokenHandler[Auth Token Handler]
+    end
+    
+    subgraph "Native XROOTD Client (go-hep)"
+        NativeClient[xrootd.Client]
+        FileSystem[xrdfs.FileSystem]
+        FileHandle[xrdfs.File]
+        
+        NativeClient --> FileSystem
+        FileSystem --> FileHandle
+    end
+    
+    subgraph "XROOTD Server Communication"
+        XRDProtocol[XRD Protocol]
+        FileOperations[File Operations]
+        Authentication[XRD Authentication]
+        
+        XRDProtocol --> FileOperations
+        XRDProtocol --> Authentication
+    end
+    
+    XRDController --> XRDClient
+    DownloadEndpoint --> XRDClient
+    ListEndpoint --> XRDClient
+    FileInfoEndpoint --> XRDClient
+    
+    XRDClient --> ClientFactory
+    XRDClient --> AuthTokenHandler
+    
+    ClientFactory --> NativeClient
+    AuthTokenHandler --> Authentication
+    
+    FileSystem --> XRDProtocol
+    FileHandle --> XRDProtocol
+    
+    classDef controller fill:#e3f2fd
+    classDef wrapper fill:#fff3e0
+    classDef native fill:#f1f8e9
+    classDef protocol fill:#fce4ec
+    
+    class XRDController,DownloadEndpoint,ListEndpoint,FileInfoEndpoint controller
+    class XRDClient,ClientFactory,AuthTokenHandler wrapper
+    class NativeClient,FileSystem,FileHandle native
+    class XRDProtocol,FileOperations,Authentication protocol
+```
 
 ## Technology Stack
 
@@ -130,22 +243,6 @@ Create configuration files for different environments:
 - `application.production.yaml` - Production settings
 - `application.testing.yaml` - Test settings
 
-### Configuration Loading
-
-```go
-// Initialize command-line flags
-config.InitCmd()
-
-// Load configuration
-cfg, err := config.LoadConfig(config.ConfigFile)
-if err != nil {
-    log.Fatal("Failed to load config:", err)
-}
-
-// Set as global config
-config.SetConfig(cfg)
-```
-
 ## API Development
 
 ### Creating New Endpoints
@@ -240,153 +337,88 @@ func ErrorResponse(ctx *gin.Context, statusCode int, message string, err error) 
 }
 ```
 
-## XROOTD Integration
+### File Streaming Implementation (Technical Deep Dive)
 
-### XROOTD Client Wrapper
-
-```go
-// common/xrd.go
-type XRDClient struct {
-    timeout time.Duration
-    logger  *zap.Logger
-}
-
-func (x *XRDClient) ExecuteCommand(cmd string, args ...string) ([]byte, error) {
-    ctx, cancel := context.WithTimeout(context.Background(), x.timeout)
-    defer cancel()
+```mermaid
+sequenceDiagram
+    participant Client as HTTP Client
+    participant Controller as Download Controller
+    participant XRDClient as XRD Client Wrapper
+    participant NativeFS as Native FileSystem
+    participant XRDServer as XROOTD Server
     
-    command := exec.CommandContext(ctx, cmd, args...)
-    return command.Output()
-}
-
-func (x *XRDClient) ListDirectory(server, path string) ([]FileInfo, error) {
-    output, err := x.ExecuteCommand("xrdfs", server, "ls", "-l", path)
-    if err != nil {
-        return nil, fmt.Errorf("xrdfs ls failed: %w", err)
-    }
+    Note over Client,XRDServer: Download Request Initiation
+    Client->>Controller: GET /download?path=/large-file.dat
+    Controller->>Controller: validateFilePath(path)
+    Controller->>Controller: acquireDownloadSlot() [Rate Limiting]
     
-    return parseXRDOutput(output)
-}
+    Note over Controller,XRDServer: XROOTD Connection Setup
+    Controller->>XRDClient: GetFileSystem(ctx, userToken)
+    XRDClient->>NativeFS: Create fresh client with auth
+    NativeFS->>XRDServer: Establish XRD connection
+    XRDServer-->>NativeFS: Connection established
+    
+    Note over Controller,Client: HTTP Response Headers
+    Controller->>Client: Set streaming headers<br/>Content-Disposition: attachment<br/>Content-Length: file_size<br/>Transfer-Encoding: chunked
+    
+    Note over Controller,XRDServer: File Access & Streaming
+    Controller->>NativeFS: fs.Open(path, OpenModeOtherRead)
+    NativeFS->>XRDServer: Open file handle
+    XRDServer-->>NativeFS: File handle ready
+    
+    Note over Controller,Client: Streaming Loop (512KB chunks)
+    loop For each chunk until EOF
+        Controller->>NativeFS: file.ReadAt(buffer, offset)
+        NativeFS->>XRDServer: Read file chunk
+        XRDServer-->>NativeFS: Return data chunk
+        NativeFS-->>Controller: buffer[n bytes]
+        Controller->>Client: Write(buffer[:n])
+        Controller->>Controller: Flush every 2MB or 500ms
+        Controller->>Controller: Log progress every 100MB
+    end
+    
+    Note over Controller,XRDServer: Cleanup & Statistics
+    Controller->>NativeFS: file.Close()
+    Controller->>XRDClient: cleanup()
+    Controller->>Controller: Calculate transfer speed
+    Controller->>Controller: Log completion stats
+    Controller->>Controller: releaseDownloadSlot()
 ```
 
-### File Operations
+### Authentication Flow (Backend Focus)
 
-```go
-// controller/fs.go
-func (c *Controller) ListDirectory(ctx *gin.Context) {
-    var req request.DirectoryRequest
-    if err := ctx.ShouldBindJSON(&req); err != nil {
-        response.ErrorResponse(ctx, http.StatusBadRequest, "Invalid request", err)
-        return
-    }
+```mermaid
+stateDiagram-v2
+    [*] --> MiddlewareCheck
     
-    // Execute XROOTD command
-    files, err := c.xrdClient.ListDirectory(c.config.XRD.Server, req.Path)
-    if err != nil {
-        response.ErrorResponse(ctx, http.StatusInternalServerError, "Directory listing failed", err)
-        return
-    }
+    MiddlewareCheck --> SessionValidation: Auth middleware triggered
+    SessionValidation --> GetSession: sessions.Default(ctx)
+    GetSession --> CheckAccessToken: session.Get("access_token")
     
-    // Format response
-    resp := response.DirectoryResponse{
-        Items:     files,
-        TotalItems: len(files),
-        Path:      req.Path,
-    }
+    CheckAccessToken --> TokenValidation: Token exists
+    CheckAccessToken --> Unauthorized: No token
     
-    response.SuccessResponse(ctx, resp)
-}
+    TokenValidation --> ValidateJWT: Parse & verify JWT
+    ValidateJWT --> ExtractClaims: Token valid
+    ValidateJWT --> RefreshAttempt: Token expired
+    
+    RefreshAttempt --> RefreshTokenExchange: Use refresh_token
+    RefreshTokenExchange --> UpdateSession: Refresh successful
+    RefreshTokenExchange --> Unauthorized: Refresh failed
+    
+    UpdateSession --> ExtractClaims: New tokens stored
+    ExtractClaims --> SetUserContext: ctx.Set("user", userInfo)
+    SetUserContext --> NextHandler: ctx.Next()
+    
+    Unauthorized --> Return401: ctx.JSON(401, ...)
+    Return401 --> [*]
+    NextHandler --> [*]
+    
+    note right of SessionValidation : HTTP-only cookies<br/>Secure, SameSite=Strict
+    note right of RefreshTokenExchange : Server-to-server exchange<br/>No client involvement
+    note right of SetUserContext : User claims available<br/>to downstream handlers
 ```
 
-### File Downloads (Streaming)
-
-DataHarbor implements a secure, efficient file streaming mechanism that downloads files directly from XROOTD without temporary storage:
-
-```go
-// controller/xrd.go
-func (c *Controller) DownloadFile(ctx *gin.Context) {
-    filePath := ctx.Query("path")
-    if filePath == "" {
-        response.ErrorResponse(ctx, http.StatusBadRequest, "File path is required", nil)
-        return
-    }
-    
-    // Validate file path and get user session
-    if err := c.validateFilePath(filePath); err != nil {
-        response.ErrorResponse(ctx, http.StatusBadRequest, "Invalid file path", err)
-        return
-    }
-    
-    session := sessions.Default(ctx)
-    userToken := session.Get("access_token")
-    if userToken == nil {
-        response.ErrorResponse(ctx, http.StatusUnauthorized, "Authentication required", nil)
-        return
-    }
-    
-    // Enforce one download per user
-    if !c.acquireDownloadSlot(session.ID) {
-        response.ErrorResponse(ctx, http.StatusTooManyRequests, 
-            "Download already in progress", nil)
-        return
-    }
-    defer c.releaseDownloadSlot(session.ID)
-    
-    // Stream file directly from XROOTD
-    if err := c.streamFileFromXRD(ctx, filePath, userToken.(string)); err != nil {
-        c.logger.Error("File streaming failed", 
-            zap.String("path", filePath),
-            zap.String("user_token", c.maskToken(userToken.(string))),
-            zap.Error(err))
-        return
-    }
-}
-
-func (c *Controller) streamFileFromXRD(ctx *gin.Context, filePath, userToken string) error {
-    // Set appropriate headers for file download
-    filename := c.sanitizeFilename(filepath.Base(filePath))
-    mimeType := c.detectMimeType(filePath)
-    
-    ctx.Header("Content-Type", mimeType)
-    ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-    ctx.Header("Transfer-Encoding", "chunked")
-    
-    // Execute xrdfs cat command for streaming
-    cmd := exec.Command("xrdfs", c.config.XRD.Server, "cat", filePath)
-    cmd.Env = append(os.Environ(), fmt.Sprintf("XRD_ACCESSTOKEN=%s", userToken))
-    
-    stdout, err := cmd.StdoutPipe()
-    if err != nil {
-        return fmt.Errorf("failed to create stdout pipe: %w", err)
-    }
-    
-    if err := cmd.Start(); err != nil {
-        return fmt.Errorf("failed to start xrdfs command: %w", err)
-    }
-    
-    // Stream file content in chunks
-    buffer := make([]byte, 32*1024) // 32KB buffer
-    for {
-        n, err := stdout.Read(buffer)
-        if n > 0 {
-            if _, writeErr := ctx.Writer.Write(buffer[:n]); writeErr != nil {
-                cmd.Process.Kill()
-                return fmt.Errorf("failed to write to response: %w", writeErr)
-            }
-            ctx.Writer.Flush()
-        }
-        if err == io.EOF {
-            break
-        }
-        if err != nil {
-            cmd.Process.Kill()
-            return fmt.Errorf("failed to read from command: %w", err)
-        }
-    }
-    
-    return cmd.Wait()
-}
-```
 
 **Key Features:**
 
@@ -411,163 +443,7 @@ func (c *Controller) streamFileFromXRD(ctx *gin.Context, filePath, userToken str
 - **Audit Trail**: All download attempts logged with masked user tokens
 - **Path Validation**: Prevents directory traversal attacks
 
-## Authentication & Authorization
-
-### OIDC Authentication Flow
-
-```go
-// controller/auth.go
-func (c *Controller) HandleOIDCCallback(ctx *gin.Context) {
-    code := ctx.Query("code")
-    state := ctx.Query("state")
-    
-    // Verify state parameter (CSRF protection)
-    if !c.verifyState(ctx, state) {
-        response.ErrorResponse(ctx, http.StatusBadRequest, "Invalid state", nil)
-        return
-    }
-    
-    // Exchange authorization code for tokens
-    tokens, err := c.exchangeCodeForTokens(code)
-    if err != nil {
-        response.ErrorResponse(ctx, http.StatusInternalServerError, "Token exchange failed", err)
-        return
-    }
-    
-    // Store tokens in secure session
-    c.storeTokensInSession(ctx, tokens)
-    
-    // Redirect to original destination
-    ctx.Redirect(http.StatusFound, c.getOriginalURL(ctx))
-}
-```
-
-### Session Management
-
-```go
-// middleware/auth_middleware.go
-func AuthRequired() gin.HandlerFunc {
-    return func(ctx *gin.Context) {
-        session := sessions.Default(ctx)
-        
-        accessToken := session.Get("access_token")
-        if accessToken == nil {
-            ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
-            ctx.Abort()
-            return
-        }
-        
-        // Validate token and refresh if needed
-        if !isTokenValid(accessToken.(string)) {
-            if !refreshToken(ctx, session) {
-                ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Token refresh failed"})
-                ctx.Abort()
-                return
-            }
-        }
-        
-        ctx.Next()
-    }
-}
-```
-
-## Middleware Development
-
-### Custom Middleware Pattern
-
-```go
-func CustomMiddleware() gin.HandlerFunc {
-    return func(ctx *gin.Context) {
-        // Pre-processing
-        start := time.Now()
-        
-        // Process request
-        ctx.Next()
-        
-        // Post-processing
-        duration := time.Since(start)
-        logger.Info("Request processed",
-            zap.String("method", ctx.Request.Method),
-            zap.String("path", ctx.Request.URL.Path),
-            zap.Int("status", ctx.Writer.Status()),
-            zap.Duration("duration", duration),
-        )
-    }
-}
-```
-
-### Request Logging Middleware
-
-```go
-func LoggerMiddleware() gin.HandlerFunc {
-    return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-        return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
-            param.ClientIP,
-            param.TimeStamp.Format(time.RFC1123),
-            param.Method,
-            param.Path,
-            param.Request.Proto,
-            param.StatusCode,
-            param.Latency,
-            param.Request.UserAgent(),
-            param.ErrorMessage,
-        )
-    })
-}
-```
-
 ## Testing
-
-### Unit Testing
-
-```go
-// controller/health_test.go
-func TestHealthController_HealthCheck(t *testing.T) {
-    // Setup
-    gin.SetMode(gin.TestMode)
-    router := gin.New()
-    controller := &HealthController{}
-    router.GET("/health", controller.HealthCheck)
-    
-    // Test
-    req, _ := http.NewRequest("GET", "/health", nil)
-    w := httptest.NewRecorder()
-    router.ServeHTTP(w, req)
-    
-    // Assertions
-    assert.Equal(t, http.StatusOK, w.Code)
-    
-    var response map[string]interface{}
-    json.Unmarshal(w.Body.Bytes(), &response)
-    assert.Equal(t, "ok", response["data"])
-}
-```
-
-### Integration Testing
-
-```go
-func TestFileSystemIntegration(t *testing.T) {
-    // Setup test server
-    config := &Config{
-        XRD: XRDConfig{
-            Server: "test-server.example.com",
-            Timeout: 30,
-        },
-    }
-    
-    // Create test request
-    reqBody := `{"path": "/test/directory", "pageSize": 10}`
-    req, _ := http.NewRequest("POST", "/api/v1/dir", strings.NewReader(reqBody))
-    req.Header.Set("Content-Type", "application/json")
-    
-    // Execute request
-    w := httptest.NewRecorder()
-    router.ServeHTTP(w, req)
-    
-    // Verify response
-    assert.Equal(t, http.StatusOK, w.Code)
-}
-```
 
 ### Running Tests
 
@@ -588,37 +464,6 @@ go test -v ./controller -run TestHealthController
 
 ## Logging
 
-### Structured Logging with Zap
-
-```go
-// common/logger.go
-var Logger *zap.Logger
-
-func InitLogger() {
-    config := zap.NewProductionConfig()
-    config.OutputPaths = []string{"stdout", "logs/app.log"}
-    
-    logger, err := config.Build()
-    if err != nil {
-        panic(fmt.Sprintf("Failed to initialize logger: %v", err))
-    }
-    
-    Logger = logger
-}
-
-// Usage in controllers
-Logger.Info("Processing request",
-    zap.String("path", req.Path),
-    zap.Int("pageSize", req.PageSize),
-    zap.String("userID", userID),
-)
-
-Logger.Error("Operation failed",
-    zap.Error(err),
-    zap.String("operation", "listDirectory"),
-)
-```
-
 ### Log Levels and Contexts
 
 - **DEBUG**: Detailed debugging information
@@ -626,54 +471,7 @@ Logger.Error("Operation failed",
 - **WARN**: Warning conditions that should be noted
 - **ERROR**: Error conditions that require attention
 
-## Performance Optimization
-
-### Concurrency
-
-```go
-func (c *Controller) ProcessMultipleFiles(ctx *gin.Context, files []string) {
-    var wg sync.WaitGroup
-    results := make(chan FileResult, len(files))
-    
-    for _, file := range files {
-        wg.Add(1)
-        go func(filename string) {
-            defer wg.Done()
-            result := c.processFile(filename)
-            results <- result
-        }(file)
-    }
-    
-    go func() {
-        wg.Wait()
-        close(results)
-    }()
-    
-    // Collect results
-    var allResults []FileResult
-    for result := range results {
-        allResults = append(allResults, result)
-    }
-    
-    response.SuccessResponse(ctx, allResults)
-}
-```
-
-### Connection Pooling
-
-```go
-// Configure HTTP client with connection pooling
-var httpClient = &http.Client{
-    Transport: &http.Transport{
-        MaxIdleConns:        100,
-        MaxIdleConnsPerHost: 10,
-        IdleConnTimeout:     90 * time.Second,
-    },
-    Timeout: 30 * time.Second,
-}
-```
-
-## Error Handling
+## Backend Error Handling Patterns
 
 ### Error Types
 
@@ -784,29 +582,3 @@ var (
     )
 )
 ```
-
-## Best Practices
-
-### Code Organization
-
-1. **Separation of Concerns**: Keep controllers thin, business logic in services
-2. **Dependency Injection**: Pass dependencies explicitly
-3. **Interface Usage**: Define interfaces for testability
-4. **Error Handling**: Use consistent error patterns
-5. **Configuration**: Externalize all configuration
-
-### Security Best Practices
-
-1. **Input Validation**: Validate all incoming requests
-2. **Path Sanitization**: Prevent directory traversal attacks
-3. **Rate Limiting**: Implement request rate limiting
-4. **HTTPS Only**: Force HTTPS in production
-5. **Secure Headers**: Set appropriate security headers
-
-### Performance Best Practices
-
-1. **Connection Reuse**: Use HTTP connection pooling
-2. **Goroutine Management**: Avoid goroutine leaks
-3. **Memory Management**: Profile memory usage regularly
-4. **Caching**: Cache frequently accessed data
-5. **Database Connections**: Use connection pooling if database is added

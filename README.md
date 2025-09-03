@@ -1,20 +1,25 @@
 # DataHarbor
 
-![CI Backend](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)
-![Coverage](https://img.shields.io/badge/Coverage-22.4%25-red)
-![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)
+[![CI Backend](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml)
+[![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml)
+[![Coverage](https://img.shields.io/badge/Coverage-22.4%25-red)](https://github.com/AnarManafov/dataharbor/actions)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Vue Version](https://img.shields.io/badge/Vue.js-3.0+-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
 
-DataHarbor is a full-stack web application that provides developers with a secure interface to access and manage GSI Lustre cluster data. Built with a Go backend and Vue.js frontend, it offers file browsing, directory navigation, and secure file downloads through XROOTD integration.
+DataHarbor is a high-performance, full-stack web application that provides researchers and developers with a secure, intuitive interface to access and manage GSI Lustre cluster data. Built with a Go backend and Vue.js frontend, it delivers seamless file browsing, directory navigation, and secure file operations through direct XROOTD integration.
 
 ## 🎯 Purpose
 
-DataHarbor is designed for **internal use by developers and system administrators** who need to:
+DataHarbor empowers users who need to:
 
-- Browse and navigate remote file systems on GSI Lustre clusters
-- View detailed file and directory metadata (size, permissions, timestamps)
-- Securely download individual files from remote storage
-- Manage file staging operations for large data transfers
-- Access high-performance computing storage systems through a web interface
+- **Browse & Navigate**: Explore remote file systems on GSI Lustre clusters with an intuitive web interface
+- **File Operations**: View detailed metadata (size, permissions, timestamps) and perform secure file operations
+- **High-Performance Downloads**: Stream individual files directly from remote storage with zero temporary storage
+- **Secure Access**: Leverage enterprise-grade authentication with OIDC integration and session management
+- **Large-Scale Data Management**: Handle file operations for massive datasets in high-performance computing environments
+- **Cross-Platform Access**: Access HPC storage systems from any device through a modern web browser
+- **Real-Time Monitoring**: Track file operations with comprehensive logging and performance metrics
 
 ## 🏗️ Architecture Overview
 
@@ -66,34 +71,56 @@ DataHarbor is designed for **internal use by developers and system administrator
    - Open your browser to `https://localhost:5173`
    - Accept the self-signed certificate warning for development
 
-## 📚 Developer Documentation
+## 📚 Documentation
 
-### Getting Started
+> **💡 Complete documentation is available in the [`docs/`](./docs/) folder**
 
-- **[SETUP.md](./docs/SETUP.md)** - Complete development environment setup and prerequisites
-- **[DEVELOPMENT.md](./docs/DEVELOPMENT.md)** - Development workflow, testing, and contribution guidelines
-- **[CONFIGURATION.md](./docs/CONFIGURATION.md)** - Unified configuration system with Viper and environment variables
+### 🚀 Getting Started
 
-### Architecture & Design
+| Document                                                       | Description                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------ |
+| **[Setup Guide](./docs/SETUP.md)**                             | Development environment setup, dependencies, and first steps |
+| **[Development Guide](./docs/DEVELOPMENT.md)**                 | Development workflow, Git conventions, and testing           |
+| **[Backend Configuration](./docs/BACKEND_CONFIGURATION.md)**   | Go backend config, environment variables, and YAML settings  |
+| **[Frontend Configuration](./docs/FRONTEND_CONFIGURATION.md)** | Vue.js frontend config, SSL setup, and deployment settings   |
 
-- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - System architecture, design patterns, and component overview
-- **[AUTHENTICATION.md](./docs/AUTHENTICATION.md)** - OIDC authentication flow, security model, and BFF pattern
+### 🏗️ Architecture & Design
 
-### Component Development
+| Document                                              | Description                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------------------- |
+| **[System Architecture](./docs/ARCHITECTURE.md)**     | Overall architecture, design patterns, and component interactions |
+| **[Authentication System](./docs/AUTHENTICATION.md)** | OIDC integration, BFF pattern, and security model                 |
 
-- **[BACKEND.md](./docs/BACKEND.md)** - Go backend development, API design, and XROOTD integration
-- **[FRONTEND.md](./docs/FRONTEND.md)** - Vue.js frontend development, components, and state management
+### 🛠️ Component Development
 
-### Technical References
+| Document                                       | Description                                            |
+| ---------------------------------------------- | ------------------------------------------------------ |
+| **[Backend Development](./docs/BACKEND.md)**   | Go API development, middleware, and XROOTD integration |
+| **[Frontend Development](./docs/FRONTEND.md)** | Vue.js development, components, and state management   |
 
-| Documentation                                       | Description                                                    |
-| --------------------------------------------------- | -------------------------------------------------------------- |
-| **[API.md](./docs/API.md)**                         | Complete REST API documentation and examples                   |
-| **[DOWNLOADS.md](./docs/DOWNLOADS.md)**             | Streaming file download system architecture and implementation |
-| **[XROOTD.md](./docs/XROOTD.md)**                   | XROOTD integration, configuration, and file operations         |
-| **[DEPLOYMENT.md](./docs/DEPLOYMENT.md)**           | Production deployment, containerization, and packaging         |
-| **[TESTING.md](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and best practices  |
-| **[TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** | Common issues and solutions                                    |
+### 📋 Technical References
+
+| Document                                          | Description                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| **[REST API Reference](./docs/API.md)**           | Complete API endpoints, request/response examples                   |
+| **[System Architecture](./docs/ARCHITECTURE.md)** | Overall architecture, design patterns, and streaming implementation |
+| **[XROOTD Integration](./docs/xrootd.md)**        | XROOTD client configuration and file operations                     |
+
+### 🚀 Operations & Deployment
+
+| Document                                               | Description                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------- |
+| **[Deployment Guide](./docs/DEPLOYMENT.md)**           | Production deployment, containers, and environment setup      |
+| **[Testing Guide](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and test execution |
+| **[Troubleshooting Guide](./docs/TROUBLESHOOTING.md)** | Comprehensive issue resolution and debugging                  |
+
+### 📊 Quick Reference
+
+- **Development**: Start with [Setup Guide](./docs/SETUP.md) → [Development Guide](./docs/DEVELOPMENT.md)
+- **Architecture**: Read [System Architecture](./docs/ARCHITECTURE.md) → [Authentication](./docs/AUTHENTICATION.md)
+- **API Development**: Check [Backend Guide](./docs/BACKEND.md) → [API Reference](./docs/API.md)
+- **UI Development**: See [Frontend Guide](./docs/FRONTEND.md) → [Components](./docs/FRONTEND.md#components)
+- **Deployment**: Follow [Deployment Guide](./docs/DEPLOYMENT.md) → [Backend Configuration](./docs/BACKEND_CONFIGURATION.md)
 
 ## 🔧 Common Development Tasks
 

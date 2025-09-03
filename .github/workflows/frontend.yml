@@ -33,10 +33,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
-          cache-dependency-path: "${{ env.FRONTEND_DIR }}/package-lock.json"
+          cache-dependency-path: "package-lock.json"
 
       - name: Install Dependencies
-        run: cd ${{ env.FRONTEND_DIR }} && npm ci
+        run: npm ci
 
       - name: Build
         id: build
@@ -65,7 +65,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
-        run: cd ${{ env.FRONTEND_DIR }} && npm ci
+        run: npm ci
 
       - name: Run npm audit
         run: cd ${{ env.FRONTEND_DIR }} && npm audit --audit-level=high
