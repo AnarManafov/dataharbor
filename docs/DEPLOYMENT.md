@@ -228,6 +228,43 @@ sudo rpm -ivh dataharbor-backend-*.rpm
 sudo rpm -ivh dataharbor-frontend-*.rpm
 ```
 
+### Default Installation Locations
+
+After installation, the packages are deployed to the following locations:
+
+#### Backend Package
+
+```bash
+# Binary location
+/usr/local/bin/dataharbor-backend
+
+# Additional files
+/usr/local/share/dataharbor/arch-info.txt
+```
+
+#### Frontend Package
+
+```bash
+# Web application files
+/usr/share/dataharbor-frontend/index.html
+/usr/share/dataharbor-frontend/config.json
+/usr/share/dataharbor-frontend/silent-renew.html
+/usr/share/dataharbor-frontend/assets/
+
+# Nginx configuration
+/etc/dataharbor-frontend/nginx/nginx.conf
+```
+
+You can verify the installation locations using:
+
+```bash
+# List backend package contents
+rpm -ql dataharbor-backend
+
+# List frontend package contents
+rpm -ql dataharbor-frontend
+```
+
 ### SystemD Services
 
 The RPM packages include systemd service files:
@@ -303,7 +340,9 @@ sudo systemctl status dataharbor-frontend
    sudo cp -r dist/* /var/www/html/dataharbor/
    ```
 
-3. **Configure Nginx**
+3. **Configure Web Server**
+
+   #### Option A: Nginx Configuration
 
    ```nginx
    server {
@@ -330,6 +369,71 @@ sudo systemctl status dataharbor-frontend
            try_files $uri $uri/ /index.html;
        }
    }
+   ```
+
+   #### Option B: Apache Configuration
+
+   Create a virtual host configuration file (e.g., `/etc/httpd/conf.d/dataharbor.conf` or `/etc/apache2/sites-available/dataharbor.conf`):
+
+   ```apache
+   <VirtualHost *:443>
+       ServerName your-domain.com
+       
+       SSLEngine on
+       SSLCertificateFile /path/to/ssl/cert.pem
+       SSLCertificateKeyFile /path/to/ssl/private.key
+       
+       DocumentRoot /var/www/html/dataharbor
+       
+       <Directory /var/www/html/dataharbor>
+           Options -Indexes +FollowSymLinks
+           AllowOverride All
+           Require all granted
+           
+           # SPA routing - redirect all requests to index.html
+           RewriteEngine On
+           RewriteBase /
+           RewriteRule ^index\.html$ - [L]
+           RewriteCond %{REQUEST_FILENAME} !-f
+           RewriteCond %{REQUEST_FILENAME} !-d
+           RewriteRule . /index.html [L]
+       </Directory>
+       
+       # API proxy configuration
+       ProxyPreserveHost On
+       ProxyPass /api/ http://localhost:8081/api/
+       ProxyPassReverse /api/ http://localhost:8081/api/
+       
+       # Set headers for proxied requests
+       RequestHeader set X-Forwarded-Proto "https"
+       RequestHeader set X-Forwarded-Port "443"
+       
+       # Enable HTTP/2
+       Protocols h2 http/1.1
+       
+       # Logging
+       ErrorLog ${APACHE_LOG_DIR}/dataharbor-error.log
+       CustomLog ${APACHE_LOG_DIR}/dataharbor-access.log combined
+   </VirtualHost>
+   
+   # Redirect HTTP to HTTPS
+   <VirtualHost *:80>
+       ServerName your-domain.com
+       Redirect permanent / https://your-domain.com/
+   </VirtualHost>
+   ```
+
+   **Enable required Apache modules:**
+
+   ```bash
+   # On Debian/Ubuntu
+   sudo a2enmod ssl rewrite proxy proxy_http headers http2
+   sudo a2ensite dataharbor
+   sudo systemctl restart apache2
+   
+   # On RHEL/CentOS/Fedora
+   # Modules are typically enabled by default, just restart
+   sudo systemctl restart httpd
    ```
 
 ## Configuration

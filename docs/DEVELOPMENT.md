@@ -7,6 +7,11 @@ This document covers the development workflow, contribution guidelines, CI/CD pr
 ### Git Workflow & Branch Strategy
 
 ```mermaid
+---
+config:
+  gitGraph:
+    mainBranchName: 'master'
+---
 gitGraph
     commit id: "Initial"
     branch feature/auth-improvement
@@ -26,7 +31,6 @@ gitGraph
     commit id: "Merge auth improvements"
     
     branch release-prep
-    checkout release-prep
     commit id: "Bump version to v1.2.0"
     commit id: "Update changelog"
     
