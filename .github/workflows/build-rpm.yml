@@ -16,6 +16,11 @@ on:
         required: false
         type: boolean
         default: false
+      architecture:
+        description: "Target architecture (amd64, arm64)"
+        required: false
+        type: string
+        default: "amd64"
     outputs:
       rpm_dir:
         description: "Directory containing built RPM packages"
@@ -97,6 +102,8 @@ jobs:
 
       - name: Run RPM build script
         id: build_rpm
+        env:
+          GOARCH: ${{ inputs.architecture }} # Build for specified architecture
         run: |
           python3 packaging/build_rpm.py ${{ steps.component_param.outputs.component_param }} ${{ steps.prepare_params.outputs.version_param }}
 
@@ -111,15 +118,33 @@ jobs:
           # Create a manifest file with version info
           echo "Version: ${{ steps.prepare_params.outputs.version }}" > /tmp/all-rpms/rpm-version.txt
           echo "Component: ${{ inputs.component }}" >> /tmp/all-rpms/rpm-version.txt
+          echo "Architecture: ${{ inputs.architecture }}" >> /tmp/all-rpms/rpm-version.txt
           echo "Is PR build: ${{ inputs.is_pr_build }}" >> /tmp/all-rpms/rpm-version.txt
           if [ "${{ inputs.is_pr_build }}" == "true" ]; then
             echo "PR number: ${{ github.event.pull_request.number }}" >> /tmp/all-rpms/rpm-version.txt
           fi
 
+      - name: Determine artifact name suffix
+        id: artifact_name
+        run: |
+          # Frontend is noarch, so we don't include architecture in the artifact name
+          # Backend is architecture-specific, so we include it
+          if [ "${{ inputs.component }}" == "frontend" ]; then
+            ARCH_SUFFIX=""
+          else
+            ARCH_SUFFIX="-${{ inputs.architecture }}"
+          fi
+
+          PR_SUFFIX="${{ inputs.is_pr_build && '-pr' || '' }}"
+          ARTIFACT_NAME="rpm-packages-${{ inputs.component }}${ARCH_SUFFIX}${PR_SUFFIX}"
+
+          echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "Generated artifact name: $ARTIFACT_NAME"
+
       - name: Upload RPM artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: rpm-packages-${{ inputs.component }}${{ inputs.is_pr_build && '-pr' || '' }}
+          name: ${{ steps.artifact_name.outputs.artifact_name }}
           path: /tmp/all-rpms/*
           retention-days: ${{ inputs.is_pr_build && 7 || 14 }} # Keep PR artifacts for 7 days, others for 14
           if-no-files-found: warn # Warn instead of failing if no RPMs are found

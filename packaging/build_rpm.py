@@ -60,6 +60,15 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
 
     print(f"Building the {app_name} application...")
 
+    # Get target architecture from environment or detect it
+    target_arch = os.environ.get('GOARCH', platform.machine())
+    if target_arch == 'x86_64':
+        target_arch = 'amd64'
+    elif target_arch in ['aarch64', 'arm64']:
+        target_arch = 'arm64'
+
+    print(f"Target architecture: {target_arch}")
+
     # Store current directory to return to it later
     original_dir = os.getcwd()
 
@@ -76,10 +85,37 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
 
         # Check if there's a main.go file in the current directory
         if os.path.isfile("main.go"):
-            # If main.go exists, build just the main package to a single binary
-            print(f"Building main package to {app_name}...")
-            subprocess.run(["go", "build", "-v", "-o",
-                           app_name, "."], check=True, env=go_env)
+            # If main.go exists, build just the main package to a single binary with static linking
+            print(
+                f"Building main package to {app_name} with static linking for {target_arch}...")
+
+            # Prepare ldflags for version injection
+            ldflags = f"-s -w -X github.com/AnarManafov/dataharbor/app/config.Version={version}"
+
+            # Try to get git commit hash
+            try:
+                git_commit = subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    stderr=subprocess.DEVNULL
+                ).decode().strip()
+                ldflags += f" -X github.com/AnarManafov/dataharbor/app/config.GitCommit={git_commit}"
+            except:
+                pass
+
+            # Add build time
+            import datetime
+            build_time = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+            ldflags += f" -X github.com/AnarManafov/dataharbor/app/config.BuildTime={build_time}"
+
+            build_env = {
+                **go_env,
+                "CGO_ENABLED": "0",
+                "GOOS": "linux",
+                "GOARCH": target_arch
+            }
+
+            subprocess.run(["go", "build", "-v", f"-ldflags={ldflags}", "-o",
+                           app_name, "."], check=True, env=build_env)
         else:
             # For multiple packages, use a more specific approach
             # First identify the main package
@@ -91,9 +127,35 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
 
             if main_pkg:
                 print(
-                    f"Building main package from {main_pkg} to {app_name}...")
-                subprocess.run(["go", "build", "-v", "-o",
-                               app_name, main_pkg], check=True, env=go_env)
+                    f"Building main package from {main_pkg} to {app_name} with static linking for {target_arch}...")
+
+                # Prepare ldflags for version injection
+                ldflags = f"-s -w -X github.com/AnarManafov/dataharbor/app/config.Version={version}"
+
+                # Try to get git commit hash
+                try:
+                    git_commit = subprocess.check_output(
+                        ["git", "rev-parse", "--short", "HEAD"],
+                        stderr=subprocess.DEVNULL
+                    ).decode().strip()
+                    ldflags += f" -X github.com/AnarManafov/dataharbor/app/config.GitCommit={git_commit}"
+                except:
+                    pass
+
+                # Add build time
+                import datetime
+                build_time = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+                ldflags += f" -X github.com/AnarManafov/dataharbor/app/config.BuildTime={build_time}"
+
+                build_env = {
+                    **go_env,
+                    "CGO_ENABLED": "0",
+                    "GOOS": "linux",
+                    "GOARCH": target_arch
+                }
+
+                subprocess.run(["go", "build", "-v", f"-ldflags={ldflags}", "-o",
+                               app_name, main_pkg], check=True, env=build_env)
             else:
                 print("Error: No main.go file found in any package")
                 return False
@@ -160,10 +222,19 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
     subprocess.run(["python3", changelog_script, spec_path,
                    release_notes_path], check=True)
 
-    print(f"Building the RPM package for version {version}...")
+    print(
+        f"Building the RPM package for version {version} and architecture {target_arch}...")
     try:
+        # Map Go architectures to RPM architectures
+        rpm_arch = target_arch
+        if target_arch == 'amd64':
+            rpm_arch = 'x86_64'
+        elif target_arch == 'arm64':
+            rpm_arch = 'aarch64'
+
         subprocess.run(["rpmbuild", "-ba", f"{build_dir}/SPECS/{os.path.basename(spec_file)}",
-                        f"--define", f"_version {version}"], check=True)
+                        f"--define", f"_version {version}",
+                        f"--target", rpm_arch], check=True)
 
         # Copy built RPMs to /tmp/all-rpms directory
         for rpm_path in glob.glob(f"{build_dir}/RPMS/*/{app_name}-*.rpm"):
