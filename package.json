@@ -12,7 +12,7 @@
     "dev:backend": "cd app && go run . ${CONFIG_FILE_PATH:+-config $CONFIG_FILE_PATH}",
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "cd web && npm run build",
-    "build:backend": "cd app && go build .",
+    "build:backend": "./scripts/build-backend.sh dataharbor-backend",
     "sandbox:create": "shx mkdir -p sandbox/public && shx cp -r web/public/* sandbox/public/",
     "sandbox:clean": "shx rm -rf sandbox",
     "sandbox:run": "cd web && npm run sandbox",
@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "cross-env": "^10.0.0",
+    "cross-env": "^10.1.0",
     "shx": "^0.4.0"
   }
 }

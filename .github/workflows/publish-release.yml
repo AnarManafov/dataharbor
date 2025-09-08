@@ -164,7 +164,7 @@ jobs:
       - name: Download RPM packages
         uses: actions/download-artifact@v4
         with:
-          name: rpm-packages-both
+          name: rpm-packages-both-amd64
           path: /tmp/rpms
 
       - name: Check RPM packages

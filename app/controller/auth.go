@@ -90,7 +90,9 @@ func deleteTokens(tokenID string) {
 	delete(tokenStore, tokenID)
 }
 
-func init() {
+// InitAuth initializes the authentication system
+// This should be called during application startup after config is loaded
+func InitAuth() {
 	cfg := config.GetConfig()
 	logger := common.GetLogger()
 	// Prefer configured secret for persistent sessions between restarts
@@ -414,7 +416,7 @@ func AuthCallback(c *gin.Context) {
 		response.Error(c, http.StatusInternalServerError, "Failed to process authentication")
 		return
 	}
-	defer tokenResp.Body.Close()
+	defer func() { _ = tokenResp.Body.Close() }()
 
 	if tokenResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tokenResp.Body)
@@ -518,7 +520,7 @@ func Logout(c *gin.Context) {
 								if err != nil {
 									logger.Warnf("Failed to logout from OIDC provider: %v", err)
 								} else {
-									defer resp.Body.Close()
+									defer func() { _ = resp.Body.Close() }()
 
 									// HTTP status validation ensures the token is properly invalidated at the IdP level
 									// This prevents potential security issues with lingering active sessions
@@ -641,7 +643,7 @@ func refreshToken(c *gin.Context) error {
 		logger.Error("Failed to execute refresh token request", "error", err)
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
-	defer refreshResp.Body.Close()
+	defer func() { _ = refreshResp.Body.Close() }()
 
 	if refreshResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(refreshResp.Body)
@@ -822,7 +824,7 @@ func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]interface{}, error
 	if err != nil {
 		return nil, fmt.Errorf("failed to load discovery document: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("discovery document returned status %d", resp.StatusCode)

@@ -161,7 +161,7 @@ func (xc *XRDClient) GetFileSystem(ctx context.Context, authToken string) (xrdfs
 
 	fs := client.FS()
 	if fs == nil {
-		client.Close()
+		_ = client.Close()
 		return nil, nil, fmt.Errorf("failed to get filesystem interface")
 	}
 

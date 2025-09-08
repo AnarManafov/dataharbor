@@ -23,22 +23,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15 # Prevent hung workflows
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
     defaults:
       run:
         working-directory: ./app
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Use latest v4
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v5 # Use latest v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: ${{ env.GO_SUM_FILE }}
           cache: true # Enable Go module caching
 
       - name: Build
-        run: go build -v -o dataharbor-backend
+        run: |
+          VERSION=$(grep -oP '(?<="version": ")[^"]*' ../package.json)
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          LDFLAGS="-s -w -X github.com/AnarManafov/dataharbor/app/config.Version=${VERSION} -X github.com/AnarManafov/dataharbor/app/config.GitCommit=${GIT_COMMIT} -X github.com/AnarManafov/dataharbor/app/config.BuildTime=${BUILD_TIME}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -ldflags="${LDFLAGS}" -o dataharbor-backend
 
       - name: Verify executable
         run: |
@@ -46,6 +54,24 @@ jobs:
             echo "::error::No executable was produced by the build"
             exit 1
           fi
+
+      - name: Verify static linking
+        run: |
+          echo "Checking if binary is statically linked..."
+          if file dataharbor-backend | grep -q "statically linked"; then
+            echo "Binary is statically linked"
+          else
+            echo "Binary info:"
+            file dataharbor-backend
+            echo "Note: Cross-compiled binaries may not show 'statically linked' but are still static when CGO_ENABLED=0"
+          fi
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataharbor-backend-${{ matrix.goarch }}
+          path: ./app/dataharbor-backend
+          retention-days: 14
 
   test-and-coverage:
     runs-on: ubuntu-latest
@@ -126,7 +152,7 @@ jobs:
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6 # Use latest v6
+        uses: golangci/golangci-lint-action@v8 # Use latest v8
         with:
           version: latest
           working-directory: "./app/"
@@ -184,7 +210,11 @@ jobs:
   # Job to build backend RPM package using the reusable workflow
   build-rpm:
     needs: [build, test-and-coverage, lint, integration-tests] # Only build RPM if other jobs succeed
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
     uses: ./.github/workflows/build-rpm.yml
     with:
       component: "backend"
       is_pr_build: ${{ github.event_name == 'pull_request' }}
+      architecture: ${{ matrix.goarch }}

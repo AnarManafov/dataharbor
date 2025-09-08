@@ -49,7 +49,7 @@ func TestInitLogger_Custom(t *testing.T) {
 	}
 
 	// Clean up
-	os.Remove("test.log")
+	_ = os.Remove("test.log")
 }
 
 func TestInitLogger_Console(t *testing.T) {
@@ -121,9 +121,9 @@ func TestInitLogger_EnvConfig(t *testing.T) {
 	DestroyLogger()
 
 	// Set environment variables for logger configuration
-	os.Setenv("LOGGER_TYPE", "file")
-	os.Setenv("LOGGER_PATH", "env_test.log")
-	os.Setenv("LOGGER_DRIVER", "file")
+	_ = os.Setenv("LOGGER_TYPE", "file")
+	_ = os.Setenv("LOGGER_PATH", "env_test.log")
+	_ = os.Setenv("LOGGER_DRIVER", "file")
 
 	// Print environment variables to verify
 	t.Logf("LOGGER_TYPE: %s", os.Getenv("LOGGER_TYPE"))
@@ -142,10 +142,10 @@ func TestInitLogger_EnvConfig(t *testing.T) {
 	}
 
 	// Clean up
-	os.Remove("env_test.log")
-	os.Unsetenv("LOGGER_TYPE")
-	os.Unsetenv("LOGGER_PATH")
-	os.Unsetenv("LOGGER_DRIVER")
+	_ = os.Remove("env_test.log")
+	_ = os.Unsetenv("LOGGER_TYPE")
+	_ = os.Unsetenv("LOGGER_PATH")
+	_ = os.Unsetenv("LOGGER_DRIVER")
 }
 
 func TestLogger_Output(t *testing.T) {

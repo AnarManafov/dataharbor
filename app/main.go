@@ -9,12 +9,21 @@ import (
 
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
+	"github.com/AnarManafov/dataharbor/app/controller"
 	"github.com/AnarManafov/dataharbor/app/route"
+	"github.com/AnarManafov/dataharbor/app/util"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
+	// Initialize command-line flags first and check if we should continue
+	// This handles --help and --version before any other initialization
+	if !config.InitCmd() {
+		// User requested help or version, exit cleanly
+		return
+	}
+
 	// Initialize everything in the proper order
 	initialize()
 	stop := make(chan struct{})
@@ -22,10 +31,8 @@ func main() {
 }
 
 func initialize() {
-	// 1. Initialize command-line flags first to get the config file path
-	config.InitCmd()
-
-	// 2. Load the config from the file path specified in the command line
+	// 1. Load the config from the file path specified in the command line
+	// (InitCmd has already been called in main())
 	fmt.Printf("Loading config from: %s\n", config.ConfigFile)
 	cfg, err := config.LoadConfig(config.ConfigFile)
 	if err != nil {
@@ -33,19 +40,19 @@ func initialize() {
 		os.Exit(1)
 	}
 
-	// 3. Set the loaded config as the global config
+	// 2. Set the loaded config as the global config
 	config.SetConfig(cfg)
 
-	// 4. Initialize logger with the unified configuration
+	// 3. Initialize logger with the unified configuration
 	common.InitLogger(&cfg.Logging)
 
-	// 5. Load config into viper for components that still use viper directly (deprecated)
+	// 4. Load config into viper for components that still use viper directly (deprecated)
 	err = config.LoadViper(config.ConfigFile)
 	if err != nil {
 		common.Logger.Warn("Warning: viper config loading issue:", err)
 	}
 
-	// 6. Log configuration information
+	// 5. Log configuration information
 	common.Logger.Info("Configuration loaded successfully")
 	common.Logger.Info("Environment:", cfg.Env)
 	common.Logger.Info("Server address:", cfg.Server.Address)
@@ -61,10 +68,18 @@ func initialize() {
 		common.Logger.Info("OIDC ClientSecret:", clientSecretStatus)
 	}
 
-	// 7. Log full configuration if debug is enabled
+	// 6. Log full configuration if debug is enabled
 	if cfg.Server.Debug {
 		common.Logger.Debug("Debug mode enabled")
 		// Note: removed viper.AllSettings() as we're moving away from global viper
+	}
+
+	// 7. Initialize authentication system
+	controller.InitAuth()
+
+	// 8. Initialize snowflake ID generator
+	if err := util.InitSnowflake(); err != nil {
+		common.Logger.Warn("Failed to initialize snowflake ID generator:", err)
 	}
 }
 

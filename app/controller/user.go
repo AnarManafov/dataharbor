@@ -160,7 +160,7 @@ func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]interface
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch userinfo: %w", err)
 	}
-	defer userInfoResp.Body.Close()
+	defer func() { _ = userInfoResp.Body.Close() }()
 
 	if userInfoResp.StatusCode != http.StatusOK {
 		body, _ := json.Marshal(userInfoResp.Body)
