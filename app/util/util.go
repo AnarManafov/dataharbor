@@ -2,30 +2,41 @@ package util
 
 import (
 	"errors"
-	"fmt"
 	"net"
+	"sync"
 
 	"github.com/bwmarrin/snowflake"
 )
 
-var snowNode *snowflake.Node
+var (
+	snowNode *snowflake.Node
+	once     sync.Once
+)
 
-func init() {
-	localIp, err := getClientIp()
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	nodeId, err := Ipv4ToLong(localIp)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
+// InitSnowflake initializes the snowflake node for ID generation
+// This should be called once during application startup
+func InitSnowflake() error {
+	var initErr error
+	once.Do(func() {
+		localIp, err := getClientIp()
+		if err != nil {
+			initErr = err
+			return
+		}
+		nodeId, err := Ipv4ToLong(localIp)
+		if err != nil {
+			initErr = err
+			return
+		}
 
-	id := nodeId % 1024
-	fmt.Printf("localIp: %s, nodeId: %d \n", localIp, id)
-	snowNode, err = snowflake.NewNode(int64(id))
-	if err != nil {
-		fmt.Printf("init snowflake (localIp %s) failed: %s \n", localIp, err)
-	}
+		id := nodeId % 1024
+		snowNode, err = snowflake.NewNode(int64(id))
+		if err != nil {
+			initErr = err
+			return
+		}
+	})
+	return initErr
 }
 
 func Ipv4ToLong(ip string) (uint, error) {
@@ -53,11 +64,19 @@ func getClientIp() (string, error) {
 		}
 	}
 
-	return "", errors.New("Can not find the client ip address!")
+	return "", errors.New("cannot find the client ip address")
 
 }
 
 func NextUid() string {
+	// Ensure snowflake is initialized (in case it wasn't explicitly called)
+	if snowNode == nil {
+		if err := InitSnowflake(); err != nil {
+			// If initialization fails, we cannot generate IDs
+			// This is a critical error that should be handled by the caller
+			panic("failed to initialize snowflake: " + err.Error())
+		}
+	}
 	// Generate a snowflake ID.
 	return snowNode.Generate().String()
 }
