@@ -2,6 +2,9 @@
 
 This document covers production deployment, containerization, and packaging for DataHarbor.
 
+**Note**: This is the general deployment guide. For environment-specific deployments, see:
+- **[GSI Deployment Guide](./DEPLOYMENT_GSI.md)** - Specific instructions for GSI servers with XRootD on port 80
+
 ## Deployment Architecture Diagrams
 
 ### Container Deployment Architecture
@@ -52,17 +55,17 @@ graph LR
     end
     
     subgraph "Staging Environment"
-        StageFE[Frontend<br/>staging.dataharbor.com<br/>HTTPS]
-        StageBE[Backend<br/>staging-api.dataharbor.com<br/>HTTPS]
-        StageXRD[Staging XROOTD<br/>staging-xrd.gsi.de:1094]
-        StageOIDC[Staging Keycloak<br/>staging-auth.gsi.de]
+        StageFE[Frontend<br/>staging.example.com<br/>HTTPS]
+        StageBE[Backend<br/>staging-api.example.com<br/>HTTPS]
+        StageXRD[Staging XROOTD<br/>staging-xrd.example.com:1094]
+        StageOIDC[Staging Keycloak<br/>staging-auth.example.com]
     end
     
     subgraph "Production Environment"
-        ProdFE[Frontend<br/>dataharbor.gsi.de<br/>HTTPS]
-        ProdBE[Backend<br/>api.dataharbor.gsi.de<br/>HTTPS]
-        ProdXRD[Production XROOTD<br/>xrootd.gsi.de:1094]
-        ProdOIDC[Production Keycloak<br/>id.gsi.de]
+        ProdFE[Frontend<br/>dataharbor.example.com<br/>HTTPS]
+        ProdBE[Backend<br/>api.dataharbor.example.com<br/>HTTPS]
+        ProdXRD[Production XROOTD<br/>xrootd.example.com:1094]
+        ProdOIDC[Production Keycloak<br/>auth.example.com]
     end
     
     DevFE --> DevBE
@@ -228,6 +231,127 @@ sudo rpm -ivh dataharbor-backend-*.rpm
 sudo rpm -ivh dataharbor-frontend-*.rpm
 ```
 
+### Post-Installation Setup
+
+#### Backend Quick Setup
+
+**Important:** The backend RPM only installs the binary. You must create the systemd service file manually.
+
+**Quick Setup Steps:**
+
+1. **Prepare your configuration file** at a known location (e.g., `/etc/dataharbor/application.yaml` or `/root/dataharbor/config/backend-config.yaml`)
+
+2. **Create log directory** (if using file logging):
+   ```bash
+   sudo mkdir -p /var/log/dataharbor
+   sudo chmod 755 /var/log/dataharbor
+   ```
+
+3. **Create systemd service file** with correct config path:
+   ```bash
+   sudo tee /etc/systemd/system/dataharbor-backend.service << 'EOF'
+   [Unit]
+   Description=DataHarbor Backend Service
+   After=network.target
+
+   [Service]
+   Type=simple
+   ExecStart=/usr/local/bin/dataharbor-backend --config=/path/to/your/config.yaml
+   Restart=always
+   RestartSec=5
+   StandardOutput=journal
+   StandardError=journal
+
+   [Install]
+   WantedBy=multi-user.target
+   EOF
+   ```
+   
+   Replace `/path/to/your/config.yaml` with your actual config file path.
+
+4. **Enable and start the service:**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable dataharbor-backend
+   sudo systemctl start dataharbor-backend
+   sudo systemctl status dataharbor-backend
+   ```
+
+5. **Verify deployment:**
+   ```bash
+   # Test health endpoint
+   curl -k https://localhost:8081/health
+   
+   # Expected: {"code":200,"data":"ok","message":"success"}
+   
+   # Check logs
+   sudo journalctl -u dataharbor-backend -n 50
+   ```
+
+See the **[SystemD Services](#systemd-services)** section below for detailed instructions.
+
+#### Frontend Quick Setup
+
+**Installation Locations:**
+- Frontend files: `/usr/share/dataharbor-frontend/`
+- Nginx config template: `/etc/dataharbor-frontend/nginx/nginx.conf`
+
+**Quick Setup Steps:**
+
+1. **Copy your frontend config:**
+   ```bash
+   sudo cp /path/to/your/frontend-config.json \
+           /usr/share/dataharbor-frontend/config.json
+   ```
+
+2. **Configure nginx (choose one option):**
+
+   **Option A - Simple (Direct backend access):**
+   ```bash
+   sudo cp /etc/dataharbor-frontend/nginx/nginx.conf /etc/nginx/conf.d/dataharbor.conf
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   Frontend config.json should have: `"apiBaseUrl": "https://your-backend-server:8081/api"`
+
+   **Option B - Recommended (Nginx reverse proxy):**
+   ```bash
+   sudo tee /etc/nginx/conf.d/dataharbor.conf << 'EOF'
+   server {
+       listen 80;
+       server_name your-hostname;
+       root /usr/share/dataharbor-frontend;
+       index index.html;
+       
+       location / {
+           try_files $uri $uri/ /index.html;
+       }
+       
+       location /api/ {
+           proxy_pass https://localhost:8081;
+           proxy_ssl_verify off;
+           proxy_set_header Host $host;
+       }
+   }
+   EOF
+   
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   Frontend config.json should have: `"apiBaseUrl": "/api"`
+
+3. **Enable and start nginx:**
+   ```bash
+   sudo systemctl enable nginx
+   sudo systemctl start nginx
+   ```
+
+4. **Test:**
+   ```bash
+   curl http://localhost/
+   # Open browser: http://your-hostname/
+   ```
+
+See the **[Frontend Deployment](#frontend-deployment-using-rpm)** section below for detailed instructions.
+
 ### Default Installation Locations
 
 After installation, the packages are deployed to the following locations:
@@ -267,21 +391,304 @@ rpm -ql dataharbor-frontend
 
 ### SystemD Services
 
-The RPM packages include systemd service files:
+#### Creating SystemD Service File for Backend
 
-```bash
-# Enable and start backend service
-sudo systemctl enable dataharbor-backend
-sudo systemctl start dataharbor-backend
+Since the RPM package doesn't include a systemd service file, you need to create one manually:
 
-# Enable and start frontend service
-sudo systemctl enable dataharbor-frontend
-sudo systemctl start dataharbor-frontend
+1. **Create the systemd service file:**
 
-# Check status
-sudo systemctl status dataharbor-backend
-sudo systemctl status dataharbor-frontend
-```
+   ```bash
+   sudo tee /etc/systemd/system/dataharbor-backend.service << 'EOF'
+   [Unit]
+   Description=DataHarbor Backend Service
+   After=network.target
+
+   [Service]
+   Type=simple
+   ExecStart=/usr/local/bin/dataharbor-backend --config=/path/to/your/config.yaml
+   Restart=always
+   RestartSec=5
+   StandardOutput=journal
+   StandardError=journal
+
+   [Install]
+   WantedBy=multi-user.target
+   EOF
+   ```
+
+   **Important:** Replace `/path/to/your/config.yaml` with your actual config file path. For example:
+   - `/etc/dataharbor/application.yaml`
+   - `/opt/dataharbor/config/application.production.yaml`
+   - `/root/dataharbor/config/backend-config.yaml`
+
+2. **Create the log directory (if using file logging):**
+
+   Before starting the service, ensure the log directory specified in your config file exists:
+
+   ```bash
+   # Check your config file for the log path, then create the directory
+   # Example if your log path is /var/log/dataharbor/dataharbor-backend.log:
+   sudo mkdir -p /var/log/dataharbor
+   sudo chmod 755 /var/log/dataharbor
+   
+   # Or if using a custom path:
+   # mkdir -p /opt/dataharbor/logs
+   ```
+
+3. **Reload systemd, enable and start the service:**
+
+   ```bash
+   # Reload systemd to recognize the new service file
+   sudo systemctl daemon-reload
+   
+   # Enable the service to start on boot
+   sudo systemctl enable dataharbor-backend
+   
+   # Start the service
+   sudo systemctl start dataharbor-backend
+   
+   # Check service status
+   sudo systemctl status dataharbor-backend
+   ```
+
+4. **Verify the deployment:**
+
+   ```bash
+   # Test the health endpoint (use correct paths: /health or /api/health)
+   curl -k https://localhost:8081/health
+   # or
+   curl -k https://localhost:8081/api/health
+   
+   # Expected response:
+   # {"code":200,"data":"ok","message":"success"}
+   
+   # Check the logs
+   sudo journalctl -u dataharbor-backend -f
+   
+   # If file logging is enabled, check the log file
+   # tail -f /var/log/dataharbor/dataharbor-backend.log
+   ```
+
+5. **Troubleshooting:**
+
+   ```bash
+   # View recent logs
+   sudo journalctl -u dataharbor-backend -n 50
+   
+   # Check if the service is running
+   sudo systemctl is-active dataharbor-backend
+   
+   # Restart the service if needed
+   sudo systemctl restart dataharbor-backend
+   
+   # Check which config file is being used
+   ps aux | grep dataharbor-backend
+   ```
+
+#### Frontend Deployment (Using RPM)
+
+If you've installed the frontend RPM package, follow these steps:
+
+**Installation Locations:**
+- Frontend files: `/usr/share/dataharbor-frontend/`
+- Nginx config template: `/etc/dataharbor-frontend/nginx/nginx.conf`
+
+1. **Update the frontend config.json:**
+
+   The frontend needs to know where your backend API is located. Copy your custom config:
+
+   ```bash
+   # Copy your frontend config to the installed location
+   sudo cp /path/to/your/frontend-config.json \
+           /usr/share/dataharbor-frontend/config.json
+   ```
+
+   Or edit it directly:
+
+   ```bash
+   sudo nano /usr/share/dataharbor-frontend/config.json
+   ```
+
+   Example configuration:
+   ```json
+   {
+     "apiBaseUrl": "https://your-backend-server:8081/api",
+     "features": {
+       "enableDocumentation": true
+     }
+   }
+   ```
+
+   **Important:** The `apiBaseUrl` should point to your backend server. If frontend and backend are on the same server, you can use:
+   - `https://localhost:8081/api` (for local testing)
+   - `https://your-server-hostname:8081/api` (for remote access)
+   - Or use nginx as a reverse proxy (see option 2 below)
+
+2. **Configure Nginx:**
+
+   You have two options:
+
+   **Option A: Direct Backend Access (Simple)**
+
+   Use the installed nginx config template and modify it:
+
+   ```bash
+   # Copy the template to nginx sites
+   sudo cp /etc/dataharbor-frontend/nginx/nginx.conf /etc/nginx/conf.d/dataharbor.conf
+   
+   # Edit to customize (optional - change server_name, add SSL, etc.)
+   sudo nano /etc/nginx/conf.d/dataharbor.conf
+   ```
+
+   The default config serves the frontend on port 80. Your `config.json` should point directly to the backend:
+   ```json
+   {
+     "apiBaseUrl": "https://your-backend-server:8081/api"
+   }
+   ```
+
+   **Option B: Nginx as Reverse Proxy (Recommended for Production)**
+
+   Configure nginx to proxy API requests to the backend:
+
+   ```bash
+   sudo tee /etc/nginx/conf.d/dataharbor.conf << 'EOF'
+   server {
+       listen 80;
+       server_name your-hostname;  # Change to your hostname
+
+       root /usr/share/dataharbor-frontend;
+       index index.html;
+
+       # Serve frontend static files
+       location / {
+           try_files $uri $uri/ /index.html;
+       }
+
+       location /assets/ {
+           alias /usr/share/dataharbor-frontend/assets/;
+           expires max;
+           access_log off;
+           add_header Cache-Control "public";
+       }
+
+       # Proxy API requests to backend
+       location /api/ {
+           proxy_pass https://localhost:8081;
+           proxy_ssl_verify off;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+
+       error_log /var/log/nginx/dataharbor-frontend-error.log;
+       access_log /var/log/nginx/dataharbor-frontend-access.log;
+   }
+   EOF
+   ```
+
+   With this setup, your `config.json` should use a relative path:
+   ```json
+   {
+     "apiBaseUrl": "/api"
+   }
+   ```
+
+3. **Test nginx configuration:**
+
+   ```bash
+   # Test configuration syntax
+   sudo nginx -t
+   
+   # If test passes, reload nginx
+   sudo systemctl reload nginx
+   
+   # Or restart if needed
+   sudo systemctl restart nginx
+   
+   # Check nginx status
+   sudo systemctl status nginx
+   
+   # Enable nginx to start on boot
+   sudo systemctl enable nginx
+   ```
+
+4. **Configure firewall (if needed):**
+
+   ```bash
+   # Allow HTTP traffic
+   sudo firewall-cmd --permanent --add-service=http
+   
+   # Allow HTTPS traffic (if using SSL)
+   sudo firewall-cmd --permanent --add-service=https
+   
+   # Reload firewall
+   sudo firewall-cmd --reload
+   
+   # Or for iptables:
+   # sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+   # sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+   ```
+
+5. **Test the deployment:**
+
+   ```bash
+   # Test frontend is accessible
+   curl http://localhost/
+   
+   # Should return HTML content
+   
+   # Test from another machine (replace with your hostname)
+   curl http://your-hostname/
+   
+   # Open in browser
+   # http://your-hostname/
+   ```
+
+6. **Verify end-to-end:**
+
+   Open your browser and navigate to:
+   - `http://your-hostname/` (or your server's hostname/IP)
+   
+   Then check:
+   - [ ] Frontend loads successfully
+   - [ ] No console errors in browser DevTools (F12)
+   - [ ] API calls to backend work (check Network tab in DevTools)
+   - [ ] Can authenticate with OIDC
+   - [ ] Can browse XRootD directories
+
+7. **Check logs if issues occur:**
+
+   ```bash
+   # Nginx error logs
+   sudo tail -f /var/log/nginx/dataharbor-frontend-error.log
+   
+   # Nginx access logs
+   sudo tail -f /var/log/nginx/dataharbor-frontend-access.log
+   
+   # Backend logs (to see API requests)
+   sudo journalctl -u dataharbor-backend -f
+   ```
+
+8. **Common Issues:**
+
+   **Issue:** "Cannot connect to backend"
+   - **Solution:** Check `config.json` has correct `apiBaseUrl`
+   - Verify backend is running: `sudo systemctl status dataharbor-backend`
+   - Test backend health: `curl -k https://localhost:8081/health`
+
+   **Issue:** CORS errors in browser console
+   - **Solution:** Check backend CORS configuration allows your frontend origin
+   - Update `cors.allow_origins` in backend config
+
+   **Issue:** 502 Bad Gateway
+   - **Solution:** Backend might be down or nginx proxy config is wrong
+   - Check backend is running on the expected port
+
+   **Issue:** Static files not loading (CSS, JS)
+   - **Solution:** Check file permissions on `/usr/share/dataharbor-frontend/`
+   - Ensure nginx has read access: `sudo chmod -R 755 /usr/share/dataharbor-frontend/`
 
 ## Manual Deployment
 
@@ -543,21 +950,59 @@ export XROOTD_SERVERS="root://server1.com:1094,root://server2.com:1094"
 DataHarbor provides health check endpoints:
 
 ```bash
-# Backend health
-curl https://your-domain.com/api/v1/health
+# Backend health endpoints (use /health or /api/health, NOT /api/v1/health)
+curl -k https://your-domain.com/health
+# or
+curl -k https://your-domain.com/api/health
 
-# Application metrics (if enabled)
-curl https://your-domain.com/api/v1/metrics
+# Expected response:
+# {"code":200,"data":"ok","message":"success"}
+
+# If using a custom port:
+curl -k https://your-domain.com:8081/health
 ```
 
-### Log Configuration
+### Log Locations
 
-Configure log rotation and monitoring:
+DataHarbor logs can be found in multiple locations depending on your configuration:
+
+1. **SystemD Journal Logs:**
+   ```bash
+   # View real-time logs
+   sudo journalctl -u dataharbor-backend -f
+   
+   # View last 100 lines
+   sudo journalctl -u dataharbor-backend -n 100
+   
+   # View logs since last hour
+   sudo journalctl -u dataharbor-backend --since "1 hour ago"
+   ```
+
+2. **File Logs (if enabled in config):**
+   ```bash
+   # Common log locations:
+   # - /var/log/dataharbor/dataharbor-backend.log
+   # - /opt/dataharbor/logs/dataharbor-backend.log
+   # - Custom path specified in your config file
+   
+   # View file logs
+   tail -f /var/log/dataharbor/dataharbor-backend.log
+   ```
+
+3. **Check Log Configuration:**
+   ```bash
+   # Verify log path in your config file
+   grep -A 10 "logging:" /path/to/your/config.yaml
+   ```
+
+### Log Rotation Configuration
+
+Configure log rotation to prevent disk space issues:
 
 ```bash
-# Logrotate configuration
+# Logrotate configuration for standard log location
 sudo tee /etc/logrotate.d/dataharbor << EOF
-/opt/dataharbor/logs/*.log {
+/var/log/dataharbor/*.log {
     daily
     rotate 30
     compress
@@ -567,6 +1012,29 @@ sudo tee /etc/logrotate.d/dataharbor << EOF
     copytruncate
 }
 EOF
+
+# For custom log locations, adjust the path accordingly:
+# /opt/dataharbor/logs/*.log
+# /root/dataharbor/config/cert/log/*.log
+```
+
+### Testing Log Configuration
+
+After service restart, verify logs are being written:
+
+```bash
+# Restart the service
+sudo systemctl restart dataharbor-backend
+
+# Check systemd logs immediately
+sudo journalctl -u dataharbor-backend --since "1 minute ago"
+
+# If file logging is enabled, check the log file exists and is being written
+ls -lh /var/log/dataharbor/
+tail -20 /var/log/dataharbor/dataharbor-backend.log
+
+# Test the service with a health check
+curl -k https://localhost:8081/health
 ```
 
 ## Backup & Recovery
