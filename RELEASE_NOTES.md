@@ -1,12 +1,15 @@
 # Release Notes
 
-## v0.14.5 (2025-08-11)
+## v0.14.6 (2025-10-08)
 
 Changelog:
-### Fixed
-- Update sync-versions script and CI workflow to handle package-lock.json files (ci) (5898100)
+### Added
+- Add multi-architecture support for builds (ci) (65c0d93)
 
 ### Maintenance
-- Update changelog header and generation logic (5e74af8)
-- update dependency management instructions (docs) (a032a7e)
+- Updated coverage badge. (57ed1bd)
+- Updated coverage badge. (e64acad)
+
+### Other
+- doc: improve documentation (4b292a3)
 
