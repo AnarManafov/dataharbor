@@ -53,8 +53,7 @@ xrd:
   initial_dir: "/tmp"
   user: ""
   usergroup: ""
-  user_required: false
-  tls: false
+  enable_ztn: false  # ZTN protocol: TLS + OAuth token authentication (false for local dev)
   client_cert: ""
   client_key: ""
 

@@ -48,8 +48,7 @@ xrd:
   initial_dir: "/data"
   user: "service-account"
   usergroup: "data-access"
-  user_required: true              # Production servers typically require authentication
-  tls: true
+  enable_ztn: true  # ZTN protocol: TLS + OAuth token authentication (true for production)
   client_cert: "/etc/ssl/dataharbor/client.crt"
   client_key: "/etc/ssl/dataharbor/client.key"
 

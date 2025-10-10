@@ -871,8 +871,10 @@ auth:
     redirect_uri: "https://your-domain.com/api/v1/auth/callback"
 
 xrootd:
-  servers:
-    - "root://your-xrootd-server.com:1094"
+  host: "your-xrootd-server.com"
+  port: 1094
+  initial_dir: "/"
+  enable_ztn: true  # Enable ZTN protocol (TLS + OAuth) for authenticated XRootD access
 
 logging:
   level: "info"
@@ -941,6 +943,11 @@ export SSL_KEY_PATH="/opt/dataharbor/certs/private.key"
 
 # XROOTD Configuration
 export XROOTD_SERVERS="root://server1.com:1094,root://server2.com:1094"
+
+# XRootD ZTN Protocol (TLS + OAuth authentication)
+# Set to true for production XRootD servers with ZTN enabled
+# Set to false for local development without authentication
+export XROOTD_ENABLE_ZTN="true"
 ```
 
 ## Monitoring & Logging

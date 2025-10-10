@@ -69,3 +69,6 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
+
+// Use GitHub fork with TLS/ZTN support
+replace go-hep.org/x/hep => github.com/AnarManafov/hep v0.0.0-20251010093834-e168c6d4f72d
