@@ -89,15 +89,14 @@ type FileConfig struct {
 
 // XRDConfig represents the XRootD configuration
 type XRDConfig struct {
-	Host         string `mapstructure:"host" yaml:"host"`
-	Port         uint   `mapstructure:"port" yaml:"port"`
-	InitialDir   string `mapstructure:"initial_dir" yaml:"initial_dir"`
-	User         string `mapstructure:"user" yaml:"user"`
-	UserGroup    string `mapstructure:"usergroup" yaml:"usergroup"`
-	UserRequired bool   `mapstructure:"user_required" yaml:"user_required"`
-	TLS          bool   `mapstructure:"tls" yaml:"tls"`
-	ClientCert   string `mapstructure:"client_cert" yaml:"client_cert"`
-	ClientKey    string `mapstructure:"client_key" yaml:"client_key"`
+	Host       string `mapstructure:"host" yaml:"host"`
+	Port       uint   `mapstructure:"port" yaml:"port"`
+	InitialDir string `mapstructure:"initial_dir" yaml:"initial_dir"`
+	User       string `mapstructure:"user" yaml:"user"`
+	UserGroup  string `mapstructure:"usergroup" yaml:"usergroup"`
+	EnableZTN  bool   `mapstructure:"enable_ztn" yaml:"enable_ztn"` // Enable ZTN protocol (TLS + OAuth token authentication)
+	ClientCert string `mapstructure:"client_cert" yaml:"client_cert"`
+	ClientKey  string `mapstructure:"client_key" yaml:"client_key"`
 }
 
 // AuthConfig represents the authentication configuration
@@ -268,10 +267,10 @@ func GetConfig() *Config {
 					},
 				},
 				XRD: XRDConfig{
-					Host:         "localhost",
-					Port:         1094,
-					InitialDir:   "/tmp",
-					UserRequired: false,
+					Host:       "localhost",
+					Port:       1094,
+					InitialDir: "/tmp",
+					EnableZTN:  false,
 				},
 				Auth: AuthConfig{
 					Enabled: false,
@@ -342,8 +341,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("xrd.host", "localhost")
 	v.SetDefault("xrd.port", 1094)
 	v.SetDefault("xrd.initial_dir", "/tmp")
-	v.SetDefault("xrd.user_required", false)
-	v.SetDefault("xrd.tls", false)
+	v.SetDefault("xrd.enable_ztn", false)
 
 	// Auth defaults
 	v.SetDefault("auth.enabled", false)
@@ -395,15 +393,14 @@ func createDefaultConfig(configFile string) error {
 			},
 		},
 		XRD: XRDConfig{
-			Host:         "localhost",
-			Port:         1094,
-			InitialDir:   "/tmp",
-			User:         "",
-			UserGroup:    "",
-			UserRequired: false,
-			TLS:          false,
-			ClientCert:   "",
-			ClientKey:    "",
+			Host:       "localhost",
+			Port:       1094,
+			InitialDir: "/tmp",
+			User:       "",
+			UserGroup:  "",
+			EnableZTN:  false,
+			ClientCert: "",
+			ClientKey:  "",
 		},
 		Auth: AuthConfig{
 			Enabled: false,

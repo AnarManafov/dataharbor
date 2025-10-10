@@ -172,8 +172,11 @@ watch(isBackendOnline, async (newValue) => {
             message: 'Backend service is online.',
             type: 'success',
         })
-        // Push the new path to the router
-        loadDirectory(currentDirectory.value);
+        // Only load directory if currentDirectory has been set
+        // (avoid loading with empty path before onMounted sets the initial directory)
+        if (currentDirectory.value) {
+            loadDirectory(currentDirectory.value);
+        }
     }
 });
 

@@ -2,7 +2,9 @@ package common
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -16,10 +18,10 @@ import (
 // XRDClient provides a simple, direct XRootD client without connection pooling
 // Based on the successful test programs that work reliably
 type XRDClient struct {
-	address      string
-	username     string
-	logger       *zap.SugaredLogger
-	userRequired bool
+	address   string
+	username  string
+	logger    *zap.SugaredLogger
+	enableZTN bool
 }
 
 var (
@@ -52,26 +54,34 @@ func NewXRDClient() *XRDClient {
 	}
 
 	return &XRDClient{
-		address:      address,
-		username:     username,
-		logger:       logger,
-		userRequired: cfg.XRD.UserRequired,
+		address:   address,
+		username:  username,
+		logger:    logger,
+		enableZTN: cfg.XRD.EnableZTN,
 	}
 }
 
-// createClient creates a new XRootD client - simple and direct like our working tests
+// createClient creates a new XRootD client with optional ZTN protocol support
 func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xrootd.Client, error) {
 	var opts []xrootd.Option
 
-	// Only add auth if required and token is available
-	if xc.userRequired && authToken != "" {
-		tokenAuth := NewTokenAuth(authToken)
-		opts = append(opts, xrootd.WithAuth(tokenAuth))
-		xc.logger.Debug("Creating XRootD client with token authentication", "address", xc.address)
-	} else if xc.userRequired && authToken == "" {
-		return nil, fmt.Errorf("authentication required but no token provided")
+	if xc.enableZTN {
+		// ZTN protocol enabled: Configure TLS + OAuth token authentication
+		// Use InsecureSkipVerify for now - can be configured properly with real certs later
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		opts = append(opts, xrootd.WithTLS(tlsConfig))
+
+		// Set bearer token in environment for ZTN token discovery
+		if authToken == "" {
+			return nil, fmt.Errorf("ZTN protocol enabled (enable_ztn=true) but no authentication token provided")
+		}
+		os.Setenv("BEARER_TOKEN", authToken)
+		xc.logger.Debug("Creating XRootD client with ZTN (TLS + token)", "address", xc.address)
 	} else {
-		xc.logger.Debug("Creating XRootD client without authentication", "address", xc.address)
+		// Plain XRootD protocol: No TLS, no authentication
+		xc.logger.Debug("Creating XRootD client with plain protocol (no ZTN)", "address", xc.address)
 	}
 
 	client, err := xrootd.NewClient(ctx, xc.address, xc.username, opts...)

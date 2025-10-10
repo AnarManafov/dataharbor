@@ -168,11 +168,13 @@ flowchart TD
 
 ### Frontend Configuration (`frontend`)
 
-| Key                    | Type     | Default                   | Description                                    |
-| ---------------------- | -------- | ------------------------- | ---------------------------------------------- |
-| `frontend.url`         | string   | `"http://localhost:5173"` | Frontend application URL                       |
-| `frontend.asset_paths` | []string | `[]`                      | Additional paths to search for frontend assets |
-| `frontend.dist_dir`    | string   | `"dist"`                  | Frontend build output directory                |
+| Key                    | Type     | Default                   | Description                                                                                           |
+| ---------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `frontend.url`         | string   | `"http://localhost:5173"` | Frontend application URL. **IMPORTANT**: Set to production URL (e.g., `https://yourdomain.com`) for production deployments. This controls OAuth redirect URIs. |
+| `frontend.asset_paths` | []string | `[]`                      | Additional paths to search for frontend assets                                                        |
+| `frontend.dist_dir`    | string   | `"dist"`                  | Frontend build output directory                                                                       |
+
+**Note**: The `frontend.url` must match where users access your application. For development, use `http://localhost:5173` or `https://localhost:5173`. For production, use your actual domain like `https://yourdomain.com` or `https://punch2.gsi.de`. This URL is used for OAuth/OIDC redirect URIs after authentication.
 
 ## Environment Variables
 
@@ -207,8 +209,10 @@ export DATAHARBOR_AUTH_OIDC_CLIENT_SECRET="your-secret-here"
 export DATAHARBOR_AUTH_OIDC_SESSION_SECRET="your-session-secret"
 
 # Frontend Configuration
-export DATAHARBOR_FRONTEND_URL="https://yourdomain.com"
+export DATAHARBOR_FRONTEND_URL="https://yourdomain.com"  # Use production domain, not localhost:5173
 ```
+
+**Important**: When deploying to production, always set `DATAHARBOR_FRONTEND_URL` to your actual domain. Using `localhost:5173` in production will cause OAuth/OIDC redirect failures.
 
 ## Configuration Validation
 
@@ -336,10 +340,38 @@ auth:
     session_secret: "${DATAHARBOR_SESSION_SECRET}"
 
 frontend:
-  url: "https://yourdomain.com"
+  url: "https://yourdomain.com"  # CRITICAL: Must match your production domain
   asset_paths:
     - "/var/www/dataharbor"
 ```
+
+## Common Configuration Issues
+
+### OAuth/OIDC Redirect to Wrong URL
+
+**Symptom**: After successful Keycloak authentication, the application redirects to `https://localhost:5173` instead of your production domain.
+
+**Cause**: The `frontend.url` configuration is set to the development URL instead of the production URL.
+
+**Solution**:
+
+1. Edit your backend configuration file:
+   ```bash
+   sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
+   ```
+
+2. Update the `frontend.url` to match your production domain:
+   ```yaml
+   frontend:
+     url: "https://punch2.gsi.de"  # Or your actual domain
+   ```
+
+3. Restart the backend service:
+   ```bash
+   sudo systemctl restart dataharbor-backend
+   ```
+
+**Prevention**: Always verify `frontend.url` matches where users access your application before deploying to production.
 
 ### Need Help?
 

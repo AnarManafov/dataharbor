@@ -132,7 +132,6 @@ server:
       - DELETE
       - OPTIONS
     allow_origins:
-      - https://punch2
       - https://punch2.gsi.de
   ssl:
     enabled: true
@@ -157,16 +156,15 @@ logging:
 xrd:
   host: "localhost"
   port: 1094
-  initial_dir: "/data/xrootd"  # GSI XRootD root directory
+  initial_dir: "/"  # XRootD root directory - use "/" for root export
   user: ""
   usergroup: ""
-  user_required: false
-  tls: false
+  enable_ztn: true  # REQUIRED for GSI: Enable ZTN protocol (TLS + OAuth token authentication)
   client_cert: ""
   client_key: ""
 
 frontend:
-  url: "https://punch2"
+  url: "https://punch2.gsi.de"  # Use full domain for production
   dist_dir: "dist"
   asset_paths:
     - "../sandbox/public"
@@ -180,7 +178,7 @@ auth:
     - "/api/auth/callback"
   oidc:
     issuer: "https://id.gsi.de/realms/wl"
-    client_id: "xrootd"
+    client_id: "xrootd"  # Use "xrootd" for production, "xrootd-test" for development
     client_secret: "your-client-secret-here"  # Replace with actual secret
     discovery_url: "https://id.gsi.de/realms/wl/.well-known/openid-configuration"
     allowed_roles:
@@ -191,11 +189,16 @@ EOF
 ```
 
 **Important**: Replace the following placeholders:
-- `your-client-secret-here`: Your actual Keycloak client secret
+- `client_id`: Use `"xrootd"` for production, `"xrootd-test"` for development/testing environments
+- `your-client-secret-here`: Your actual Keycloak client secret (different for each client)
 - `session_secret`: Generate a unique random string
-- `https://punch2` and `https://punch2.gsi.de`: Replace `punch2` with your actual server hostname
+- `https://punch2.gsi.de`: Replace with your actual server hostname
 
-**Note**: The `initial_dir` is set to `/data/xrootd` which is the standard XRootD root directory for GSI servers.
+**Critical Configuration Notes**:
+- **`frontend.url`**: MUST be set to `https://punch2.gsi.de` (or your actual production domain). Do NOT use `https://localhost:5173` in production, as this will cause OAuth redirects to fail and redirect users to localhost after login.
+- **`xrootd-test` client**: Configured to redirect to localhost for development environments
+- **`xrootd` client**: Uses the full server URL `https://punch2.gsi.de/*` for production
+- **`initial_dir`**: Set to `/` to browse from the root of the XRootD export. Adjust this path based on your XRootD server's export configuration (check `all.export` in `/etc/xrootd/*.cfg`).
 
 ### Step 4: Create Frontend Configuration File
 
@@ -312,7 +315,7 @@ Create the nginx configuration for HTTPS access:
 sudo tee /etc/nginx/conf.d/dataharbor.conf << 'EOF'
 server {
     listen 443 ssl http2;
-    server_name punch2 punch2.gsi.de;
+    server_name punch2.gsi.de;
 
     # SSL Configuration
     ssl_certificate /root/dataharbor/config/cert/server.crt;
@@ -355,7 +358,7 @@ EOF
 ```
 
 **Important Notes**:
-- **Replace `punch2` and `punch2.gsi.de`** with your actual server hostname
+- **Replace `punch2.gsi.de`** with your actual server hostname (use full domain name)
 - **Port 443 only**: No HTTP redirect on port 80 (XRootD uses port 80)
 - SSL certificates path must match your actual certificate locations
 
@@ -771,8 +774,7 @@ Update backend CORS configuration to include your frontend HTTPS origin:
 server:
   cors:
     allow_origins:
-      - https://punch2
-      - https://punch2.gsi.de
+      - https://punch2.gsi.de  # Use full domain name
 ```
 
 Then restart backend:
@@ -813,18 +815,24 @@ curl -k https://localhost/
 **What to tell the Keycloak admin:**
 
 ```
-Please add the following Valid Redirect URIs to the "xrootd" client in Keycloak:
+Please add the following Valid Redirect URIs to the appropriate client in Keycloak:
 
-1. https://punch2.gsi.de/*
-2. https://punch2/*
-3. https://punch2.gsi.de/auth/callback
-4. https://punch2/auth/callback
+For Production:
+  Client ID: xrootd
+  Valid Redirect URIs:
+    - https://punch2.gsi.de/*
+  Valid Post Logout Redirect URIs:
+    - https://punch2.gsi.de/*
 
-Also add to Valid Post Logout Redirect URIs:
-1. https://punch2.gsi.de/*
-2. https://punch2/*
+For Development/Testing:
+  Client ID: xrootd-test
+  Valid Redirect URIs:
+    - https://localhost/*
+    - http://localhost/*
+  Valid Post Logout Redirect URIs:
+    - https://localhost/*
+    - http://localhost/*
 
-Client ID: xrootd
 Realm: wl
 Keycloak URL: https://id.gsi.de
 ```
@@ -833,17 +841,17 @@ Keycloak URL: https://id.gsi.de
 
 1. Log into Keycloak admin console: `https://id.gsi.de/admin`
 2. Select realm: `wl`
-3. Go to: Clients → `xrootd`
-4. Check "Valid Redirect URIs" field
-5. Should include: `https://punch2.gsi.de/*` and `https://punch2/*`
+3. For Production: Go to Clients → `xrootd`
+   - Check "Valid Redirect URIs" field
+   - Should include: `https://punch2.gsi.de/*`
+4. For Development: Go to Clients → `xrootd-test`
+   - Check "Valid Redirect URIs" field
+   - Should include: `https://localhost/*` and `http://localhost/*`
 
-**If you were previously using localhost:**
-
-The old redirect URIs were probably:
-- `http://localhost:8080/*` or
-- `http://localhost/*`
-
-Now you need the HTTPS production URIs listed above.
+**Important Notes:**
+- Production environments use the `xrootd` client with `https://punch2.gsi.de/*`
+- Development/test environments use the `xrootd-test` client with localhost redirect URIs
+- The `xrootd-test` client redirects to localhost for local development testing
 
 #### Issue: Can't log in / OIDC redirect fails (general)
 
@@ -871,6 +879,58 @@ sudo journalctl -u dataharbor-backend | grep redirect_uri
 # 3. HTTP vs HTTPS mismatch
 ```
 
+#### Issue: Redirects to localhost:5173 after login
+
+**Symptom**: After successful Keycloak login, browser redirects to `https://localhost:5173` instead of the production server.
+
+**Cause**: The `frontend.url` in the backend configuration is set to the development URL.
+
+**Solution**:
+
+```bash
+# Check current frontend URL setting
+grep -A 3 'frontend:' /root/dataharbor/config/backend-config-gsi-test-server.yaml
+
+# If it shows "https://localhost:5173", update it:
+sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
+
+# Change:
+#   frontend:
+#     url: "https://localhost:5173"
+# To:
+#   frontend:
+#     url: "https://punch2.gsi.de"  # Or your actual server hostname
+
+# Restart backend to apply changes
+sudo systemctl restart dataharbor-backend
+
+# Verify the service restarted successfully
+sudo systemctl status dataharbor-backend
+```
+
+#### Issue: "No tokens found for token ID" or "Not authenticated" errors
+
+**Symptom**: After logging in successfully, subsequent requests return 401 Unauthorized with message "Not authenticated". Backend logs show "No tokens found for token ID".
+
+**Cause**: The backend uses in-memory token storage. When the backend service restarts, all OAuth tokens are lost, but browser session cookies still reference the old (non-existent) token IDs.
+
+**Solution**: Log out and log back in to get a fresh token.
+
+```bash
+# Users must log out and log back in after:
+# 1. Backend service restarts
+# 2. Backend updates/deployments
+# 3. Configuration changes that require backend restart
+```
+
+**Production Considerations**:
+- In-memory token storage means tokens are lost on every restart
+- Users must re-authenticate after each deployment
+- Not suitable for load-balanced multi-instance deployments
+- Consider implementing persistent token storage (Redis, encrypted files) for production
+
+**Quick Fix**: Clear browser cookies or use incognito mode, then log in again.
+
 #### Issue: "Unauthorized" or "Forbidden" after login
 
 ```bash
@@ -892,17 +952,110 @@ grep -A 5 'allowed_roles:' /root/dataharbor/config/backend-config-gsi-test-serve
 # Check XRootD configuration in backend
 grep -A 10 'xrd:' /root/dataharbor/config/backend-config-gsi-test-server.yaml
 
-# Test XRootD connectivity directly
+# Test XRootD connectivity directly (if no auth required)
 xrdfs localhost:1094 ls /
 
 # If xrdfs works but DataHarbor doesn't, check backend logs
 sudo journalctl -u dataharbor-backend | grep -i xrd
 
 # Common issues:
-# - initial_dir path doesn't exist in XRootD
-# - XRootD authentication required but not configured
+# - initial_dir path doesn't match XRootD export path
+# - XRootD authentication required but token not passed correctly
 # - XRootD server not running
 ```
+
+**Symptom**: Directory listing returns 400 error or "permission denied"
+
+**Cause**: The `initial_dir` in backend config doesn't match the XRootD server's export configuration.
+
+**Solution**:
+
+1. Check what path XRootD is exporting:
+   ```bash
+   # Find XRootD export paths
+   grep -r 'all.export' /etc/xrootd/
+   ```
+
+2. Update backend configuration to match:
+   ```bash
+   # Edit backend config
+   sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
+   
+   # Update initial_dir to match XRootD export
+   # If XRootD exports "/" use:
+   xrd:
+     initial_dir: "/"
+   
+   # If XRootD exports "/data" use:
+   xrd:
+     initial_dir: "/data"
+   ```
+
+3. Restart backend:
+   ```bash
+   sudo systemctl restart dataharbor-backend
+   ```
+
+**Note**: XRootD at GSI typically exports `/` with authentication via OAuth tokens. DataHarbor passes the user's authentication token to XRootD for access control.
+
+#### Issue: XRootD returns "permission denied" or logs show "Anonymous client"
+
+**Symptom**: Directory browsing returns 400 error. XRootD logs (`/var/log/xrootd/http/xrootd.log`) show:
+```
+multiuser_UserSentry: Anonymous client; no user set, cannot change FS UIDs
+ofs_open: unknown.xxx:xx@localhost Unable to open /; permission denied
+```
+
+**Cause**: The `enable_ztn` flag is set to `false` in backend config, so the OAuth token is not being passed to XRootD.
+
+**Solution**:
+
+```bash
+# Edit backend config
+sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
+
+# Change enable_ztn from false to true:
+xrd:
+  enable_ztn: true  # Enable ZTN protocol (TLS + OAuth token authentication)
+
+# Restart backend
+sudo systemctl restart dataharbor-backend
+
+# Verify browsing works now
+```
+
+**Explanation**: XRootD at GSI requires OAuth token authentication via the ZTN protocol. When `enable_ztn: false`, the backend connects to XRootD using plain protocol without authentication, which XRootD rejects with "permission denied". Setting `enable_ztn: true` enables TLS and makes the backend pass the user's OAuth token (obtained from Keycloak) to XRootD for authentication.
+
+#### Issue: "empty directory path to list" error when browsing
+
+**Symptom**: Directory browsing returns 400 error with message "empty directory path to list". Browser Network tab shows payload with empty path: `{"path":"","page":1,"pageSize":500}`
+
+**Cause**: Frontend is not correctly retrieving or using the initial directory from the backend configuration.
+
+**Diagnosis**:
+
+```bash
+# Check if initialDir endpoint returns the correct value
+curl -k https://localhost/api/v1/xrd/initialDir
+
+# Should return: {"code":200,"data":"/","message":"success"}
+
+# Check backend logs for the actual error
+sudo journalctl -u dataharbor-backend | grep -A 2 "ls/paged"
+
+# Or check in browser DevTools Network tab:
+# - Request payload shows: {"path":"","page":1,"pageSize":500}
+# - Response shows: {"code":400,"error":"empty directory path to list"}
+```
+
+**Solution**: This is a frontend bug where the UI is not properly setting the path parameter before calling the directory listing API.
+
+**Workaround**: Check the frontend code to ensure it:
+1. Calls `/api/v1/xrd/initialDir` on page load
+2. Stores the returned directory path
+3. Uses that path (not empty string) when calling `/api/v1/xrd/ls/paged`
+
+**Note**: This is NOT a backend or XRootD configuration issue. The backend is correctly configured and working. The issue is in the frontend JavaScript code that builds the API request payload.
 
 #### Issue: XRootD authentication errors
 
@@ -1262,26 +1415,6 @@ du -sh /var/log/dataharbor/
 **Last Updated**: October 2025  
 **Tested On**: RHEL/AlmaLinux at GSI (punch2.gsi.de)  
 **Configuration**: HTTPS on port 443, Backend on port 22000, XRootD on ports 80/1094
-
----
-
-### Change Log
-
-**Version 2.0 (October 2025)**:
-
-- ✅ Updated to HTTPS configuration (port 443)
-- ✅ Removed port 80 HTTP redirect (conflicts with XRootD)
-- ✅ Changed from port 8080 to port 443 for frontend
-- ✅ Added clear separation between initial setup and version updates
-- ✅ Updated CORS configuration for HTTPS origins
-- ✅ Improved troubleshooting section
-- ✅ Added external access testing procedures
-- ✅ Production-tested configuration
-
-**Version 1.0 (Initial)**:
-
-- Initial port 8080 HTTP configuration
-- Basic setup instructions
 
 ---
 
