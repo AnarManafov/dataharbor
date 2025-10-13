@@ -24,6 +24,49 @@ ZTN enables token-based authentication on the native XRootD protocol using the s
 
 ---
 
+## Architecture Overview
+
+**Authentication & Authorization Flow**:
+
+```mermaid
+flowchart TD
+    Client["Client (DataHarbor Backend)<br/>Has OAuth token from Keycloak (id.gsi.de)"]
+    
+    Client -->|HTTP Port 80<br/>Bearer token in header| HTTP[http.header2cgi<br/>Extracts token]
+    Client -->|ZTN Port 1094<br/>TLS + token in env| ZTN[ZTN Protocol<br/>Token via environment]
+    
+    HTTP --> SciTokens[libXrdAccSciTokens<br/>- Validates token<br/>- Maps to Unix user]
+    ZTN --> SciTokens
+    
+    SciTokens --> Multiuser[libXrdMultiuser<br/>Sets UID/GID]
+    
+    Multiuser --> FS[Filesystem Access<br/>as mapped user]
+    
+    style Client fill:#e1f5fe
+    style SciTokens fill:#fff3e0
+    style Multiuser fill:#f3e5f5
+    style FS fill:#e8f5e9
+```
+
+**Key Components**:
+
+1. **SciTokens Library** (`libXrdAccSciTokens.so`):
+   - Validates OAuth tokens from Keycloak
+   - Maps token subject to Unix user via `/etc/xrootd/mapfile`
+   - Same library used for both HTTP and ZTN protocols
+
+2. **Multiuser Plugin** (`libXrdMultiuser.so`):
+   - Takes the mapped Unix username
+   - Sets filesystem UID/GID for file operations
+   - Files are created/accessed as the actual user, not as 'xrootd'
+
+3. **Token Mapping** (`/etc/xrootd/mapfile`):
+   - JSON file: `{"sub": "keycloak.username", "result": "unix_user"}`
+   - Example: `{"sub": "a.manafov", "result": "anarman"}`
+   - Shared between HTTP and ZTN protocols
+
+---
+
 ## Step 1: Verify/Create TLS Certificates
 
 ### Option A: Using Self-Signed Certificates (Development/Testing)
@@ -85,11 +128,19 @@ sec.protocol ztn -tokenlib libXrdAccSciTokens.so
 sec.protbind * only ztn
 ```
 
-**Important**: Keep all existing configuration directives:
-- `ofs.authorize`
-- `ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg`
-- `ofs.osslib ++ libXrdMultiuser.so`
-- `http.header2cgi Authorization authz`
+**Important Configuration Notes**:
+
+1. **DO NOT use `ofs.authorize`** - This directive loads the legacy Authfile-based authorization system and will cause errors. SciTokens handles authorization automatically.
+
+2. **Keep these existing directives**:
+   - `ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg` - Handles token validation and user mapping
+   - `ofs.osslib ++ libXrdMultiuser.so` - Maps authenticated users to Unix UID/GID
+   - `http.header2cgi Authorization authz` - Extracts Bearer token from HTTP headers
+
+3. **How it works**:
+   - **HTTP (port 80)**: Bearer token from HTTP header → SciTokens validates → maps to Unix user
+   - **ZTN (port 1094)**: Bearer token from environment/TLS → SciTokens validates → maps to Unix user
+   - Both protocols use the **same** `scitokens.cfg` and `mapfile` for token→user mapping
 
 ### Complete Configuration Example
 
@@ -101,29 +152,39 @@ all.export / r/w
 
 # HTTP Protocol (port 80)
 xrd.protocol XrdHttp:80 libXrdHttp.so
+
+# Multiuser plugin - maps authenticated user to Unix UID/GID
+ofs.osslib ++ libXrdMultiuser.so
+
+# SciTokens handles authentication AND authorization
+# Token validation + user mapping via scitokens.cfg and mapfile
+ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
+
+# HTTP: Pass Authorization header to SciTokens for token extraction
 http.header2cgi Authorization authz
+
+# Enable detailed token processing logs
+scitokens.trace all
 
 # TLS Configuration (Required for ZTN)
 xrd.tlsca certdir /etc/grid-security/certificates
 xrd.tls /etc/xrootd/hostcert.pem /etc/xrootd/hostkey.pem
 
 # Native Protocol Authentication (ZTN for port 1094)
+# Token-based authentication using SciTokens (same as HTTP)
 sec.protocol ztn -tokenlib libXrdAccSciTokens.so
 sec.protbind * only ztn
-
-# Authorization and Token Validation
-ofs.authorize
-ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
-
-# Multiuser Support
-ofs.osslib ++ libXrdMultiuser.so
-
-# Debug Token Processing
-scitokens.trace all
 
 # Include additional config files
 continue /etc/xrootd/config.d/
 ```
+
+**Key Points**:
+
+- **No `ofs.authorize`** - Removed because it triggers the legacy Authfile system
+- **SciTokens does it all** - Handles both authentication (token validation) and authorization (access control)
+- **Same user mapping** - Both HTTP and ZTN use `scitokens.cfg` + `mapfile` to map tokens to Unix users
+- **Multiuser plugin** - Takes the mapped Unix user and sets the filesystem UID/GID for file operations
 
 ---
 
@@ -132,6 +193,7 @@ continue /etc/xrootd/config.d/
 These files should **remain unchanged**:
 
 ### `/etc/xrootd/scitokens.cfg`
+
 ```ini
 [Global]
 audience = ...
@@ -145,6 +207,7 @@ name_mapfile = /etc/xrootd/mapfile
 ```
 
 ### `/etc/xrootd/mapfile`
+
 ```json
 [
   {"sub": "user1", "result": "mappeduser1"},
@@ -195,9 +258,93 @@ tail -f /var/log/xrootd/xrootd.log
 ```
 
 Look for:
+
 - `sec.protocol ztn` initialization messages
 - TLS certificate loaded successfully
 - No error messages about missing libraries
+
+---
+
+## Troubleshooting
+
+### Error: "Unable to find /opt/xrd/etc/Authfile; no such file or directory"
+
+**Symptom**: XRootD logs show:
+
+```text
+acc_AuthFile: Unable to find /opt/xrd/etc/Authfile; no such file or directory
+Config 0 authorization directives processed in /etc/xrootd/xrootd-http.cfg
+Authorization system initialization failed
+```
+
+**Cause**: The `ofs.authorize` directive is present in the configuration. This directive loads the **legacy Unix-style authorization system** that looks for an Authfile, which conflicts with modern SciTokens-based authentication.
+
+**Why this happens**: When using SciTokens + Multiuser setup:
+
+- **SciTokens library** (`libXrdAccSciTokens.so`) already handles:
+  - Token validation (signature, issuer, expiration)
+  - User mapping (token subject → Unix user via mapfile)
+  - Authorization (access control based on token claims)
+- **`ofs.authorize` alone** triggers the legacy system that expects `/opt/xrd/etc/Authfile`
+- You don't need both - SciTokens does everything!
+
+**Solution**:
+
+1. Check for the problematic directive:
+
+   ```bash
+   ssh root@punch2 "grep -n 'ofs.authorize' /etc/xrootd/xrootd-http.cfg"
+   ```
+
+2. Edit the configuration file:
+
+   ```bash
+   sudo nano /etc/xrootd/xrootd-http.cfg
+   ```
+
+3. **Remove the `ofs.authorize` line completely**:
+
+   ```bash
+   # WRONG - Remove this:
+   # ofs.authorize
+   
+   # CORRECT - Keep only this:
+   ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
+   ```
+
+4. Verify your configuration has this structure:
+
+   ```bash
+   # Multiuser plugin - maps authenticated user to Unix UID/GID
+   ofs.osslib ++ libXrdMultiuser.so
+   
+   # SciTokens handles authentication AND authorization
+   ofs.authlib ++ libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
+   
+   # HTTP: Pass Authorization header to SciTokens
+   http.header2cgi Authorization authz
+   
+   # ZTN: Token authentication on native protocol
+   sec.protocol ztn -tokenlib libXrdAccSciTokens.so
+   sec.protbind * only ztn
+   ```
+
+5. Restart XRootD:
+
+   ```bash
+   sudo systemctl restart xrootd@http
+   sudo tail -f /var/log/xrootd/xrootd.log  # Verify error is gone
+   ```
+
+**How the token→user mapping works**:
+
+1. **Client sends token** (via HTTP header or ZTN environment variable)
+2. **SciTokens validates** token against issuer (Keycloak at `https://id.gsi.de/realms/wl`)
+3. **SciTokens maps** token subject to Unix user using `/etc/xrootd/mapfile`
+4. **Multiuser plugin** sets filesystem UID/GID to the mapped Unix user
+5. **File operations** run as the mapped user, not as 'xrootd'
+
+**Note**: Both HTTP (port 80) and ZTN (port 1094) use the **same** SciTokens library, mapfile, and user mapping logic. The only difference is how the token is extracted (HTTP header vs. environment variable).
 
 ---
 
@@ -215,8 +362,8 @@ The **DataHarbor backend** will be updated to provide tokens via one of these me
 ## References
 
 - XRootD ZTN Protocol Documentation: CERN Indico Event 1483930
-- XRootD Security Configuration: https://xrootd.web.cern.ch/doc/dev56/sec_config.htm
-- SciTokens Library: https://github.com/scitokens/xrootd-scitokens
+- [XRootD Security Configuration](https://xrootd.web.cern.ch/doc/dev56/sec_config.htm)
+- [SciTokens Library](https://github.com/scitokens/xrootd-scitokens)
 
 ---
 
