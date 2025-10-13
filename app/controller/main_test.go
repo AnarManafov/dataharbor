@@ -32,11 +32,10 @@ func TestMain(m *testing.M) {
 			},
 		},
 		XRD: config.XRDConfig{
-			Host:         "localhost",
-			Port:         1094,
-			InitialDir:   "/tmp/",
-			UserRequired: false,
-			User:         "testuser",
+			Host:       "localhost",
+			Port:       1094,
+			InitialDir: "/tmp/",
+			User:       "testuser",
 		},
 		Auth: config.AuthConfig{
 			Enabled: false,
