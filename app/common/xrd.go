@@ -77,7 +77,9 @@ func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xroot
 		if authToken == "" {
 			return nil, fmt.Errorf("ZTN protocol enabled (enable_ztn=true) but no authentication token provided")
 		}
-		os.Setenv("BEARER_TOKEN", authToken)
+		if err := os.Setenv("BEARER_TOKEN", authToken); err != nil {
+			return nil, fmt.Errorf("failed to set BEARER_TOKEN environment variable: %w", err)
+		}
 		xc.logger.Debug("Creating XRootD client with ZTN (TLS + token)", "address", xc.address)
 	} else {
 		// Plain XRootD protocol: No TLS, no authentication
