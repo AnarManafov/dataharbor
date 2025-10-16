@@ -71,4 +71,4 @@ require (
 )
 
 // Use GitHub fork with TLS/ZTN support
-replace go-hep.org/x/hep => github.com/AnarManafov/hep v0.0.0-20251010093834-e168c6d4f72d
+replace go-hep.org/x/hep => github.com/AnarManafov/hep v0.0.0-20251016141130-3b922e389d37
