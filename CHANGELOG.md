@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2025-10-16
+
+### Added
+
+- add ZTN protocol support for OAuth token authentication (xrootd) (a703d7c)
+- enhance ZTN protocol configuration guide (docs) (e7dee77)
+- Update RPM packaging for DataHarbor backend and frontend (packaging) (299166a)
+
+### Fixed
+
+- handle error when setting BEARER_TOKEN (xrd) (405aafc)
+
+### Documentation
+
+- update README for improved clarity and formatting (02e87b6)
+
+### Maintenance
+
+- Updated coverage badge. (9be86b3, ee885ea, a7145a8, 7b00abf)
+
+### Style
+
+- reorder XRDConfig fields for consistency (tests) (c401b1f)
+
+### CI
+
+- update workflow triggers for packaging changes (8fd3933)
+
+### Other
+
+- Add GSI Deployment Guide for DataHarbor (fe8e1c1)
+- Update hep fork dependency with TLS/ZTN connection logging (05abd9f)
+
 ## [0.14.6] - 2025-10-08
 
 ### Added
