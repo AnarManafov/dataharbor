@@ -2,7 +2,7 @@
 
 [![CI Backend](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml)
 [![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml)
-![Coverage](https://img.shields.io/badge/Coverage-19.3%25-red)
+![Coverage](https://img.shields.io/badge/Coverage-20.4%25-red)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Vue Version](https://img.shields.io/badge/Vue.js-3.0+-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
