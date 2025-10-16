@@ -178,7 +178,29 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
         subprocess.run(
             ["cp", "-r", f"{source_dir}/dist/.", dest_dir], check=True)
 
-        # Copy nginx.conf to SOURCES directory if provided
+        # Copy nginx templates to SOURCES
+        nginx_templates = [
+            "packaging/nginx/nginx-http-simple.conf",
+            "packaging/nginx/nginx-https-proxy.conf",
+            "packaging/nginx/nginx-gsi.conf"
+        ]
+        os.makedirs(f"{build_dir}/SOURCES/../nginx", exist_ok=True)
+        for template in nginx_templates:
+            template_path = os.path.join(original_dir, template)
+            if os.path.exists(template_path):
+                shutil.copy(template_path, f"{build_dir}/SOURCES/../nginx/")
+                print(f"Copied nginx template: {template}")
+
+        # Copy frontend config example
+        frontend_config_example = os.path.join(
+            original_dir, "packaging/config/config.json.example")
+        if os.path.exists(frontend_config_example):
+            os.makedirs(f"{build_dir}/SOURCES/../config", exist_ok=True)
+            shutil.copy(frontend_config_example,
+                        f"{build_dir}/SOURCES/../config/")
+            print(f"Copied frontend config example: {frontend_config_example}")
+
+        # Copy nginx.conf to SOURCES directory if provided (for backward compatibility)
         if nginx_conf_path and os.path.exists(nginx_conf_path):
             print("Copying nginx.conf to SOURCES directory...")
             subprocess.run(
@@ -200,6 +222,25 @@ def build_package(app_name, source_dir, spec_file, version, nginx_conf_path=None
         # Copy the binary to SOURCES
         if os.path.exists(f"{source_dir}/{app_name}"):
             shutil.copy(f"{source_dir}/{app_name}", f"{build_dir}/SOURCES/")
+
+            # Copy systemd service file
+            systemd_service_path = os.path.join(
+                original_dir, "packaging/systemd/dataharbor-backend.service")
+            if os.path.exists(systemd_service_path):
+                os.makedirs(f"{build_dir}/SOURCES/../systemd", exist_ok=True)
+                shutil.copy(systemd_service_path,
+                            f"{build_dir}/SOURCES/../systemd/")
+                print(f"Copied systemd service file: {systemd_service_path}")
+
+            # Copy config example
+            config_example_path = os.path.join(
+                original_dir, "packaging/config/application.yaml.example")
+            if os.path.exists(config_example_path):
+                os.makedirs(f"{build_dir}/SOURCES/../config", exist_ok=True)
+                shutil.copy(config_example_path,
+                            f"{build_dir}/SOURCES/../config/")
+                print(f"Copied config example: {config_example_path}")
+
             # Create source tarball for backend
             orig_dir = os.getcwd()
             os.chdir(f"{build_dir}/SOURCES")

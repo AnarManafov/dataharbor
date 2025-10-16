@@ -235,49 +235,31 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
 
 #### Backend Quick Setup
 
-**Important:** The backend RPM only installs the binary. You must create the systemd service file manually.
+**New in this version:** The backend RPM now includes a systemd service file, example configuration, and creates standard directories automatically!
 
 **Quick Setup Steps:**
 
-1. **Prepare your configuration file** at a known location (e.g., `/etc/dataharbor/application.yaml` or `/root/dataharbor/config/backend-config.yaml`)
-
-2. **Create log directory** (if using file logging):
+1. **Create your configuration from the example:**
    ```bash
-   sudo mkdir -p /var/log/dataharbor
-   sudo chmod 755 /var/log/dataharbor
+   sudo cp /etc/dataharbor/application.yaml.example /etc/dataharbor/application.yaml
+   sudo nano /etc/dataharbor/application.yaml
    ```
 
-3. **Create systemd service file** with correct config path:
+2. **Update required settings in the config:**
+   - OIDC `client_secret` (get from your OIDC provider)
+   - OIDC `session_secret` (generate with: `openssl rand -base64 32`)
+   - `frontend.url` (your actual domain, e.g., `https://your-domain.com`)
+   - SSL certificate paths
+   - XRootD server settings
+
+3. **Enable and start the service:**
    ```bash
-   sudo tee /etc/systemd/system/dataharbor-backend.service << 'EOF'
-   [Unit]
-   Description=DataHarbor Backend Service
-   After=network.target
-
-   [Service]
-   Type=simple
-   ExecStart=/usr/local/bin/dataharbor-backend --config=/path/to/your/config.yaml
-   Restart=always
-   RestartSec=5
-   StandardOutput=journal
-   StandardError=journal
-
-   [Install]
-   WantedBy=multi-user.target
-   EOF
-   ```
-   
-   Replace `/path/to/your/config.yaml` with your actual config file path.
-
-4. **Enable and start the service:**
-   ```bash
-   sudo systemctl daemon-reload
    sudo systemctl enable dataharbor-backend
    sudo systemctl start dataharbor-backend
    sudo systemctl status dataharbor-backend
    ```
 
-5. **Verify deployment:**
+4. **Verify deployment:**
    ```bash
    # Test health endpoint
    curl -k https://localhost:8081/health
@@ -288,67 +270,80 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
    sudo journalctl -u dataharbor-backend -n 50
    ```
 
-See the **[SystemD Services](#systemd-services)** section below for detailed instructions.
+**What's included automatically:**
+- ✅ SystemD service file at `/usr/lib/systemd/system/dataharbor-backend.service`
+- ✅ Configuration directory at `/etc/dataharbor/`
+- ✅ Log directory at `/var/log/dataharbor/`
+- ✅ Example configuration with detailed comments
+
+**Note:** If you need a custom config path, you can override it with a systemd drop-in file (see [SystemD Services](#systemd-services) section).
 
 #### Frontend Quick Setup
 
+**New in this version:** The frontend RPM now includes multiple nginx configuration templates for different deployment scenarios!
+
 **Installation Locations:**
 - Frontend files: `/usr/share/dataharbor-frontend/`
-- Nginx config template: `/etc/dataharbor-frontend/nginx/nginx.conf`
+- Nginx templates: `/etc/dataharbor-frontend/nginx/templates/`
+- Example config: `/usr/share/dataharbor-frontend/config.json.example`
 
 **Quick Setup Steps:**
 
-1. **Copy your frontend config:**
+1. **Choose and copy the appropriate nginx template:**
+
+   **For production with HTTPS (recommended):**
    ```bash
-   sudo cp /path/to/your/frontend-config.json \
+   sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-https-proxy.conf \
+           /etc/nginx/conf.d/dataharbor.conf
+   ```
+
+   **For simple HTTP (development/testing):**
+   ```bash
+   sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-http-simple.conf \
+           /etc/nginx/conf.d/dataharbor.conf
+   ```
+
+   **For GSI deployment (HTTPS on port 443, backend on port 22000):**
+   ```bash
+   sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-gsi.conf \
+           /etc/nginx/conf.d/dataharbor.conf
+   ```
+
+2. **Edit the nginx config for your environment:**
+   ```bash
+   sudo nano /etc/nginx/conf.d/dataharbor.conf
+   ```
+   Update:
+   - `server_name` (your actual hostname/domain)
+   - SSL certificate paths (for HTTPS templates)
+   - Backend `proxy_pass` URL and port if different
+
+3. **Create frontend configuration:**
+   ```bash
+   sudo cp /usr/share/dataharbor-frontend/config.json.example \
            /usr/share/dataharbor-frontend/config.json
+   sudo nano /usr/share/dataharbor-frontend/config.json
    ```
+   Update:
+   - `apiBaseUrl` (`"/api"` for reverse proxy, or direct backend URL)
+   - OIDC settings (authority, client_id, redirect_uri)
 
-2. **Configure nginx (choose one option):**
-
-   **Option A - Simple (Direct backend access):**
+4. **Test and reload nginx:**
    ```bash
-   sudo cp /etc/dataharbor-frontend/nginx/nginx.conf /etc/nginx/conf.d/dataharbor.conf
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-   Frontend config.json should have: `"apiBaseUrl": "https://your-backend-server:8081/api"`
-
-   **Option B - Recommended (Nginx reverse proxy):**
-   ```bash
-   sudo tee /etc/nginx/conf.d/dataharbor.conf << 'EOF'
-   server {
-       listen 80;
-       server_name your-hostname;
-       root /usr/share/dataharbor-frontend;
-       index index.html;
-       
-       location / {
-           try_files $uri $uri/ /index.html;
-       }
-       
-       location /api/ {
-           proxy_pass https://localhost:8081;
-           proxy_ssl_verify off;
-           proxy_set_header Host $host;
-       }
-   }
-   EOF
-   
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
-   Frontend config.json should have: `"apiBaseUrl": "/api"`
-
-3. **Enable and start nginx:**
-   ```bash
+   sudo nginx -t
    sudo systemctl enable nginx
-   sudo systemctl start nginx
+   sudo systemctl reload nginx
    ```
 
-4. **Test:**
+5. **Test in browser:**
    ```bash
-   curl http://localhost/
-   # Open browser: http://your-hostname/
+   # Open browser: https://your-hostname/
    ```
+
+**Available templates:**
+- ✅ `nginx-http-simple.conf` - Basic HTTP (development/testing)
+- ✅ `nginx-https-proxy.conf` - HTTPS with reverse proxy (production)
+- ✅ `nginx-gsi.conf` - GSI-specific configuration
 
 See the **[Frontend Deployment](#frontend-deployment-using-rpm)** section below for detailed instructions.
 
@@ -362,6 +357,19 @@ After installation, the packages are deployed to the following locations:
 # Binary location
 /usr/local/bin/dataharbor-backend
 
+# SystemD service file
+/usr/lib/systemd/system/dataharbor-backend.service
+
+# Configuration directory and example
+/etc/dataharbor/
+/etc/dataharbor/application.yaml.example
+
+# Log directory
+/var/log/dataharbor/
+
+# Documentation
+/usr/share/doc/dataharbor-backend/README.md
+
 # Additional files
 /usr/local/share/dataharbor/arch-info.txt
 ```
@@ -371,11 +379,16 @@ After installation, the packages are deployed to the following locations:
 ```bash
 # Web application files
 /usr/share/dataharbor-frontend/index.html
-/usr/share/dataharbor-frontend/config.json
+/usr/share/dataharbor-frontend/config.json.example
 /usr/share/dataharbor-frontend/silent-renew.html
 /usr/share/dataharbor-frontend/assets/
 
-# Nginx configuration
+# Nginx configuration templates
+/etc/dataharbor-frontend/nginx/templates/nginx-http-simple.conf
+/etc/dataharbor-frontend/nginx/templates/nginx-https-proxy.conf
+/etc/dataharbor-frontend/nginx/templates/nginx-gsi.conf
+
+# Default nginx configuration (for backward compatibility)
 /etc/dataharbor-frontend/nginx/nginx.conf
 ```
 
@@ -491,9 +504,18 @@ If you've installed the frontend RPM package, follow these steps:
 
 **Installation Locations:**
 - Frontend files: `/usr/share/dataharbor-frontend/`
-- Nginx config template: `/etc/dataharbor-frontend/nginx/nginx.conf`
+- Nginx templates: `/etc/dataharbor-frontend/nginx/templates/`
+- Example config: `/usr/share/dataharbor-frontend/config.json.example`
 
-1. **Update the frontend config.json:**
+1. **Choose the appropriate nginx template:**
+
+   The RPM includes three nginx templates for different scenarios:
+
+   - **`nginx-http-simple.conf`** - Basic HTTP on port 80 (development/testing)
+   - **`nginx-https-proxy.conf`** - HTTPS with reverse proxy (recommended for production)
+   - **`nginx-gsi.conf`** - GSI-specific: HTTPS on port 443, backend on port 22000
+
+2. **Create the frontend config.json:**
 
    The frontend needs to know where your backend API is located. Copy your custom config:
 

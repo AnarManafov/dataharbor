@@ -5,6 +5,13 @@ This guide provides step-by-step instructions for deploying DataHarbor on GSI se
 **Document Status**: Production-ready configuration for HTTPS deployment  
 **Last Updated**: October 2025 (Port 443 HTTPS configuration)
 
+**✨ What's New:**
+- **Included SystemD service file** - No need to create manually!
+- **Multiple nginx templates** - Choose GSI-specific, HTTPS, or simple HTTP
+- **Automatic directory creation** - `/etc/dataharbor/` and `/var/log/dataharbor/` created automatically
+- **Example configurations** - Well-documented templates included
+- **Simplified installation** - Fewer manual steps required
+
 ---
 
 ## 📋 Table of Contents
@@ -25,7 +32,7 @@ This guide provides step-by-step instructions for deploying DataHarbor on GSI se
 - ✅ Root access to GSI server
 - ✅ SSH access with public key authentication
 - ✅ XRootD server already running on the system (port 80 and 1094)
-- ✅ SSL certificates available (self-signed acceptable for testing)
+- ✅ SSL certificates from GEANT CA (located at `/etc/ssl/certs/` and `/etc/ssl/private/`)
 - ✅ OIDC provider configured at Keycloak (id.gsi.de)
 
 ### Pre-existing Infrastructure
@@ -53,16 +60,19 @@ This guide provides step-by-step instructions for deploying DataHarbor on GSI se
 
 ### File Locations (Standard)
 
-| Item             | Location                                                      |
-| ---------------- | ------------------------------------------------------------- |
-| Backend binary   | `/usr/local/bin/dataharbor-backend`                           |
-| Backend config   | `/root/dataharbor/config/backend-config-gsi-test-server.yaml` |
-| Backend service  | `/etc/systemd/system/dataharbor-backend.service`              |
-| Backend logs     | `/var/log/dataharbor/dataharbor-backend.log`                  |
-| Frontend files   | `/usr/share/dataharbor-frontend/`                             |
-| Frontend config  | `/usr/share/dataharbor-frontend/config.json`                  |
-| Nginx config     | `/etc/nginx/conf.d/dataharbor.conf`                           |
-| SSL certificates | `/root/dataharbor/config/cert/server.crt` and `server.key`    |
+| Item                      | Location                                                                    |
+| ------------------------- | --------------------------------------------------------------------------- |
+| Backend binary            | `/usr/local/bin/dataharbor-backend`                                         |
+| Backend config (custom)   | `/root/dataharbor/config/backend-config-gsi-test-server.yaml`               |
+| Backend config (default)  | `/etc/dataharbor/application.yaml` ✨ **New!**                               |
+| Backend service (package) | `/usr/lib/systemd/system/dataharbor-backend.service` ✨ **New!**             |
+| Backend service (custom)  | `/etc/systemd/system/dataharbor-backend.service` (override)                 |
+| Backend logs              | `/var/log/dataharbor/dataharbor-backend.log`                                |
+| Frontend files            | `/usr/share/dataharbor-frontend/`                                           |
+| Frontend config           | `/usr/share/dataharbor-frontend/config.json`                                |
+| Frontend nginx templates  | `/etc/dataharbor-frontend/nginx/templates/` ✨ **New!**                      |
+| Nginx config              | `/etc/nginx/conf.d/dataharbor.conf`                                         |
+| SSL certificates          | `/etc/ssl/certs/punch2.gsi.de.pem` and `/etc/ssl/private/punch2.gsi.de.key` |
 
 ---
 
@@ -76,37 +86,19 @@ This section covers the complete initial setup. These steps are **only performed
 
 ### Step 1: Prepare Configuration Directory
 
-Create the configuration directory structure before installing RPM packages:
+Create the configuration directory for your custom config (the RPM will create `/etc/dataharbor/` automatically):
 
 ```bash
-# Create configuration directory
-sudo mkdir -p /root/dataharbor/config/cert
-
-# Create log directory
-sudo mkdir -p /var/log/dataharbor
-sudo chmod 755 /var/log/dataharbor
+# Create custom configuration directory (optional, if not using /etc/dataharbor/)
+sudo mkdir -p /root/dataharbor/config
 ```
 
-### Step 2: Prepare SSL Certificates
+**Note**: 
+- The backend RPM now creates `/var/log/dataharbor/` and `/etc/dataharbor/` automatically
+- GSI servers use centralized SSL certificates from GEANT CA located at `/etc/ssl/certs/punch2.gsi.de.pem` and `/etc/ssl/private/punch2.gsi.de.key`
+- Certificates are managed by GSI IT and are valid for one year
 
-Place your SSL certificates in the configuration directory:
-
-```bash
-# Copy your SSL certificates (adjust paths as needed)
-sudo cp /path/to/your/server.crt /root/dataharbor/config/cert/
-sudo cp /path/to/your/server.key /root/dataharbor/config/cert/
-
-# Set proper permissions
-sudo chmod 600 /root/dataharbor/config/cert/server.key
-sudo chmod 644 /root/dataharbor/config/cert/server.crt
-
-# Verify certificates exist
-ls -la /root/dataharbor/config/cert/
-```
-
-**Note**: Self-signed certificates are acceptable for testing environments.
-
-### Step 3: Create Backend Configuration File
+### Step 2: Create Backend Configuration File
 
 Create the backend configuration file **before** installing the RPM:
 
@@ -135,8 +127,8 @@ server:
       - https://punch2.gsi.de
   ssl:
     enabled: true
-    cert_file: /root/dataharbor/config/cert/server.crt
-    key_file: /root/dataharbor/config/cert/server.key
+    cert_file: /etc/ssl/certs/punch2.gsi.de.pem
+    key_file: /etc/ssl/private/punch2.gsi.de.key
 
 logging:
   level: info
@@ -233,32 +225,47 @@ rpm -ql dataharbor-frontend
 
 **Installation Locations After RPM Install:**
 - Backend binary: `/usr/local/bin/dataharbor-backend`
+- **Backend systemd service**: `/usr/lib/systemd/system/dataharbor-backend.service` ✨ **New!**
+- **Backend config directory**: `/etc/dataharbor/` ✨ **New!**
+- **Backend log directory**: `/var/log/dataharbor/` ✨ **New!**
 - Frontend files: `/usr/share/dataharbor-frontend/`
+- **Frontend nginx templates**: `/etc/dataharbor-frontend/nginx/templates/` ✨ **New!**
 
-### Step 6: Create SystemD Service for Backend
+### Step 6: Configure SystemD Service for Custom Config Path
 
-The backend RPM only installs the binary. You must create the systemd service file manually:
+**New:** The backend RPM now includes a systemd service file! However, since we're using a custom config path (`/root/dataharbor/config/`), we need to override the default.
+
+**Option A: Use systemd drop-in file (recommended):**
 
 ```bash
-sudo tee /etc/systemd/system/dataharbor-backend.service << 'EOF'
-[Unit]
-Description=DataHarbor Backend Service
-After=network.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/dataharbor-backend --config=/root/dataharbor/config/backend-config-gsi-test-server.yaml
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# Create a drop-in override
+sudo systemctl edit dataharbor-backend
 ```
 
-**Note**: Adjust the `--config` path if you used a different location.
+Add the following, then save and exit:
+
+```ini
+[Service]
+Environment="CONFIG_FILE=/root/dataharbor/config/backend-config-gsi-test-server.yaml"
+```
+
+**Option B: Copy and modify the service file:**
+
+```bash
+# Copy to /etc/systemd/system/ (takes precedence over /usr/lib/systemd/system/)
+sudo cp /usr/lib/systemd/system/dataharbor-backend.service \
+        /etc/systemd/system/dataharbor-backend.service
+
+# Edit the copied file
+sudo nano /etc/systemd/system/dataharbor-backend.service
+```
+
+Change the `ExecStart` line to:
+```
+ExecStart=/usr/local/bin/dataharbor-backend --config=/root/dataharbor/config/backend-config-gsi-test-server.yaml
+```
+
+**Note**: If you used the default location `/etc/dataharbor/application.yaml`, no override is needed!
 
 ### Step 7: Enable and Start Backend Service
 
@@ -309,7 +316,26 @@ cat /usr/share/dataharbor-frontend/config.json
 
 ### Step 10: Configure Nginx (HTTPS on Port 443)
 
-Create the nginx configuration for HTTPS access:
+**New:** The frontend RPM now includes a GSI-specific nginx template!
+
+**Option A: Use the included GSI template (recommended):**
+
+```bash
+# Copy the GSI-specific nginx template
+sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-gsi.conf \
+        /etc/nginx/conf.d/dataharbor.conf
+
+# Edit for your server
+sudo nano /etc/nginx/conf.d/dataharbor.conf
+```
+
+Update the following in the config:
+- Replace `punch2.gsi.de` with your actual server hostname
+- Update SSL certificate paths if they differ from the defaults
+
+**Option B: Create custom config (if needed):**
+
+If you need to customize further, you can create your own config:
 
 ```bash
 sudo tee /etc/nginx/conf.d/dataharbor.conf << 'EOF'
@@ -318,8 +344,8 @@ server {
     server_name punch2.gsi.de;
 
     # SSL Configuration
-    ssl_certificate /root/dataharbor/config/cert/server.crt;
-    ssl_certificate_key /root/dataharbor/config/cert/server.key;
+    ssl_certificate /etc/ssl/certs/punch2.gsi.de.pem;
+    ssl_certificate_key /etc/ssl/private/punch2.gsi.de.key;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers HIGH:!aNULL:!MD5;
 
@@ -360,7 +386,8 @@ EOF
 **Important Notes**:
 - **Replace `punch2.gsi.de`** with your actual server hostname (use full domain name)
 - **Port 443 only**: No HTTP redirect on port 80 (XRootD uses port 80)
-- SSL certificates path must match your actual certificate locations
+- SSL certificates are managed by GSI IT and located at `/etc/ssl/certs/` and `/etc/ssl/private/`
+- Certificates are issued by GEANT CA and valid for one year
 
 ### Step 11: Comment Out Default Nginx Server Block
 
@@ -436,7 +463,7 @@ Open your browser and navigate to:
 **URL**: `https://punch2.gsi.de/` (replace with your server hostname)
 
 **Verify**:
-- ✅ Frontend loads successfully (you may need to accept self-signed cert)
+- ✅ Frontend loads successfully
 - ✅ No console errors in browser DevTools (F12)
 - ✅ Can click "Login" button
 - ✅ Redirects to Keycloak (id.gsi.de)
@@ -460,10 +487,12 @@ This section covers upgrading to a new version of DataHarbor. These steps are pe
 
 **What does NOT need to be changed:**
 - ❌ Backend config YAML (unless new features require it)
-- ❌ SystemD service file (already created during initial setup)
+- ❌ SystemD service file override (if you created one, it persists)
 - ❌ Nginx configuration (already created during initial setup)
 - ❌ SSL certificates (unless renewing/replacing)
-- ❌ Log directory (already exists)
+- ❌ Log and config directories (already exist)
+
+**Note:** The backend systemd service file is now managed by RPM, but your custom override (if any) takes precedence.
 
 ### Update Procedure
 
@@ -713,19 +742,24 @@ openssl s_client -connect localhost:22000 -showcerts
 
 ```bash
 # Verify SSL certificate files exist and have correct permissions
-ls -la /root/dataharbor/config/cert/
+ls -la /etc/ssl/certs/punch2.gsi.de.pem
+ls -la /etc/ssl/private/punch2.gsi.de.key
 
 # Certificates should be:
-# - server.crt: 644 (readable by all)
-# - server.key: 600 (readable by owner only)
+# - punch2.gsi.de.pem: 644 (readable by all)
+# - punch2.gsi.de.key: 600 or 400 (readable by owner/xrootd only)
 
-# Fix permissions if needed
-sudo chmod 644 /root/dataharbor/config/cert/server.crt
-sudo chmod 600 /root/dataharbor/config/cert/server.key
+# Verify certificate validity
+openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -dates
+
+# Check if certificate is expired
+openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -checkend 0
 
 # Restart backend
 sudo systemctl restart dataharbor-backend
 ```
+
+**Note**: SSL certificates are managed by GSI IT. If certificates are expired or invalid, contact GSI IT to request renewal from GEANT CA.
 
 ### Frontend / Nginx Issues
 
@@ -1165,9 +1199,9 @@ tail -f /var/log/nginx/dataharbor-frontend-access.log
 # Nginx Configuration
 /etc/nginx/conf.d/dataharbor.conf
 
-# SSL Certificates
-/root/dataharbor/config/cert/server.crt
-/root/dataharbor/config/cert/server.key
+# SSL Certificates (managed by GSI IT)
+/etc/ssl/certs/punch2.gsi.de.pem
+/etc/ssl/private/punch2.gsi.de.key
 ```
 
 ### Port and Service Overview
@@ -1314,20 +1348,25 @@ curl -k https://localhost/api/health
 
 ### SSL Certificate Management
 
+GSI servers use SSL certificates issued by GEANT CA. These certificates are managed centrally by GSI IT.
+
 ```bash
 # Check certificate expiration
-openssl x509 -in /root/dataharbor/config/cert/server.crt -noout -dates
+openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -dates
+
+# Verify certificate is not expired
+openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -checkend 0
 
 # Verify certificate and key match
-openssl x509 -noout -modulus -in /root/dataharbor/config/cert/server.crt | openssl md5
-openssl rsa -noout -modulus -in /root/dataharbor/config/cert/server.key | openssl md5
+openssl x509 -noout -modulus -in /etc/ssl/certs/punch2.gsi.de.pem | openssl md5
+openssl rsa -noout -modulus -in /etc/ssl/private/punch2.gsi.de.key | openssl md5
 # Both should output the same hash
 
-# Set proper permissions
-sudo chmod 644 /root/dataharbor/config/cert/server.crt
-sudo chmod 600 /root/dataharbor/config/cert/server.key
-sudo chown root:root /root/dataharbor/config/cert/*
+# Check certificate details
+openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -text
 ```
+
+**Certificate Renewal**: Contact GSI IT when certificates are approaching expiration (typically valid for 1 year). GSI IT manages certificate renewal with GEANT CA.
 
 ### Secure Configuration Files
 
@@ -1409,13 +1448,3 @@ du -sh /var/log/dataharbor/
 - See **[FRONTEND_CONFIGURATION.md](./FRONTEND_CONFIGURATION.md)** - Frontend config reference
 - GitHub Issues: [https://github.com/AnarManafov/dataharbor/issues](https://github.com/AnarManafov/dataharbor/issues)
 
-### Document Information
-
-**Version**: 2.0 (HTTPS Production Configuration)  
-**Last Updated**: October 2025  
-**Tested On**: RHEL/AlmaLinux at GSI (punch2.gsi.de)  
-**Configuration**: HTTPS on port 443, Backend on port 22000, XRootD on ports 80/1094
-
----
-
-**End of GSI Deployment Guide**

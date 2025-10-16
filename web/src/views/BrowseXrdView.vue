@@ -229,6 +229,10 @@ onMounted(() => {
             }
             initialPath.value = homeDir
             getXrdHostName()
+
+            // Load the initial directory after setting the current directory
+            // This ensures the file list is populated immediately after login
+            loadDirectory(targetPath)
         })
         .catch((error) => {
             if (error) {

@@ -1,0 +1,35 @@
+[Unit]
+Description=DataHarbor Backend Service
+Documentation=https://github.com/AnarManafov/dataharbor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Environment variable for config file path (can be overridden)
+Environment="CONFIG_FILE=/etc/dataharbor/application.yaml"
+
+# Start the backend with the config file
+ExecStart=/usr/local/bin/dataharbor-backend --config=${CONFIG_FILE}
+
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Logging to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dataharbor-backend
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
