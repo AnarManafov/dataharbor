@@ -2,9 +2,9 @@
 
 This directory contains the RPM packaging infrastructure for DataHarbor backend and frontend.
 
-## 📁 Directory Structure
+## Directory Structure
 
-```
+```text
 packaging/
 ├── build_rpm.py                          # RPM build script
 ├── generate_changelog.py                 # Changelog generator
@@ -22,7 +22,7 @@ packaging/
 └── README.md                            # This file
 ```
 
-## 🚀 Building RPM Packages
+## Building RPM Packages
 
 ### Prerequisites
 
@@ -61,7 +61,7 @@ ls -la /tmp/all-rpms/
 # dataharbor-frontend-1.2.0-1.el8.noarch.rpm
 ```
 
-## 📦 What Gets Installed
+## What Gets Installed
 
 ### Backend Package (`dataharbor-backend`)
 
@@ -83,7 +83,7 @@ ls -la /tmp/all-rpms/
 | Nginx Templates      | `/etc/dataharbor-frontend/nginx/templates/`          | Multiple nginx configs   |
 | Default Nginx Config | `/etc/dataharbor-frontend/nginx/nginx.conf`          | Simple HTTP config       |
 
-## 🔧 Post-Installation Setup
+## Post-Installation Setup
 
 ### Backend Setup (Quick)
 
@@ -122,19 +122,21 @@ sudo nano /usr/share/dataharbor-frontend/config.json
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-## 📝 Nginx Configuration Templates
+## Nginx Configuration Templates
 
 ### 1. Simple HTTP (`nginx-http-simple.conf`)
 
 **Use case:** Development, testing, non-production environments
 
 **Features:**
+
 - HTTP on port 80
 - No SSL
 - No reverse proxy
 - Frontend accesses backend directly
 
 **Frontend config.json:**
+
 ```json
 {
   "apiBaseUrl": "https://backend-server:8081/api"
@@ -146,6 +148,7 @@ sudo nginx -t && sudo systemctl reload nginx
 **Use case:** Production deployments (recommended)
 
 **Features:**
+
 - HTTPS on port 443
 - SSL/TLS enabled
 - Reverse proxy to backend
@@ -153,6 +156,7 @@ sudo nginx -t && sudo systemctl reload nginx
 - HTTP to HTTPS redirect
 
 **Frontend config.json:**
+
 ```json
 {
   "apiBaseUrl": "/api"
@@ -160,6 +164,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 
 **Customization needed:**
+
 - Replace `your-hostname.example.com` with actual domain
 - Update SSL certificate paths
 - Adjust backend port if not 8081
@@ -169,12 +174,14 @@ sudo nginx -t && sudo systemctl reload nginx
 **Use case:** GSI servers with XRootD on port 80
 
 **Features:**
+
 - HTTPS on port 443 only (no port 80)
 - Backend on port 22000
 - SSL with GEANT CA certificates
 - Reverse proxy to backend
 
 **Frontend config.json:**
+
 ```json
 {
   "apiBaseUrl": "/api"
@@ -182,11 +189,12 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 
 **Customization needed:**
+
 - Replace `punch2.gsi.de` with actual server hostname
 - Update SSL certificate paths
 - Verify backend port (22000)
 
-## 🔒 SystemD Service Features
+## SystemD Service Features
 
 The included systemd service file provides:
 
@@ -205,12 +213,13 @@ sudo systemctl edit dataharbor-backend
 ```
 
 Add:
+
 ```ini
 [Service]
 Environment="CONFIG_FILE=/custom/path/config.yaml"
 ```
 
-## 🛠 Customization Examples
+## Customization Examples
 
 ### Using Custom Config Location
 
@@ -243,14 +252,14 @@ sudo nano /etc/systemd/system/dataharbor-backend@instance1.service
 sudo systemctl enable --now dataharbor-backend@instance1
 ```
 
-## 📚 Documentation References
+## Documentation References
 
 - [DEPLOYMENT.md](../docs/DEPLOYMENT.md) - General deployment guide
 - [DEPLOYMENT_GSI.md](../docs/DEPLOYMENT_GSI.md) - GSI-specific deployment
 - [BACKEND_CONFIGURATION.md](../docs/BACKEND_CONFIGURATION.md) - Backend config reference
 - [FRONTEND_CONFIGURATION.md](../docs/FRONTEND_CONFIGURATION.md) - Frontend config reference
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### RPM Build Fails
 
@@ -294,7 +303,7 @@ sudo tail -f /var/log/nginx/dataharbor-frontend-error.log
 ls -la /etc/dataharbor-frontend/nginx/templates/
 ```
 
-## 🔄 Updating Packages
+## Updating Packages
 
 When updating to a new version:
 
@@ -315,7 +324,7 @@ sudo cp /path/to/your/config.json /usr/share/dataharbor-frontend/
 sudo systemctl reload nginx
 ```
 
-## 📋 Version Management
+## Version Management
 
 The version is managed in `package.json` at repository root:
 
@@ -327,7 +336,7 @@ The version is managed in `package.json` at repository root:
 
 This version is automatically used by `build_rpm.py` unless overridden with `-v` flag.
 
-## 🤝 Contributing
+## Contributing
 
 When adding new templates or modifying packaging:
 
@@ -337,6 +346,6 @@ When adding new templates or modifying packaging:
 4. Test RPM build locally
 5. Update this README
 
-## 📄 License
+## License
 
 GPL-3.0 - See [LICENSE](../LICENSE) file for details
