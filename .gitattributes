@@ -1,0 +1,6 @@
+# Shell scripts should always use LF line endings (global)
+*.sh text eol=lf
+
+# All text files in docker folder must have Unix line endings
+# This ensures Docker containers work correctly across Windows, Linux, and macOS
+docker/** text=auto eol=lf

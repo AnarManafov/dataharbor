@@ -37,7 +37,7 @@ FROM rockylinux:9
 
 # Minimal runtime dependencies only
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    dnf install -y openssl ca-certificates && \
+    dnf install -y openssl ca-certificates dos2unix && \
     dnf clean all
 
 # Copy XRootD binaries and libraries from builder
@@ -94,7 +94,13 @@ COPY docker/xrootd/configs/mapfile /etc/xrootd/mapfile
 # Copy scripts
 COPY docker/xrootd/scripts/setup-test-data.sh /usr/local/bin/setup-test-data.sh
 COPY docker/xrootd/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/setup-test-data.sh \
+
+# Convert line endings for all config files and scripts (fixes WSL/Windows CRLF issues)
+RUN dos2unix /etc/xrootd/*.cfg \
+    /etc/xrootd/mapfile \
+    /usr/local/bin/setup-test-data.sh \
+    /usr/local/bin/docker-entrypoint.sh && \
+    chmod +x /usr/local/bin/setup-test-data.sh \
     /usr/local/bin/docker-entrypoint.sh && \
     chown -R xrootd:xrootd /etc/xrootd && \
     chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
