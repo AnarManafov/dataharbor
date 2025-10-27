@@ -2,10 +2,11 @@
 
 FROM alpine:3.22
 
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl dos2unix
 
 COPY docker/cert-init/generate-dev-certs.sh /usr/local/bin/generate-dev-certs.sh
-RUN chmod +x /usr/local/bin/generate-dev-certs.sh
+RUN dos2unix /usr/local/bin/generate-dev-certs.sh && \
+    chmod +x /usr/local/bin/generate-dev-certs.sh
 
 WORKDIR /certs
 
