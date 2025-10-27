@@ -275,18 +275,6 @@ export VITE_API_BASE_URL="https://api.yourdomain.com"
 }
 ```
 
-### Container Deployment
-
-For container deployments, mount configuration as volume:
-
-```bash
-# Mount external config
-docker run -v /path/to/config.json:/app/public/config.json dataharbor-frontend
-
-# Environment-based config
-docker run -e VITE_API_BASE_URL="https://api.example.com" dataharbor-frontend
-```
-
 ## SSL Certificate Management
 
 ### Certificate Sources Priority

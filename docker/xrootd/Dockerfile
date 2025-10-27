@@ -1,0 +1,121 @@
+# XRootD Server - Multi-stage build for minimal runtime image
+# Version: XRootD 5.9.0 from official CERN repository
+# Features: ZTN protocol, TLS, SciTokens auth, multiuser plugin
+# Platform: linux/amd64 required (ARM64 packages unavailable)
+
+FROM rockylinux:9 AS builder
+
+# Install XRootD repository and base dependencies
+# Using BuildKit cache mount for faster rebuilds
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y epel-release && \
+    curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
+    dnf install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
+    dnf config-manager --set-enabled crb && \
+    dnf clean all
+
+# Install XRootD 5.9.0 and plugins
+# Note: xrootd-multiuser comes from OSG repo, others from official XRootD repo
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y \
+    xrootd-5.9.0 \
+    xrootd-server-5.9.0 \
+    xrootd-client-5.9.0 \
+    xrootd-libs-5.9.0 \
+    xrootd-scitokens-5.9.0 \
+    xrootd-multiuser \
+    openssl \
+    libcap \
+    && dnf clean all
+
+# Grant capabilities for multiuser plugin to change filesystem UIDs/GIDs
+RUN setcap 'cap_setuid,cap_setgid=+ep' /usr/bin/xrootd
+
+RUN mkdir -p /usr/lib64/xrootd /usr/share/xrootd
+
+FROM rockylinux:9
+
+# Minimal runtime dependencies only
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y openssl ca-certificates && \
+    dnf clean all
+
+# Copy XRootD binaries and libraries from builder
+COPY --from=builder /usr/bin/xrootd /usr/bin/xrootd
+COPY --from=builder /usr/bin/xrdfs /usr/bin/xrdfs
+COPY --from=builder /usr/lib64/libXrd*.so* /usr/lib64/
+COPY --from=builder /usr/lib64/libSciTokens.so.* /usr/lib64/
+COPY --from=builder /usr/lib64/xrootd /usr/lib64/
+COPY --from=builder /usr/share/xrootd /usr/share/
+
+# Create unversioned symlink for plugin loading (config references libXrdAccSciTokens.so)
+RUN ln -s /usr/lib64/libXrdAccSciTokens-5.so /usr/lib64/libXrdAccSciTokens.so
+
+# Copy system users (xrootd user created by package install)
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
+COPY --from=builder /etc/shadow /etc/shadow
+
+# Create test users for token-to-Unix-user mapping demonstration
+RUN useradd -m -s /bin/bash -u 1001 testuser1 && \
+    useradd -m -s /bin/bash -u 1002 testuser2 && \
+    useradd -m -s /bin/bash -u 1003 amanafov
+
+# Create directories with proper permissions for xrootd and test users
+RUN mkdir -p \
+    /etc/xrootd \
+    /etc/grid-security/certificates \
+    /var/log/xrootd \
+    /var/spool/xrootd \
+    /var/run/xrootd \
+    /data \
+    /data/testuser1 \
+    /data/testuser2 \
+    /data/amanafov && \
+    chown -R xrootd:xrootd \
+    /var/log/xrootd \
+    /var/spool/xrootd \
+    /var/run/xrootd \
+    /etc/grid-security/certificates && \
+    chmod 755 /data && \
+    chown xrootd:xrootd /data && \
+    chown testuser1:testuser1 /data/testuser1 && \
+    chown testuser2:testuser2 /data/testuser2 && \
+    chown amanafov:amanafov /data/amanafov && \
+    chmod 700 /data/testuser1 /data/testuser2 /data/amanafov
+
+# Copy configuration files
+COPY docker/xrootd/configs/xrootd-dev.cfg /etc/xrootd/xrootd-dev.cfg
+#COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
+COPY docker/xrootd/configs/scitokens_dev.cfg /etc/xrootd/scitokens_dev.cfg
+#COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
+COPY docker/xrootd/configs/mapfile /etc/xrootd/mapfile
+
+# Copy scripts
+COPY docker/xrootd/scripts/setup-test-data.sh /usr/local/bin/setup-test-data.sh
+COPY docker/xrootd/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/setup-test-data.sh \
+    /usr/local/bin/docker-entrypoint.sh && \
+    chown -R xrootd:xrootd /etc/xrootd && \
+    chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
+
+EXPOSE 1094
+
+# Work around xrootd home directory issue: https://github.com/xrootd/xrootd/issues/365
+WORKDIR /var/spool/xrootd
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD timeout 2 bash -c '</dev/tcp/localhost/1094' || exit 1
+
+# Entrypoint handles cert generation, then drops to xrootd user
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Default: use dev config (override in docker-compose for production)
+CMD ["/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-dev.cfg", "-n", "xrootd"]
+
+LABEL org.opencontainers.image.title="DataHarbor XRootD Server" \
+    org.opencontainers.image.description="XRootD 5.9.0 server with ZTN protocol and TLS support" \
+    org.opencontainers.image.version="5.9.0" \
+    org.opencontainers.image.vendor="DataHarbor" \
+    xrootd.version="5.9.0" \
+    xrootd.features="ztn,tls,scitokens,multiuser"

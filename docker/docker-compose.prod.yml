@@ -1,0 +1,175 @@
+# DataHarbor - Production Docker Compose
+# Services: Backend, Frontend, Nginx Gateway
+# Note: XRootD expected as external server (configure via DATAHARBOR_XRD_HOST)
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    image: dataharbor-backend:latest
+    container_name: dataharbor-backend
+    restart: unless-stopped
+
+    environment:
+      DATAHARBOR_ENV: production
+
+      # Server
+      DATAHARBOR_SERVER_ADDRESS: ":8080"
+      DATAHARBOR_SERVER_DEBUG: "false"
+
+      # XRootD (external server)
+      DATAHARBOR_XRD_HOST: ${XRD_HOST}
+      DATAHARBOR_XRD_PORT: ${XRD_PORT:-1094}
+      DATAHARBOR_XRD_INITIAL_DIR: ${XRD_INITIAL_DIR:-/}
+      DATAHARBOR_XRD_ENABLE_ZTN: ${XRD_ENABLE_ZTN:-true}
+
+      # Authentication
+      DATAHARBOR_AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      DATAHARBOR_AUTH_OIDC_ISSUER: ${OIDC_ISSUER}
+      DATAHARBOR_AUTH_OIDC_CLIENT_ID: ${OIDC_CLIENT_ID}
+      DATAHARBOR_AUTH_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
+      DATAHARBOR_AUTH_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
+      DATAHARBOR_AUTH_OIDC_SESSION_SECRET: ${OIDC_SESSION_SECRET}
+
+      # Logging
+      DATAHARBOR_LOGGING_LEVEL: ${LOG_LEVEL:-info}
+      DATAHARBOR_LOGGING_FORMAT: json
+
+    volumes:
+      - ./config/application.yaml:/app/config/application.yaml:ro
+      - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro # For XRootD ZTN TLS client auth
+      - backend-logs:/app/log
+
+    networks:
+      - dataharbor-network
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+
+    depends_on:
+      - frontend
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+    image: dataharbor-frontend:latest
+    container_name: dataharbor-frontend
+    restart: unless-stopped
+
+    networks:
+      - dataharbor-network
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/",
+        ]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+    image: dataharbor-nginx:latest
+    container_name: dataharbor-nginx
+    restart: unless-stopped
+
+    ports:
+      - "443:443" # Only HTTPS exposed - clients use https://yourdomain.com
+
+    volumes:
+      - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
+      - ${SSL_KEY_PATH}:/etc/nginx/ssl/server.key:ro
+      - nginx-logs:/var/log/nginx
+
+    networks:
+      - dataharbor-network
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/health",
+        ]
+      interval: 30s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+
+    depends_on:
+      - backend
+      - frontend
+
+  # Optional local XRootD for production - uncomment to run XRootD alongside services
+  # By default, configure DATAHARBOR_XRD_HOST to point to external XRootD server
+  # xrootd:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/xrootd/Dockerfile
+  #   image: dataharbor-xrootd:latest
+  #   container_name: dataharbor-xrootd-prod
+  #   restart: unless-stopped
+  #   command: ["/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-prod.cfg", "-n", "xrootd"]
+  #
+  #   environment:
+  #     XROOTD_HOSTNAME: ${XRD_HOST}
+  #     TZ: ${TZ:-UTC}
+  #
+  #   volumes:
+  #     - ${XROOTD_DATA_DIR}:/data:rw
+  #     - ${XRD_CERT_PATH}:/etc/xrootd/hostcert.pem:ro
+  #     - ${XRD_KEY_PATH}:/etc/xrootd/hostkey.pem:ro
+  #     - ${CA_CERTS_PATH:-/etc/grid-security/certificates}:/etc/grid-security/certificates:ro
+  #     - xrootd-logs:/var/log/xrootd
+  #
+  #   ports:
+  #     - "${XRD_PORT:-1094}:1094"
+  #
+  #   networks:
+  #     - dataharbor-network
+  #
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "timeout 2 bash -c '</dev/tcp/localhost/1094' || exit 1"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     start_period: 10s
+  #     retries: 3
+
+networks:
+  dataharbor-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  backend-logs:
+  nginx-logs:
+  # Uncomment if using local XRootD service
+  # xrootd-logs:

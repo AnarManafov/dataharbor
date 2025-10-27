@@ -128,7 +128,6 @@ sequenceDiagram
     CI->>GitHub: Create GitHub release with artifacts
     CI->>GitHub: Upload built packages
     CI->>GitHub: Publish release notes
-    CI->>Registry: Push container images (optional)
     
     Note over Dev,Registry: Post-Release
     GitHub->>Dev: Notify release published

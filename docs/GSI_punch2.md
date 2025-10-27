@@ -5,6 +5,11 @@
 **Status:** ✅ Production Ready  
 **XRootD Version:** v5.8.4 (OSG 23)
 
+> **Note**: This guide is for the external punch2.gsi.de XRootD server configuration.
+> For Docker-based deployments, see the pre-configured files:
+> - `docker/xrootd/configs/xrootd-dev.cfg` (development)
+> - `docker/xrootd/configs/xrootd-prod.cfg` (production)
+
 ---
 
 ## Table of Contents
@@ -144,6 +149,10 @@ $ xrdfs punch2.gsi.de:1094 ls /
 ---
 
 ## 4. SciTokens Configuration
+
+> **Note**: This section is for the external punch2.gsi.de server. For Docker deployments, see:
+> - `docker/xrootd/configs/scitokens_dev.cfg` (development)
+> - `docker/xrootd/configs/scitokens_prod.cfg` (production)
 
 ### Configuration File: `/etc/xrootd/scitokens.cfg`
 
