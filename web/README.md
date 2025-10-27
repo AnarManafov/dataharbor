@@ -67,16 +67,6 @@ The development server uses HTTPS with automatic certificate detection:
 
 ## Production Deployment
 
-### Container (Recommended)
-
-```shell
-# Build container with nginx
-podman build -t dataharbor-frontend:latest .
-
-# Run container
-podman run -p 8080:8080 dataharbor-frontend:latest
-```
-
 ### RPM Package
 
 ```shell

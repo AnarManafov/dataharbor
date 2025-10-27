@@ -616,8 +616,6 @@ DataHarbor supports automatic HTTPS configuration for secure local development:
 
 **Static Site Hosting**: Deploy build output to any static hosting service
 
-**Container Deployment**: Use provided Dockerfile with nginx for containerized deployment
-
 **RPM Packaging**: Generate RPM packages for Red Hat-based systems
 
 **CDN Integration**: Optimized assets ready for content delivery networks

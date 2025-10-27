@@ -1,47 +1,11 @@
 # Deployment Guide
 
-This document covers production deployment, containerization, and packaging for DataHarbor.
+This document covers production deployment and packaging for DataHarbor.
 
 **Note**: This is the general deployment guide. For environment-specific deployments, see:
 - **[GSI Deployment Guide](./DEPLOYMENT_GSI.md)** - Specific instructions for GSI servers with XRootD on port 80
 
 ## Deployment Architecture Diagrams
-
-### Container Deployment Architecture
-
-```mermaid
-graph TB
-    subgraph "External Services"
-        User[👤 User] --> LoadBalancer[Load Balancer<br/>nginx/HAProxy]
-        XROOTD[📁 XROOTD Server<br/>Port 1094]
-        OIDC[🔐 OIDC Provider<br/>Keycloak]
-    end
-    
-    subgraph "Container Environment"
-        LoadBalancer --> Frontend[📱 dataharbor-frontend<br/>nginx + Vue SPA<br/>Port 443/80]
-        Frontend --> Backend[⚙️ dataharbor-backend<br/>Go Binary<br/>Port 8081]
-    end
-    
-    subgraph "Storage & Configuration"
-        ConfigVol[📁 Config Volume<br/>/app/config]
-        LogVol[📁 Log Volume<br/>/var/log/dataharbor]
-        CertVol[🔒 Certificate Volume<br/>/etc/ssl/certs]
-    end
-    
-    Backend --> XROOTD
-    Backend --> OIDC
-    Backend --> ConfigVol
-    Backend --> LogVol
-    Frontend --> CertVol
-    
-    classDef external fill:#e3f2fd
-    classDef container fill:#f1f8e9
-    classDef storage fill:#fff3e0
-    
-    class User,LoadBalancer,XROOTD,OIDC external
-    class Frontend,Backend container
-    class ConfigVol,LogVol,CertVol storage
-```
 
 ### Multi-Environment Deployment Strategy
 
@@ -87,123 +51,6 @@ graph LR
     class DevFE,DevBE,DevXRD,DevOIDC dev
     class StageFE,StageBE,StageXRD,StageOIDC staging
     class ProdFE,ProdBE,ProdXRD,ProdOIDC prod
-```
-
-### Network Flow & Security
-
-```mermaid
-flowchart TD
-    Internet[🌐 Internet] --> Firewall[🔥 Firewall<br/>Port 443, 80]
-    Firewall --> ReverseProxy[🔄 Reverse Proxy<br/>nginx]
-    
-    ReverseProxy --> Frontend[📱 Frontend Container<br/>Static Files + SPA]
-    ReverseProxy -->|/api/*| Backend[⚙️ Backend Container<br/>Go Application]
-    
-    Backend --> XRDNetwork[🔒 Private Network<br/>XROOTD Protocol]
-    XRDNetwork --> XRDServer[📁 XROOTD Server<br/>Port 1094]
-    
-    Backend --> OIDCNetwork[🔒 External HTTPS<br/>OIDC Protocol]
-    OIDCNetwork --> OIDCProvider[🔐 OIDC Provider<br/>Port 443]
-    
-    subgraph "Security Layers"
-        TLS[🔒 TLS Termination]
-        CORS[🔒 CORS Headers]
-        Auth[🔒 Authentication]
-        CSP[🔒 Content Security Policy]
-    end
-    
-    ReverseProxy --> TLS
-    Frontend --> CORS
-    Backend --> Auth
-    Frontend --> CSP
-    
-    classDef internet fill:#e3f2fd
-    classDef proxy fill:#fff3e0
-    classDef app fill:#f1f8e9
-    classDef network fill:#fce4ec
-    classDef security fill:#f3e5f5
-    
-    class Internet,Firewall internet
-    class ReverseProxy proxy
-    class Frontend,Backend app
-    class XRDNetwork,XRDServer,OIDCNetwork,OIDCProvider network
-    class TLS,CORS,Auth,CSP security
-```
-
-## Container Deployment
-
-### Prerequisites
-
-- Podman or Docker
-- XROOTD client tools installed in container environment
-- SSL certificates for HTTPS
-- OIDC provider configuration
-
-### Building Containers
-
-#### Backend Container
-
-```bash
-cd app
-podman build -t dataharbor-backend:latest .
-```
-
-#### Frontend Container
-
-```bash
-cd web
-podman build -t dataharbor-frontend:latest .
-```
-
-### Running Containers
-
-#### Production Stack
-
-Create a `docker-compose.yml` or similar orchestration file:
-
-```yaml
-version: '3.8'
-services:
-  dataharbor-backend:
-    image: dataharbor-backend:latest
-    ports:
-      - "8081:8081"
-    environment:
-      - CONFIG_FILE=/app/config/application.production.yaml
-    volumes:
-      - ./config:/app/config
-      - ./certs:/app/certs
-    restart: unless-stopped
-
-  dataharbor-frontend:
-    image: dataharbor-frontend:latest
-    ports:
-      - "443:443"
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./certs:/etc/nginx/certs
-    depends_on:
-      - dataharbor-backend
-    restart: unless-stopped
-```
-
-#### Single Container Command
-
-```bash
-# Backend
-podman run -d --name dataharbor-backend \
-  -p 8081:8081 \
-  -v ./config:/app/config \
-  -v ./certs:/app/certs \
-  dataharbor-backend:latest
-
-# Frontend  
-podman run -d --name dataharbor-frontend \
-  -p 443:443 -p 80:80 \
-  -v ./nginx.conf:/etc/nginx/nginx.conf \
-  -v ./certs:/etc/nginx/certs \
-  dataharbor-frontend:latest
 ```
 
 ## RPM Package Deployment

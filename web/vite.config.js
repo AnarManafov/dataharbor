@@ -87,6 +87,7 @@ export default defineConfig({
         '__BACKEND_VERSION__': JSON.stringify(backendVersion),
     },
     server: {
+        host: '0.0.0.0', // Bind to all interfaces for Docker
         port: 5173,
         https: getHttpsConfig(),
         proxy: {

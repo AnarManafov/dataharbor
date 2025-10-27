@@ -1,0 +1,14 @@
+[
+  {
+    "sub": "a.manafov",
+    "result": "amanafov"
+  },
+  {
+    "sub": "testuser1",
+    "result": "testuser1"
+  },
+  {
+    "sub": "testuser2",
+    "result": "testuser2"
+  }
+]

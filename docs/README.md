@@ -51,7 +51,7 @@ Production deployment and operational guides.
 
 | Document                                          | Description                                  |
 | ------------------------------------------------- | -------------------------------------------- |
-| **[Deployment Guide](./DEPLOYMENT.md)**           | Container deployment and environment setup   |
+| **[Deployment Guide](./DEPLOYMENT.md)**           | Production deployment and environment setup  |
 | **[Testing Guide](./TESTING.md)**                 | Testing strategies and coverage requirements |
 | **[Troubleshooting Guide](./TROUBLESHOOTING.md)** | Comprehensive issue resolution and debugging |
 

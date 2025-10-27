@@ -32,8 +32,20 @@ function handleApiError(error) {
     const { status, data } = error.response;
 
     let errorMessage = 'Unknown error occurred';
-    if (data && data.message) {
+
+    // Handle 403 Forbidden (authorization errors)
+    if (status === 403) {
+        errorMessage = data?.message || data?.error || 'You are not authorized to access this resource. Please check your permissions.';
+    }
+    // Handle 401 Unauthorized (authentication errors)
+    else if (status === 401) {
+        errorMessage = data?.message || data?.error || 'Authentication required. Please log in.';
+    }
+    // Handle other errors
+    else if (data && data.message) {
         errorMessage = data.message;
+    } else if (data && data.error) {
+        errorMessage = data.error;
     } else if (data && typeof data === 'string') {
         errorMessage = data;
     }

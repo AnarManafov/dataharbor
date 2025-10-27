@@ -37,6 +37,22 @@ instance.interceptors.response.use(
             }
         }
 
+        // Handle 403 Forbidden errors (authorization failures)
+        if (error.response?.status === 403) {
+            // Extract error message from response if available
+            const errorMessage = error.response?.data?.message ||
+                error.response?.data?.error ||
+                'You do not have permission to access this resource.';
+
+            // Dispatch a custom event for authorization errors
+            window.dispatchEvent(new CustomEvent('auth:access-denied', {
+                detail: { message: errorMessage }
+            }));
+
+            // Enhance error object with user-friendly message
+            error.userMessage = errorMessage;
+        }
+
         return Promise.reject(error);
     }
 );

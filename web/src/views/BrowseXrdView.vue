@@ -206,6 +206,24 @@ const fetchBackendServiceStatus = (): void => {
  * 6. Handles any errors that occur during the process, displaying an error message and forcing a backend service health check.
  */
 onMounted(() => {
+    // Listen for authorization errors from API interceptor
+    const handleAuthDenied = (event) => {
+        ElMessage({
+            message: event.detail.message,
+            type: 'error',
+            duration: 10000,
+            showClose: true,
+            dangerouslyUseHTMLString: true
+        });
+    };
+
+    window.addEventListener('auth:access-denied', handleAuthDenied);
+
+    // Cleanup listener when component unmounts
+    onBeforeUnmount(() => {
+        window.removeEventListener('auth:access-denied', handleAuthDenied);
+    });
+
     // Get the initial directory path.
     // This needs to be done before any other browsing operation.
     getInitialDirPath()
@@ -313,11 +331,55 @@ const selectDir = async (row: { type: string; name: string; }) => {
             }
         } else {
             // Regular directory navigation
-            currentDirectory.value = joinPaths(currentDirectory.value, row.name);
-            console.log('selectDir: %s', currentDirectory.value);
+            // IMPORTANT: Calculate the target path but DON'T update currentDirectory yet
+            // We need to verify user has permission to access this directory first
+            const targetPath = joinPaths(currentDirectory.value, row.name);
+            console.log('Attempting to navigate to: %s', targetPath);
 
-            // Push the new path to the router
-            routerPushNewPath(currentDirectory.value);
+            try {
+                // Show loading state
+                tableLoading.value = true;
+                tableData.value = [];
+
+                // Try to list the target directory BEFORE navigating
+                // This will trigger authorization check and fail fast if user doesn't have access
+                const resp = await getItemsInDir(targetPath);
+
+                // Success! User has permission, now we can safely navigate
+                currentDirectory.value = targetPath;
+                console.log('selectDir: %s', currentDirectory.value);
+
+                // Update the table with the new directory contents
+                if (resp.data.items != null) {
+                    tableData.value = resp.data.items;
+                    pageSize.value = resp.data.pageSize;
+                    totalPages.value = resp.data.totalPages;
+                    totalItems.value = resp.data.totalItems;
+                    totalFileCount.value = resp.data.totalFileCount;
+                    totalFolderCount.value = resp.data.totalFolderCount;
+                    cumulativeFileSize.value = filters.prettyBytes(resp.data.cumulativeFileSize);
+                } else {
+                    tableData.value = [];
+                }
+
+                // Push the new path to the router ONLY after successful navigation
+                routerPushNewPath(currentDirectory.value);
+            } catch (error) {
+                // Authorization or other error occurred
+                // currentDirectory.value is unchanged, so no path corruption
+                console.error('Failed to navigate to directory:', targetPath, error);
+
+                // The error will be displayed by the global error handler (auth:access-denied event)
+                // or by the API error normalization in api.js
+                ElMessage({
+                    message: error.message || 'You do not have permission to access this directory',
+                    type: 'error',
+                    duration: 5000,
+                    showClose: true
+                });
+            } finally {
+                tableLoading.value = false;
+            }
         }
     } else {
         // File selected - redirect to download handler

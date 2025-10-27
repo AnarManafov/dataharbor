@@ -4,12 +4,14 @@
 [![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml)
 ![Coverage](https://img.shields.io/badge/Coverage-19.8%25-red)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](./docker)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-Ready-2496ED?style=flat&logo=docker)](./docker/docker-compose.yml)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Vue Version](https://img.shields.io/badge/Vue.js-3.0+-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
 
 DataHarbor is a high-performance, full-stack web application that provides researchers and developers with a secure, intuitive interface to access and manage GSI Lustre cluster data. Built with a Go backend and Vue.js frontend, it delivers seamless file browsing, directory navigation, and secure file operations through direct XROOTD integration.
 
-## 🎯 Purpose
+## Purpose
 
 DataHarbor empowers users who need to:
 
@@ -21,7 +23,7 @@ DataHarbor empowers users who need to:
 - **Cross-Platform Access**: Access HPC storage systems from any device through a modern web browser
 - **Real-Time Monitoring**: Track file operations with comprehensive logging and performance metrics
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 - **Backend**: Go REST API server with XROOTD client integration
 - **Frontend**: Vue 3 SPA with Element Plus UI components  
@@ -29,15 +31,37 @@ DataHarbor empowers users who need to:
 - **Security**: HTTP-only cookies, server-side session management
 - **Storage**: XROOTD protocol for high-performance data access
 
-## 🚀 Quick Start for Developers
+## Quick Start
 
-### Prerequisites
+### Using Docker (Recommended)
+
+The fastest way to get started with DataHarbor is using Docker Compose:
+
+```bash
+# Clone the repository
+git clone https://github.com/AnarManafov/dataharbor.git
+cd dataharbor
+
+# Start development environment (includes XRootD server)
+cd docker
+docker compose up -d
+
+# Access the application at https://localhost:443
+```
+
+See **[Docker Deployment Guide](./docker/README.md)** for complete Docker setup instructions.
+
+### Manual Development Setup
+
+For developers who prefer manual setup:
+
+#### Prerequisites
 
 - **Go** 1.24+ (for backend development)
 - **Node.js** 18+ & **npm** (for frontend development)
 - **XROOTD client** tools (for file system operations)
 
-### Development Setup
+#### Development Setup
 
 1. **Clone and setup the repository**
 
@@ -71,11 +95,11 @@ DataHarbor empowers users who need to:
    - Open your browser to `https://localhost:5173`
    - Accept the self-signed certificate warning for development
 
-## 📚 Documentation
+## Documentation
 
 > **💡 Complete documentation is available in the [`docs/`](./docs/) folder**
 
-### 🚀 Getting Started
+### Getting Started
 
 | Document                                                       | Description                                                  |
 | -------------------------------------------------------------- | ------------------------------------------------------------ |
@@ -84,21 +108,21 @@ DataHarbor empowers users who need to:
 | **[Backend Configuration](./docs/BACKEND_CONFIGURATION.md)**   | Go backend config, environment variables, and YAML settings  |
 | **[Frontend Configuration](./docs/FRONTEND_CONFIGURATION.md)** | Vue.js frontend config, SSL setup, and deployment settings   |
 
-### 🏗️ Architecture & Design
+### Architecture & Design
 
 | Document                                              | Description                                                       |
 | ----------------------------------------------------- | ----------------------------------------------------------------- |
 | **[System Architecture](./docs/ARCHITECTURE.md)**     | Overall architecture, design patterns, and component interactions |
 | **[Authentication System](./docs/AUTHENTICATION.md)** | OIDC integration, BFF pattern, and security model                 |
 
-### 🛠️ Component Development
+### Component Development
 
 | Document                                       | Description                                            |
 | ---------------------------------------------- | ------------------------------------------------------ |
 | **[Backend Development](./docs/BACKEND.md)**   | Go API development, middleware, and XROOTD integration |
 | **[Frontend Development](./docs/FRONTEND.md)** | Vue.js development, components, and state management   |
 
-### 📋 Technical References
+### Technical References
 
 | Document                                          | Description                                                         |
 | ------------------------------------------------- | ------------------------------------------------------------------- |
@@ -106,15 +130,17 @@ DataHarbor empowers users who need to:
 | **[System Architecture](./docs/ARCHITECTURE.md)** | Overall architecture, design patterns, and streaming implementation |
 | **[XROOTD Integration](./docs/xrootd.md)**        | XROOTD client configuration and file operations                     |
 
-### 🚀 Operations & Deployment
+### Operations & Deployment
 
 | Document                                               | Description                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------- |
-| **[Deployment Guide](./docs/DEPLOYMENT.md)**           | Production deployment, containers, and environment setup      |
+| **[Docker Deployment](./docker/README.md)**            | Docker Compose setup for development and production           |
+| **[Docker Quick Start](./docker/QUICKSTART.md)**       | Quick reference commands for Docker deployment                |
+| **[Deployment Guide](./docs/DEPLOYMENT.md)**           | Production deployment and environment setup                   |
 | **[Testing Guide](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and test execution |
 | **[Troubleshooting Guide](./docs/TROUBLESHOOTING.md)** | Comprehensive issue resolution and debugging                  |
 
-### 📊 Quick Reference
+### Quick Reference
 
 - **Development**: Start with [Setup Guide](./docs/SETUP.md) → [Development Guide](./docs/DEVELOPMENT.md)
 - **Architecture**: Read [System Architecture](./docs/ARCHITECTURE.md) → [Authentication](./docs/AUTHENTICATION.md)
@@ -122,7 +148,7 @@ DataHarbor empowers users who need to:
 - **UI Development**: See [Frontend Guide](./docs/FRONTEND.md) → [Components](./docs/FRONTEND.md#components)
 - **Deployment**: Follow [Deployment Guide](./docs/DEPLOYMENT.md) → [Backend Configuration](./docs/BACKEND_CONFIGURATION.md)
 
-## 🔧 Common Development Tasks
+## Common Development Tasks
 
 ### Build for Production
 
@@ -165,7 +191,7 @@ npm run sync-versions
 npm run prepare-release
 ```
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```text
 dataharbor/
@@ -188,7 +214,7 @@ dataharbor/
 └── playground/            # Experimental code and prototypes
 ```
 
-## 🤝 Contributing
+## Contributing
 
 This is an internal project for GSI developers. To contribute:
 
@@ -198,11 +224,11 @@ This is an internal project for GSI developers. To contribute:
 4. Update documentation as needed
 5. Submit a pull request with detailed description
 
-## 📄 License
+## License
 
 See [LICENSE](./LICENSE) file for details.
 
-## 🔗 Related Technologies
+## Related Technologies
 
 - [XROOTD](https://xrootd.slac.stanford.edu) - High-performance data access system
 - [Vue.js](https://vuejs.org/) - Progressive JavaScript framework  

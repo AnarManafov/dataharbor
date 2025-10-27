@@ -70,5 +70,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
 
-// Use GitHub fork with TLS/ZTN support
-replace go-hep.org/x/hep => github.com/AnarManafov/hep v0.0.0-20251016141130-3b922e389d37
+// Use GitHub fork with TLS/ZTN support - Fixed Protocol request structure (flags byte, expect field, dlen)
+replace go-hep.org/x/hep => github.com/AnarManafov/hep v0.0.0-20251025153136-5e20150073f5

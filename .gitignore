@@ -26,3 +26,14 @@ pnpm-debug.log*
 # Python
 __pycache__/
 *.py[cod]
+
+# Docker
+docker/.env
+docker/certs/
+!docker/certs/.gitkeep
+docker/volumes/
+docker/xrootd-data/
+
+# Backend logs
+log/
+*.log

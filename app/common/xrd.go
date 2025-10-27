@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -14,6 +15,26 @@ import (
 	"go-hep.org/x/hep/xrootd/xrdfs"
 	"go.uber.org/zap"
 )
+
+// XRootDAuthError represents authentication/authorization failures
+type XRootDAuthError struct {
+	message string
+	cause   error
+}
+
+func (e *XRootDAuthError) Error() string {
+	return e.message
+}
+
+func (e *XRootDAuthError) Unwrap() error {
+	return e.cause
+}
+
+// IsAuthError checks if an error is an XRootD authentication/authorization error
+func IsAuthError(err error) bool {
+	var authErr *XRootDAuthError
+	return errors.As(err, &authErr)
+}
 
 // XRDClient provides a simple, direct XRootD client without connection pooling
 // Based on the successful test programs that work reliably
@@ -88,10 +109,48 @@ func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xroot
 
 	client, err := xrootd.NewClient(ctx, xc.address, xc.username, opts...)
 	if err != nil {
+		// Check if this is an authorization error
+		if isAuthorizationError(err) {
+			return nil, &XRootDAuthError{
+				message: "XRootD authentication failed - user is not authorized to access the storage system",
+				cause:   err,
+			}
+		}
 		return nil, fmt.Errorf("failed to create XRootD client: %w", err)
 	}
 
 	return client, nil
+}
+
+// isAuthorizationError checks if an error indicates authentication/authorization failure
+func isAuthorizationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := strings.ToLower(err.Error())
+	authPatterns := []string{
+		"authorization",
+		"unauthorized",
+		"authentication",
+		"permission denied",
+		"access denied",
+		"not authorized",
+		"token",
+		"credentials",
+		"aud",
+		"audience",
+		"claim verification",
+		"scitokens",
+	}
+
+	for _, pattern := range authPatterns {
+		if strings.Contains(errStr, pattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ListDirectory lists directory contents using a fresh client per request
@@ -123,6 +182,14 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 	if err != nil {
 		duration := time.Since(start)
 		xc.logger.Error("Directory listing failed", "path", dirPath, "duration", duration, "error", err)
+
+		// Check if this is an authorization error
+		if isAuthorizationError(err) {
+			return nil, &XRootDAuthError{
+				message: "Access denied - user is not authorized to access this directory",
+				cause:   err,
+			}
+		}
 
 		// Check for protocol errors
 		if strings.Contains(err.Error(), "wrong response size for the dirlist request") {

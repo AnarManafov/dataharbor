@@ -50,16 +50,6 @@ go test -cover ./...
 
 ## Production Deployment
 
-### Container (Recommended)
-
-```shell
-# Build container
-podman build -t dataharbor-backend:latest .
-
-# Run container
-podman run --network=host dataharbor-backend:latest
-```
-
 ### RPM Package
 
 ```shell

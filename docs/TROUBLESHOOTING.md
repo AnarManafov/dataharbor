@@ -543,7 +543,6 @@ xrdfs root://server.com:1094 query config all
 - **Backend**: Console output or configured log file
 - **Frontend**: Browser developer console
 - **XROOTD**: System logs or XROOTD server logs
-- **Container**: `podman logs <container-name>`
 
 ### Common Resolution Steps
 
