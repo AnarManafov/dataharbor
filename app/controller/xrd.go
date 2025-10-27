@@ -24,18 +24,13 @@ import (
 
 // StreamingConfig defines buffer size for file streaming
 const (
-	// BufferSize optimized for high-throughput streaming
-	// 512KB provides better network efficiency for large file transfers
-	BufferSize = 512 * 1024
-
-	// FlushInterval controls how often we flush the response
-	// Flush every 2MB to balance responsiveness with performance
-	FlushInterval = 2 * 1024 * 1024
-
 	// Pagination defaults balance user experience with server performance constraints
 	defaultPageSize uint32 = 500 // Minimizes round trips while preventing server overload
 	minPageSize     uint32 = 5   // Prevents API abuse that could degrade service quality
 )
+
+// Download buffer settings are now configured via config.XRD.Download
+// Default: 2MB buffer, 4MB flush interval (optimal for multi-GB files over WAN)
 
 // Download slot management prevents resource exhaustion from concurrent downloads
 // Global state is necessary because XRootD connections are expensive resources
@@ -88,6 +83,13 @@ func DownloadFile(c *gin.Context) {
 	if err != nil {
 		common.GetLogger().Error("Failed to get filesystem client", "error", err)
 		// releaseDownloadSlot(c) // Release slot on error - DISABLED while rate limiting is disabled
+
+		// Check if this is an authorization error
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access the storage system. Please check your credentials.")
+			return
+		}
+
 		response.Error(c, http.StatusInternalServerError, "Failed to connect to storage")
 		return
 	}
@@ -190,13 +192,22 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 		}
 	}()
 
+	// Get download buffer settings from configuration
+	cfg := config.GetConfig()
+	bufferSize := cfg.XRD.Download.BufferSize
+	flushInterval := int64(cfg.XRD.Download.FlushInterval)
+
 	// Optimized buffer size for better streaming performance
-	buffer := make([]byte, BufferSize) // 512KB for improved throughput
+	buffer := make([]byte, bufferSize)
 	offset := int64(0)
 	totalRead := int64(0)
 	lastFlushTime := time.Now()
 
-	common.GetLogger().Info("Starting file streaming", "downloadID", downloadID, "path", filePath)
+	common.GetLogger().Info("Starting file streaming",
+		"downloadID", downloadID,
+		"path", filePath,
+		"bufferSize", bufferSize,
+		"flushInterval", flushInterval)
 
 	// Log progress every 100MB for large files
 	progressLogInterval := int64(100 * 1024 * 1024) // 100MB
@@ -225,9 +236,10 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 	}
 
 	// Continue with the rest of the file
-	for err != io.EOF {
+	// Note: XRootD ReadAt doesn't return io.EOF, it returns n=0 when no more data
+	for err == nil && totalRead < fileSize {
 		// ReadAt provides consistent behavior compared to Read() for XRootD protocol
-		n, err := file.ReadAt(buffer, offset)
+		n, err = file.ReadAt(buffer, offset)
 
 		if n > 0 {
 			// Write data immediately
@@ -241,8 +253,8 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 			// Adaptive flushing based on data rate and time
 			shouldFlush := false
 
-			// Flush every 2MB (for high-speed connections)
-			if totalRead%FlushInterval == 0 {
+			// Flush at configured interval (e.g., every 4MB for high-speed connections)
+			if totalRead%flushInterval == 0 {
 				shouldFlush = true
 			}
 
@@ -282,6 +294,12 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 			}
 			common.GetLogger().Error("Read error", "error", err, "path", filePath, "offset", offset)
 			return fmt.Errorf("failed to read from file: %w", err)
+		}
+
+		// XRootD may return n=0 without error when reaching EOF
+		if n == 0 {
+			common.GetLogger().Info("File streaming completed (EOF detected)", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
+			break
 		}
 
 		// Client disconnect detection prevents wasted server resources
@@ -353,6 +371,13 @@ func ListDirectory(c *gin.Context) {
 	entries, err := simpleClient.ListDirectory(ctx, query, authToken)
 	if err != nil {
 		common.GetLogger().Error("Failed to list directory", "error", err, "path", query)
+
+		// Check if this is an authorization error
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access this directory. Please check your credentials.")
+			return
+		}
+
 		response.Error(c, http.StatusInternalServerError, "Failed to list directory")
 		return
 	}
@@ -397,6 +422,12 @@ func GetFileInfo(c *gin.Context) {
 
 	fs, cleanup, err := simpleClient.GetFileSystem(ctx, authToken)
 	if err != nil {
+		// Check if this is an authorization error
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access the storage system. Please check your credentials.")
+			return
+		}
+
 		response.Error(c, http.StatusInternalServerError, "Failed to connect to storage")
 		return
 	}
@@ -404,6 +435,12 @@ func GetFileInfo(c *gin.Context) {
 
 	fileInfo, err := fs.Stat(ctx, filePath)
 	if err != nil {
+		// Check if this is an authorization error
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access this file.")
+			return
+		}
+
 		response.Error(c, http.StatusNotFound, "File not found")
 		return
 	}
@@ -467,6 +504,13 @@ func FetchDirItemsByPage(c *gin.Context) {
 	entries, err := simpleClient.ListDirectory(ctx, dirPath, authToken)
 	if err != nil {
 		common.GetLogger().Error("Failed to list directory", "error", err, "path", dirPath)
+
+		// Check if this is an authorization error
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access this directory. Please check your credentials.")
+			return
+		}
+
 		response.FailWithErr(c, *response.SystemErr(err))
 		return
 	}

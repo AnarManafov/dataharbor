@@ -4,6 +4,11 @@
 
 **Date**: October 2025
 
+> **Note**: This guide is for configuring external XRootD servers (e.g., punch2.gsi.de).
+> For Docker-based deployments, see the pre-configured files:
+> - `docker/xrootd/configs/xrootd-dev.cfg` (development)
+> - `docker/xrootd/configs/xrootd-prod.cfg` (production)
+
 ---
 
 ## Problem
@@ -189,6 +194,10 @@ continue /etc/xrootd/config.d/
 ---
 
 ## Step 3: Verify Configuration Files (No Changes Needed)
+
+> **Note**: This section is for external XRootD servers. For Docker deployments, the equivalent files are:
+> - `docker/xrootd/configs/scitokens_dev.cfg` (development)
+> - `docker/xrootd/configs/scitokens_prod.cfg` (production)
 
 These files should **remain unchanged**:
 

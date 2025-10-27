@@ -225,7 +225,6 @@ sudo yum install xrootd-client
 
 For Windows development, consider using:
 - WSL (Windows Subsystem for Linux) with Linux installation
-- Docker containers with XROOTD client tools
 - Cross-compilation from Linux systems
 
 ### Verification

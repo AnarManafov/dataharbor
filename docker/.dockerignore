@@ -1,0 +1,11 @@
+# Ignore everything except what we need for XRootD build
+*
+
+# Allow XRootD specific files
+!xrootd/
+!xrootd/Dockerfile
+!xrootd/configs/
+!xrootd/scripts/
+
+# Ignore XRootD documentation
+xrootd/*.md

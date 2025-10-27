@@ -89,14 +89,28 @@ type FileConfig struct {
 
 // XRDConfig represents the XRootD configuration
 type XRDConfig struct {
-	Host       string `mapstructure:"host" yaml:"host"`
-	Port       uint   `mapstructure:"port" yaml:"port"`
-	InitialDir string `mapstructure:"initial_dir" yaml:"initial_dir"`
-	User       string `mapstructure:"user" yaml:"user"`
-	UserGroup  string `mapstructure:"usergroup" yaml:"usergroup"`
-	EnableZTN  bool   `mapstructure:"enable_ztn" yaml:"enable_ztn"` // Enable ZTN protocol (TLS + OAuth token authentication)
-	ClientCert string `mapstructure:"client_cert" yaml:"client_cert"`
-	ClientKey  string `mapstructure:"client_key" yaml:"client_key"`
+	Host       string         `mapstructure:"host" yaml:"host"`
+	Port       uint           `mapstructure:"port" yaml:"port"`
+	InitialDir string         `mapstructure:"initial_dir" yaml:"initial_dir"`
+	User       string         `mapstructure:"user" yaml:"user"`
+	UserGroup  string         `mapstructure:"usergroup" yaml:"usergroup"`
+	EnableZTN  bool           `mapstructure:"enable_ztn" yaml:"enable_ztn"` // Enable ZTN protocol (TLS + OAuth token authentication)
+	ClientCert string         `mapstructure:"client_cert" yaml:"client_cert"`
+	ClientKey  string         `mapstructure:"client_key" yaml:"client_key"`
+	Download   DownloadConfig `mapstructure:"download" yaml:"download"`
+}
+
+// DownloadConfig represents file download optimization settings
+type DownloadConfig struct {
+	// BufferSize is the size of the buffer used for streaming file downloads (in bytes)
+	// Larger buffers reduce protocol overhead and improve throughput for large files
+	// Recommended: 2MB (2097152) for multi-GB scientific data transfers over WAN
+	// Trade-off: Memory usage = BufferSize × concurrent downloads
+	BufferSize int `mapstructure:"buffer_size" yaml:"buffer_size"`
+
+	// FlushInterval controls how often the response buffer is flushed to the client (in bytes)
+	// Balances responsiveness with performance - smaller values provide more frequent progress updates
+	FlushInterval int `mapstructure:"flush_interval" yaml:"flush_interval"`
 }
 
 // AuthConfig represents the authentication configuration
@@ -271,6 +285,10 @@ func GetConfig() *Config {
 					Port:       1094,
 					InitialDir: "/tmp",
 					EnableZTN:  false,
+					Download: DownloadConfig{
+						BufferSize:    2 * 1024 * 1024, // 2MB
+						FlushInterval: 4 * 1024 * 1024, // 4MB
+					},
 				},
 				Auth: AuthConfig{
 					Enabled: false,
@@ -342,6 +360,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("xrd.port", 1094)
 	v.SetDefault("xrd.initial_dir", "/tmp")
 	v.SetDefault("xrd.enable_ztn", false)
+	v.SetDefault("xrd.download.buffer_size", 2*1024*1024)    // 2MB - optimal for multi-GB files over WAN
+	v.SetDefault("xrd.download.flush_interval", 4*1024*1024) // 4MB - balance between responsiveness and performance
 
 	// Auth defaults
 	v.SetDefault("auth.enabled", false)
@@ -401,6 +421,10 @@ func createDefaultConfig(configFile string) error {
 			EnableZTN:  false,
 			ClientCert: "",
 			ClientKey:  "",
+			Download: DownloadConfig{
+				BufferSize:    2 * 1024 * 1024, // 2MB - optimal for multi-GB files
+				FlushInterval: 4 * 1024 * 1024, // 4MB - balance responsiveness and performance
+			},
 		},
 		Auth: AuthConfig{
 			Enabled: false,
