@@ -2,7 +2,7 @@
 
 [![CI Backend](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/backend.yml)
 [![CI Frontend](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml/badge.svg)](https://github.com/AnarManafov/dataharbor/actions/workflows/frontend.yml)
-![Coverage](https://img.shields.io/badge/Coverage-19.8%25-red)
+![Coverage](https://img.shields.io/badge/Coverage-19.3%25-red)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](./docker)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-Ready-2496ED?style=flat&logo=docker)](./docker/docker-compose.yml)
