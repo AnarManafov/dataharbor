@@ -1,0 +1,29 @@
+{
+    "go.goroot": "",
+    "go.gopath": "",
+    "gopls": {
+        "build.directoryFilters": [
+            "-node_modules",
+            "-web"
+        ],
+        "formatting.gofumpt": true,
+        "build.buildFlags": [
+            "-tags=integration"
+        ],
+        "experimentalWorkspaceModule": true
+    },
+    "go.toolsManagement.autoUpdate": true,
+    "go.useLanguageServer": true,
+    "[go]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "[go.mod]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    }
+}
