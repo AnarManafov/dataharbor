@@ -1,14 +1,29 @@
-# DataHarbor - Production Docker Compose
-# Services: Backend, Frontend, Nginx Gateway, XRootD Server
-# XRootD runs locally in container, serving host filesystem (Lustre/GPFS/local storage)
+# DataHarbor - Production Deployment (Pre-built Images from GHCR)
+# This file is for DEPLOYING to production servers using pre-built images.
+# Images are built by CI and pushed to GitHub Container Registry (GHCR).
+#
+# Usage:
+#   # Deploy specific version (production)
+#   VERSION=0.14.6 docker compose -f docker-compose.deploy.yml up -d
+#
+#   # Deploy dev build with auto-pull (staging)
+#   VERSION=dev PULL_POLICY=always docker compose -f docker-compose.deploy.yml up -d
+#
+#   # Force pull latest images
+#   docker compose -f docker-compose.deploy.yml up -d --pull always
+#
+# Required environment variables (set in .env file):
+#   - SSL_CERT_PATH, SSL_KEY_PATH: TLS certificates for nginx
+#   - XROOTD_DATA_DIR: Host directory to serve via XRootD
+#   - XRD_CERT_PATH, XRD_KEY_PATH: XRootD TLS certificates
+#   - XRD_MAPFILE_PATH: Token-to-user mapping file
+#   - OIDC_*: Authentication configuration
 
 services:
   backend:
-    # Multi-arch build supported (Go cross-compiles natively)
-    build:
-      context: .
-      dockerfile: docker/backend/Dockerfile
-    image: dataharbor-backend:latest
+    # Multi-arch image - pulls native arm64 or amd64 automatically
+    image: ghcr.io/anarmanafov/dataharbor-backend:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-missing}
     container_name: dataharbor-backend
     restart: unless-stopped
 
@@ -39,7 +54,7 @@ services:
 
     volumes:
       - ./config/application.yaml:/app/config/application.yaml:ro
-      - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro # For XRootD ZTN TLS client auth
+      - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro
       - backend-logs:/app/log
 
     networks:
@@ -65,11 +80,9 @@ services:
       - xrootd
 
   frontend:
-    # Multi-arch build supported (Node.js + nginx both have arm64 images)
-    build:
-      context: .
-      dockerfile: docker/frontend/Dockerfile
-    image: dataharbor-frontend:latest
+    # Multi-arch image - pulls native arm64 or amd64 automatically
+    image: ghcr.io/anarmanafov/dataharbor-frontend:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-missing}
     container_name: dataharbor-frontend
     restart: unless-stopped
 
@@ -92,18 +105,15 @@ services:
       retries: 3
 
   nginx:
-    # Multi-arch build supported (nginx has arm64 images)
+    # Multi-arch image - pulls native arm64 or amd64 automatically
     # Prod config baked in: proxies to static frontend on port 80
-    build:
-      context: .
-      dockerfile: docker/nginx/Dockerfile
-      target: prod # Self-contained with prod config baked in
-    image: dataharbor-nginx:latest
+    image: ghcr.io/anarmanafov/dataharbor-nginx:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-missing}
     container_name: dataharbor-nginx
     restart: unless-stopped
 
     ports:
-      - "443:443" # Only HTTPS exposed - clients use https://yourdomain.com
+      - "443:443"
 
     volumes:
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
@@ -134,67 +144,61 @@ services:
 
   # XRootD Server for Production
   # Serves data from host filesystem (e.g., Lustre, GPFS, local storage)
-  # Uses host-provided TLS certificates and mapfile for user authentication
+  # Uses production-optimized image with external mounts
   xrootd:
-    platform: linux/amd64 # Required - XRootD packages not available for ARM64
-    build:
-      context: .
-      dockerfile: docker/xrootd/Dockerfile.prod # Production-optimized Dockerfile
-    image: dataharbor-xrootd:latest
+    platform: linux/amd64 # Required - XRootD packages only available for x86_64
+    image: ghcr.io/anarmanafov/dataharbor-xrootd:${VERSION:-latest}
+    pull_policy: ${PULL_POLICY:-missing}
     container_name: dataharbor-xrootd-prod
     restart: unless-stopped
-    # Production entrypoint validates mounts and starts XRootD
+    # Override entrypoint to bypass dev entrypoint in current GHCR image
+    # Once GHCR images are rebuilt with Dockerfile.prod, this can be removed
+    entrypoint: ["/bin/bash", "-c"]
     command:
-      ["/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-prod.cfg", "-n", "xrootd"]
+      - |
+        echo "Starting XRootD in production mode..."
+        mkdir -p /var/spool/xrootd /var/run/xrootd/certs /var/log/xrootd
+        chown -R xrootd:xrootd /var/spool/xrootd /var/run/xrootd /var/log/xrootd 2>/dev/null || true
+        # Copy user-provided certs and fix permissions (Docker Desktop doesn't preserve Unix perms)
+        cp /var/run/xrootd/certs-user/hostcert.pem /var/run/xrootd/certs/hostcert.pem
+        cp /var/run/xrootd/certs-user/hostkey.pem /var/run/xrootd/certs/hostkey.pem
+        chmod 644 /var/run/xrootd/certs/hostcert.pem
+        chmod 600 /var/run/xrootd/certs/hostkey.pem
+        chown xrootd:xrootd /var/run/xrootd/certs/*
+        exec runuser -u xrootd -- /usr/bin/xrootd -c /etc/xrootd/xrootd-prod.cfg -n xrootd
 
     environment:
       XROOTD_HOSTNAME: ${XRD_HOST:-xrootd}
       TZ: ${TZ:-UTC}
-      # Optional: Resource limits for production
-      # XROOTD_MAX_FDS: ${XRD_MAX_FDS:-65535}
 
     volumes:
-      # ==========================================
+      # XROOTD CONFIGURATION (override baked-in config with updated version)
+      - ./xrootd/configs/xrootd-prod.cfg:/etc/xrootd/xrootd-prod.cfg:ro
+      - ./xrootd/configs/scitokens_prod.cfg:/etc/xrootd/scitokens_prod.cfg:ro
+
       # DATA DIRECTORY - Host filesystem to serve
-      # ==========================================
-      # For Lustre/parallel filesystems: Use bind mount with proper propagation
-      # For local storage: Standard bind mount works fine
       - type: bind
         source: ${XROOTD_DATA_DIR}
         target: /data
         bind:
-          propagation: rslave # Required for Lustre/NFS - ensures mount changes propagate
-        # read_only: false  # Set to true for read-only XRootD export
+          propagation: rslave
 
-      # ==========================================
-      # TLS CERTIFICATES - From host system
-      # ==========================================
-      # User-provided certs mounted to certs-user, entrypoint copies with fixed permissions
-      # This handles Docker Desktop (macOS/Windows) not preserving Unix file permissions
+      # TLS CERTIFICATES (mounted to certs-user, copied with fixed permissions to certs)
       - ${XRD_CERT_PATH}:/var/run/xrootd/certs-user/hostcert.pem:ro
       - ${XRD_KEY_PATH}:/var/run/xrootd/certs-user/hostkey.pem:ro
 
-      # ==========================================
-      # CA CERTIFICATES - Required for TLS verification
-      # ==========================================
+      # USER MAPFILE
+      - ${XRD_MAPFILE_PATH}:/etc/xrootd/mapfile:ro
+
+      # LOGS
+      - ${XROOTD_LOG_DIR:-./logs/xrootd}:/var/log/xrootd:rw
+
+      # CA CERTIFICATES - Required for TLS verification in production
       # For grid computing: /etc/grid-security/certificates
       # For system CAs: /etc/ssl/certs or /etc/pki/tls/certs
       #
       # STAGING/TESTING: Comment out this line AND set 'xrd.tlsca noverify' in xrootd-prod.cfg
       - ${CA_CERTS_PATH:-/etc/ssl/certs}:/etc/grid-security/certificates:ro
-
-      # ==========================================
-      # USER MAPFILE - Token-to-Unix-user mapping
-      # ==========================================
-      # CRITICAL: UIDs in mapfile MUST match filesystem UIDs (especially for Lustre/NFS)
-      # Example: {"sub": "username", "result": "unixuser"}
-      # The "result" user must exist on host and have proper permissions on XROOTD_DATA_DIR
-      - ${XRD_MAPFILE_PATH}:/etc/xrootd/mapfile:ro
-
-      # ==========================================
-      # LOGS - Persistent on host for monitoring
-      # ==========================================
-      - ${XROOTD_LOG_DIR:-./logs/xrootd}:/var/log/xrootd:rw
 
     # Port 1094 is NOT exposed externally - only accessible by backend via internal network
     # If external XRootD access is needed, uncomment:
@@ -204,30 +208,6 @@ services:
     networks:
       - dataharbor-network
 
-    # ==========================================
-    # RESOURCE LIMITS (Optional but recommended)
-    # ==========================================
-    # Uncomment to prevent XRootD from consuming all host resources
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '${XRD_CPU_LIMIT:-4.0}'
-    #       memory: ${XRD_MEM_LIMIT:-8G}
-    #     reservations:
-    #       cpus: '${XRD_CPU_RESERVE:-1.0}'
-    #       memory: ${XRD_MEM_RESERVE:-2G}
-
-    # ==========================================
-    # SECURITY OPTIONS
-    # ==========================================
-    # Uncomment if SELinux/AppArmor blocks access to host filesystem
-    # security_opt:
-    #   - label:disable  # Disable SELinux confinement for this container
-    #   - apparmor:unconfined  # Disable AppArmor confinement
-
-    # ==========================================
-    # ULIMITS - File descriptor limits
-    # ==========================================
     ulimits:
       nofile:
         soft: 65535
@@ -237,7 +217,6 @@ services:
         hard: 32768
 
     healthcheck:
-      # Enhanced healthcheck using xrdfs query instead of just TCP check
       test:
         [
           "CMD-SHELL",

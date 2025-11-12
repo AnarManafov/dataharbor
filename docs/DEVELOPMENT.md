@@ -1,5 +1,7 @@
 # Development Guide
 
+[← Back to Documentation](./README.md)
+
 This document covers the development workflow, contribution guidelines, CI/CD processes, and best practices for DataHarbor developers.
 
 ## Development Workflow Diagrams
@@ -175,44 +177,24 @@ sequenceDiagram
 
 ### Development Environment Configuration
 
-#### Backend Configuration
+Configuration files control backend and frontend behavior. For development, the key files are:
 
-Create or modify `app/config/application.development.yaml`:
+| Component | Configuration File                        | Purpose                       |
+| --------- | ----------------------------------------- | ----------------------------- |
+| Backend   | `app/config/application.development.yaml` | Server, auth, XRootD settings |
+| Frontend  | `web/.env.local` (optional)               | Environment overrides         |
 
-```yaml
-server:
-  host: "localhost"
-  port: 8081
-  debug: true
-
-logging:
-  level: "debug"
-  format: "console"
-
-auth:
-  oidc:
-    # Use development OIDC settings
-    issuer: "https://dev-keycloak.gsi.de/realms/dataharbor"
-    client_id: "dataharbor-dev"
-
-xrootd:
-  servers:
-    - "root://dev-xrootd.gsi.de:1094"
-  timeout: "30s"
-```
-
-#### Frontend Configuration
-
-Set environment variables or create `.env.local`:
+**Quick setup:**
 
 ```bash
-# Optional: Custom backend URL
-VITE_API_BASE_URL=http://localhost:8081/api/v1
-
-# SSL Certificate paths (for HTTPS development)
-VITE_SSL_KEY=/path/to/server.key
-VITE_SSL_CERT=/path/to/server.crt
+# Copy and edit backend config
+cp app/config/application.template.yaml app/config/application.development.yaml
 ```
+
+> **📖 Complete configuration documentation:**
+>
+> - **[Backend Configuration Guide](./BACKEND_CONFIGURATION.md)** - All YAML options, environment variables, validation rules
+> - **[Frontend Configuration Guide](./FRONTEND_CONFIGURATION.md)** - Vite config, SSL certificates, build settings
 
 ### Code Style and Standards
 
@@ -614,3 +596,7 @@ For troubleshooting development issues, see the **[Troubleshooting Guide](./TROU
 - **[Setup Guide](./SETUP.md)** - Initial environment setup
 - **[Testing Guide](./TESTING.md)** - Testing strategies and practices
 - **[Architecture Guide](./ARCHITECTURE.md)** - System architecture overview
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#development-guide)

@@ -1,5 +1,7 @@
 # XROOTD Integration
 
+[← Back to Documentation](./README.md)
+
 This document describes how DataHarbor integrates with XROOTD for file system operations, focusing on XROOTD concepts, the XRD Go native client, and protocol interactions.
 
 ## XROOTD Integration Architecture
@@ -332,3 +334,16 @@ For troubleshooting XROOTD connection and operation issues, see the **[Troublesh
 - [XROOTD Official Documentation](https://xrootd.slac.stanford.edu)
 - [XROOTD Client API](https://xrootd.slac.stanford.edu/doc/doxygen/current/html/classXrdCl_1_1FileSystem.html)
 - [XROOTD Configuration Guide](https://xrootd.slac.stanford.edu/doc/prod/cms_config.htm)
+
+---
+
+## Related Documentation
+
+- **[Backend Development](./BACKEND.md)** - XROOTD integration in backend
+- **[API Reference](./API.md)** - File operation endpoints
+- **[Architecture](./ARCHITECTURE.md)** - System overview
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - XROOTD connection issues
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#xrootd-integration)

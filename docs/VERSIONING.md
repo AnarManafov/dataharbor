@@ -1,5 +1,7 @@
 # Backend Versioning
 
+[← Back to Documentation](./README.md)
+
 ## Overview
 
 The DataHarbor backend uses **build-time version injection** following Go best practices. Version information is embedded directly into the binary at compile time using `-ldflags`.
@@ -65,3 +67,15 @@ Git commit: 596fe74
 - **Single source of truth** - version from `package.json` injected at build time
 - Development builds without injection show `"dev"` / `"unknown"` values
 - Production builds must use build script, RPM packaging, or CI/CD workflows
+
+---
+
+## Related Documentation
+
+- **[Development Guide](./DEVELOPMENT.md)** - Build and release workflow
+- **[Deployment Guide](./DEPLOYMENT.md)** - Version deployment
+- **[Backend Development](./BACKEND.md)** - Backend build process
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#backend-versioning)

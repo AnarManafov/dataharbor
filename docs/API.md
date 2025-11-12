@@ -1,5 +1,7 @@
 # REST API Documentation
 
+[← Back to Documentation](./README.md)
+
 This document provides comprehensive documentation for DataHarbor's REST API endpoints.
 
 ## API Architecture & Flow Diagrams
@@ -768,3 +770,16 @@ Available metrics:
 - Error rate by endpoint
 - Active user sessions
 - File operation statistics
+
+---
+
+## Related Documentation
+
+- **[Backend Development](./BACKEND.md)** - Backend implementation details
+- **[Authentication](./AUTHENTICATION.md)** - OIDC authentication flow
+- **[XROOTD Integration](./xrootd.md)** - File system operations
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - Common API issues
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#rest-api-documentation)

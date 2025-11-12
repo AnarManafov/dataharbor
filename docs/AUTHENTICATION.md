@@ -1,5 +1,7 @@
 # Authentication and Security
 
+[← Back to Documentation](./README.md)
+
 This document details the authentication mechanisms, security architecture, and security best practices implemented in DataHarbor.
 
 ## Authentication Overview
@@ -237,3 +239,16 @@ auth:
    - Used to obtain new access tokens
    - Longer-lived (hours to days)
    - Securely stored and rotated
+
+---
+
+## Related Documentation
+
+- **[System Architecture](./ARCHITECTURE.md)** - Overall system design
+- **[Backend Development](./BACKEND.md)** - Auth middleware implementation
+- **[API Reference](./API.md)** - Authentication endpoints
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - Auth issues and solutions
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#authentication-and-security)

@@ -1,5 +1,7 @@
 # DataHarbor Troubleshooting Guide
 
+[← Back to Documentation](./README.md)
+
 Comprehensive troubleshooting guide for common issues in DataHarbor development, deployment, and operations.
 
 ## Quick Navigation
@@ -564,3 +566,7 @@ xrdfs root://server.com:1094 query config all
 - **[XROOTD Integration](./xrootd.md)** - XROOTD server configuration and integration
 - **[Architecture Guide](./ARCHITECTURE.md)** - System architecture overview
 - **[API Reference](./API.md)** - Complete API documentation
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#dataharbor-troubleshooting-guide)

@@ -1,5 +1,7 @@
 # Frontend Configuration Guide
 
+[← Back to Documentation](./README.md)
+
 DataHarbor's Vue.js frontend uses a multi-layered configuration system with build-time variables, runtime configuration, and SSL certificate management. This guide covers all frontend configuration options and deployment strategies.
 
 ## Quick Start
@@ -392,3 +394,7 @@ For troubleshooting frontend configuration issues, see the **[Troubleshooting Gu
 - **[Frontend Development](./FRONTEND.md)** - Frontend development guide
 - **[Development Guide](./DEVELOPMENT.md)** - Development environment setup
 - **[Deployment Guide](./DEPLOYMENT.md)** - Production deployment configuration
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#frontend-configuration-guide)

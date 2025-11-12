@@ -1,5 +1,7 @@
 # Dev Container - DataHarbor
 
+[← Back to Main README](../README.md) | [Documentation](../docs/README.md)
+
 Zero-configuration development environment for DataHarbor full-stack application.
 
 ## Overview
@@ -460,6 +462,11 @@ docker exec -it <container-id> bash
 ---
 
 **Related Documentation**:
+
 - [Development Guide](../docs/DEVELOPMENT.md) - Development workflow and contribution guidelines
 - [Setup Guide](../docs/SETUP.md) - Manual environment setup
 - [Architecture Guide](../docs/ARCHITECTURE.md) - System architecture overview
+
+---
+
+[← Back to Main README](../README.md) | [Documentation](../docs/README.md) | [↑ Top](#dev-container---dataharbor)
