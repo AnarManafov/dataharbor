@@ -1,5 +1,7 @@
 # Testing Guide
 
+[← Back to Documentation](./README.md)
+
 This document covers the existing test structure and commands for running tests in DataHarbor.
 
 ## Backend Testing (Go)
@@ -170,3 +172,16 @@ npm test -- --watch FileExplorer.test.js
 # Frontend: Debug mode
 npm run test:debug
 ```
+
+---
+
+## Related Documentation
+
+- **[Development Guide](./DEVELOPMENT.md)** - Development workflow and CI/CD
+- **[Backend Development](./BACKEND.md)** - Backend testing context
+- **[Frontend Development](./FRONTEND.md)** - Frontend testing context
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - Debug test failures
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#testing-guide)

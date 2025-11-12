@@ -1,0 +1,149 @@
+# ============================================
+# XRootD Server - Production Dockerfile
+# ============================================
+# Optimized for production environments with:
+# - External data directory mount (Lustre/GPFS/NFS)
+# - Host-provided TLS certificates
+# - External user mapfile
+# - Minimal runtime footprint
+# - Security hardening
+#
+# Platform: linux/amd64 required (ARM64 packages unavailable from CERN/OSG)
+#
+# Usage:
+#   docker build -f Dockerfile.prod -t dataharbor-xrootd:prod ..
+#
+# Required mounts at runtime:
+#   - /data                    : Host data directory (Lustre/GPFS)
+#   - /var/run/xrootd/certs/   : TLS certificate and key
+#   - /etc/xrootd/mapfile      : User mapping file
+#   - /etc/grid-security/certificates/ : CA certificates (optional)
+# ============================================
+
+# ---------------------------------------------
+# Build stage: Install XRootD and dependencies
+# ---------------------------------------------
+FROM rockylinux:9 AS builder
+
+# Install XRootD repository and base dependencies
+# Using BuildKit cache mount for faster rebuilds
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y epel-release && \
+    curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
+    dnf install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
+    dnf config-manager --set-enabled crb && \
+    dnf clean all
+
+# Install XRootD 5.9.0 and required plugins
+# Pinned version for reproducible builds
+ARG XROOTD_VERSION=5.9.0
+RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
+    dnf install -y \
+    xrootd-${XROOTD_VERSION} \
+    xrootd-server-${XROOTD_VERSION} \
+    xrootd-client-${XROOTD_VERSION} \
+    xrootd-libs-${XROOTD_VERSION} \
+    xrootd-scitokens-${XROOTD_VERSION} \
+    xrootd-multiuser \
+    openssl \
+    libcap \
+    && dnf clean all
+
+# Grant capabilities for multiuser plugin to change filesystem UIDs/GIDs
+# This is CRITICAL for user mapping to work
+RUN setcap 'cap_setuid,cap_setgid=+ep' /usr/bin/xrootd
+
+# Create plugin directories
+RUN mkdir -p /usr/lib64/xrootd /usr/share/xrootd
+
+# ---------------------------------------------
+# Runtime stage: Minimal production image
+# ---------------------------------------------
+FROM rockylinux:9-minimal AS runtime
+
+# Labels for container identification
+LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Production)" \
+    org.opencontainers.image.description="XRootD server optimized for production with external mounts" \
+    org.opencontainers.image.version="5.9.0" \
+    org.opencontainers.image.vendor="DataHarbor" \
+    xrootd.version="5.9.0" \
+    xrootd.features="ztn,tls,scitokens,multiuser" \
+    xrootd.mode="production"
+
+# Install minimal runtime dependencies
+# Using microdnf for smaller footprint in -minimal image
+RUN microdnf install -y \
+    openssl \
+    ca-certificates \
+    shadow-utils \
+    procps-ng \
+    && microdnf clean all
+
+# Copy XRootD binaries and libraries from builder
+COPY --from=builder /usr/bin/xrootd /usr/bin/xrootd
+COPY --from=builder /usr/bin/xrdfs /usr/bin/xrdfs
+COPY --from=builder /usr/lib64/libXrd*.so* /usr/lib64/
+COPY --from=builder /usr/lib64/libSciTokens.so.* /usr/lib64/
+COPY --from=builder /usr/lib64/xrootd /usr/lib64/xrootd/
+COPY --from=builder /usr/share/xrootd /usr/share/xrootd/
+
+# Create unversioned symlink for plugin loading
+RUN ln -sf /usr/lib64/libXrdAccSciTokens-5.so /usr/lib64/libXrdAccSciTokens.so
+
+# Copy xrootd user/group from builder (created by package install)
+COPY --from=builder /etc/passwd /etc/passwd
+COPY --from=builder /etc/group /etc/group
+COPY --from=builder /etc/shadow /etc/shadow
+
+# Create required directories with proper permissions
+# Note: /data is expected to be a bind mount from host
+RUN mkdir -p \
+    /etc/xrootd \
+    /etc/grid-security/certificates \
+    /var/log/xrootd \
+    /var/spool/xrootd \
+    /var/run/xrootd/certs \
+    /data \
+    && chown -R xrootd:xrootd \
+    /var/log/xrootd \
+    /var/spool/xrootd \
+    /var/run/xrootd \
+    && chmod 755 \
+    /var/log/xrootd \
+    /var/spool/xrootd \
+    /var/run/xrootd \
+    /data \
+    && chmod 700 /var/run/xrootd/certs
+
+# Copy production configuration
+# Note: mapfile is expected to be mounted from host, not baked in
+COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
+COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
+
+# Create empty mapfile placeholder for mount point
+# This ensures Docker mounts a file (not directory) when host mapfile is mounted
+RUN touch /etc/xrootd/mapfile
+
+# Set proper permissions on configs
+RUN chown -R xrootd:xrootd /etc/xrootd && \
+    chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
+
+# Copy production entrypoint
+COPY docker/xrootd/scripts/docker-entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-prod.sh
+
+# Standard XRootD port
+EXPOSE 1094
+
+# Working directory (avoids xrootd home directory issue)
+WORKDIR /var/spool/xrootd
+
+# Health check - verify XRootD is responding
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD xrdfs localhost:1094 query config version || exit 1
+
+# Use production entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint-prod.sh"]
+
+# Default command - production config
+CMD ["/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-prod.cfg", "-n", "xrootd"]

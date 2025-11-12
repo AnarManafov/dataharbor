@@ -1,10 +1,30 @@
 # DataHarbor Documentation
 
+[← Back to Main README](../README.md)
+
 Welcome to the complete documentation for DataHarbor - a secure web interface for accessing GSI Lustre cluster data through XROOTD integration.
+
+---
 
 ## Documentation Overview
 
 This documentation is organized into logical sections to help you find information quickly. Each document includes detailed technical information with diagrams and examples.
+
+## 📚 Quick Navigation
+
+| I want to...                      | Go to                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| Set up my development environment | [Setup Guide](./SETUP.md) or [Dev Container Guide](../.devcontainer/README.md)                |
+| Understand the architecture       | [System Architecture](./ARCHITECTURE.md)                                                      |
+| Learn the development workflow    | [Development Guide](./DEVELOPMENT.md)                                                         |
+| Work on the backend               | [Backend Development](./BACKEND.md) → [Backend Configuration](./BACKEND_CONFIGURATION.md)     |
+| Work on the frontend              | [Frontend Development](./FRONTEND.md) → [Frontend Configuration](./FRONTEND_CONFIGURATION.md) |
+| Use or integrate with the API     | [REST API Reference](./API.md)                                                                |
+| Deploy to production              | [Deployment Guide](./DEPLOYMENT.md) or [Docker Guide](../docker/README.md)                    |
+| Deploy to GSI environment         | [GSI Documentation](./gsi/README.md)                                                          |
+| Debug an issue                    | [Troubleshooting Guide](./TROUBLESHOOTING.md)                                                 |
+
+---
 
 ## Getting Started
 
@@ -52,8 +72,22 @@ Production deployment and operational guides.
 | Document                                          | Description                                  |
 | ------------------------------------------------- | -------------------------------------------- |
 | **[Deployment Guide](./DEPLOYMENT.md)**           | Production deployment and environment setup  |
+| **[Docker Deployment](../docker/README.md)**      | Docker Compose setup for dev and production  |
 | **[Testing Guide](./TESTING.md)**                 | Testing strategies and coverage requirements |
 | **[Troubleshooting Guide](./TROUBLESHOOTING.md)** | Comprehensive issue resolution and debugging |
+| **[Versioning](./VERSIONING.md)**                 | Backend version management and build process |
+
+## GSI-Specific Documentation
+
+Specialized guides for GSI environment deployment and XRootD configuration.
+
+> 📁 **GSI documentation has been moved to [`docs/gsi/`](./gsi/README.md)** for better organization.
+
+| Document                                          | Description                                                       |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| **[GSI Documentation Index](./gsi/README.md)**    | Overview of all GSI-specific docs                                 |
+| **[Docker Deployment](../docker/README.md)**      | **Recommended:** Production deployment guide                      |
+| **[GSI RPM Deployment](./gsi/DEPLOYMENT_GSI.md)** | Manual RPM-based installation with XRootD ZTN configuration guide |
 
 ## Quick Navigation
 
@@ -103,4 +137,8 @@ To contribute to the documentation:
 - **[XROOTD Documentation](https://xrootd.slac.stanford.edu)** - Official XROOTD docs
 - **[Vue.js Guide](https://vuejs.org/guide/)** - Vue.js framework documentation
 - **[Go Documentation](https://golang.org/doc/)** - Go programming language docs
+
+---
+
+[← Back to Main README](../README.md) | [↑ Top](#dataharbor-documentation)
 

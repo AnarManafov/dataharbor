@@ -448,8 +448,9 @@ auth:
 	require.NoError(t, err)
 
 	// Set environment variable
-	os.Setenv("DATAHARBOR_SERVER_ADDRESS", ":9999")
-	defer os.Unsetenv("DATAHARBOR_SERVER_ADDRESS")
+	err = os.Setenv("DATAHARBOR_SERVER_ADDRESS", ":9999")
+	require.NoError(t, err)
+	defer func() { _ = os.Unsetenv("DATAHARBOR_SERVER_ADDRESS") }()
 
 	cfg, err := LoadConfig(configFile)
 	require.NoError(t, err)
@@ -468,7 +469,7 @@ func TestLoadConfig_CreatesDirIfNotExists(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 
 	// LoadConfig creates the directory structure
-	_, err = LoadConfig(configFile)
+	_, _ = LoadConfig(configFile)
 
 	// Verify directory was created even if config loading failed
 	_, dirErr := os.Stat(filepath.Dir(configFile))
@@ -584,8 +585,9 @@ auth:
 
 	// Change to the temp directory so the relative path works
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	err = os.Chdir(tmpDir)
+	require.NoError(t, err)
 
 	// Load with empty string should search default locations
 	cfg, err := LoadConfig("")
@@ -630,7 +632,7 @@ func TestCreateDefaultConfig_WriteError(t *testing.T) {
 	readOnlyDir := filepath.Join(tmpDir, "readonly")
 	err := os.MkdirAll(readOnlyDir, 0o555) // Read-only directory
 	require.NoError(t, err)
-	defer os.Chmod(readOnlyDir, 0o755) // Cleanup
+	defer func() { _ = os.Chmod(readOnlyDir, 0o755) }() // Cleanup
 
 	configFile := filepath.Join(readOnlyDir, "config.yaml")
 	err = createDefaultConfig(configFile)
@@ -647,7 +649,7 @@ func TestLoadConfig_DirectoryCreationError(t *testing.T) {
 	readOnlyDir := filepath.Join(tmpDir, "readonly")
 	err := os.MkdirAll(readOnlyDir, 0o555)
 	require.NoError(t, err)
-	defer os.Chmod(readOnlyDir, 0o755)
+	defer func() { _ = os.Chmod(readOnlyDir, 0o755) }()
 
 	configFile := filepath.Join(readOnlyDir, "subdir", "config.yaml")
 	_, err = LoadConfig(configFile)

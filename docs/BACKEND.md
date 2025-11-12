@@ -1,5 +1,7 @@
 # Backend Development Guide
 
+[← Back to Documentation](./README.md)
+
 This guide covers backend development for DataHarbor's Go-based REST API server.
 
 ## Backend Architecture Diagrams
@@ -121,13 +123,17 @@ graph TB
 
 ## Technology Stack
 
-- **Go 1.24+**: Main programming language
-- **Gin**: HTTP web framework
-- **Viper**: Configuration management
-- **Zap**: Structured logging
-- **Gorilla Sessions**: Session management
-- **XROOTD Client**: File system operations
-- **testify**: Testing framework
+| Technology           | Purpose                                              |
+| -------------------- | ---------------------------------------------------- |
+| **Go 1.24+**         | Main programming language with excellent concurrency |
+| **Gin**              | High-performance HTTP web framework                  |
+| **Viper**            | Configuration management (YAML, env vars)            |
+| **Zap**              | Structured, leveled logging                          |
+| **Gorilla Sessions** | Secure session management                            |
+| **go-hep/xrootd**    | Native XROOTD client for file operations             |
+| **testify**          | Testing framework with assertions                    |
+
+> See **[System Architecture](./ARCHITECTURE.md)** for how these components fit together.
 
 ## Project Structure
 
@@ -582,3 +588,17 @@ var (
     )
 )
 ```
+
+---
+
+## Related Documentation
+
+- **[Backend Configuration](./BACKEND_CONFIGURATION.md)** - Complete configuration reference
+- **[API Reference](./API.md)** - REST API endpoints documentation
+- **[XROOTD Integration](./xrootd.md)** - File system operations
+- **[Testing Guide](./TESTING.md)** - Testing strategies and commands
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - Common issues and solutions
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#backend-development-guide)

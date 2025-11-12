@@ -29,25 +29,51 @@ graph LR
 
 **Note:** Client can only access port 443 (HTTPS). Port 80 is used internally for container health checks.
 
-## Configuration
+## Configuration Files
 
-Main config: `nginx.conf`
+The nginx Dockerfile uses **multi-stage builds** with separate targets for dev and prod:
 
-### Upstream Servers
+| Target | Config Baked In        | Frontend Target         | Use Case                        |
+| ------ | ---------------------- | ----------------------- | ------------------------------- |
+| `dev`  | `dataharbor-dev.conf`  | `https://frontend:5173` | Local development with Vite HMR |
+| `prod` | `dataharbor-prod.conf` | `http://frontend:80`    | Production - self-contained     |
 
-```nginx
-upstream backend {
-    server backend:8080;
-}
+### Key Differences
 
-upstream frontend {
-    # Dev: Vite server
-    server frontend:5173;
-    
-    # Prod: Nginx static server
-    server frontend:80;
-}
+| Feature           | Development            | Production            |
+| ----------------- | ---------------------- | --------------------- |
+| Frontend protocol | `https://` (Vite TLS)  | `http://` (plain)     |
+| Frontend port     | 5173 (Vite dev server) | 80 (nginx static)     |
+| WebSocket         | Enabled (HMR)          | Not needed            |
+| SSL verification  | Disabled (self-signed) | N/A (no upstream TLS) |
+
+### Building
+
+```bash
+# Development image (Vite dev server with HMR)
+docker build --target dev -t dataharbor-nginx:dev -f docker/nginx/Dockerfile .
+
+# Production image (static files - self-contained)
+docker build --target prod -t dataharbor-nginx:latest -f docker/nginx/Dockerfile .
 ```
+
+### In Docker Compose
+
+```yaml
+# Development (docker-compose.yml)
+nginx:
+  build:
+    dockerfile: docker/nginx/Dockerfile
+    target: dev  # Vite dev server on port 5173
+
+# Production (docker-compose.prod.yml / deploy.yml)
+nginx:
+  build:
+    dockerfile: docker/nginx/Dockerfile
+    target: prod  # Static files on port 80 - self-contained
+```
+
+**Production images from GHCR are built with `target: prod`** - no external config files needed!
 
 ### Routes
 
@@ -143,11 +169,12 @@ Health check proxies to backend `/health` endpoint.
 
 ## Configuration Updates
 
-### Modify nginx.conf
+### Modify nginx config
 
 ```bash
-# Edit configuration
-nano docker/nginx/nginx.conf
+# Edit configuration (choose dev or prod)
+nano docker/nginx/conf.d/dataharbor-dev.conf   # Development
+nano docker/nginx/conf.d/dataharbor-prod.conf  # Production
 
 # Test configuration
 docker compose exec nginx nginx -t

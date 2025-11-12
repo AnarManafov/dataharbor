@@ -25,5 +25,6 @@
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
         }
-    }
+    },
+    "cmake.sourceDirectory": "/Users/anarmanafov/Documents/workspace/dataharbor/playground/xrd_api_test"
 }
