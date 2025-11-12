@@ -18,10 +18,16 @@
                 "ms-azuretools.vscode-docker",
                 // Code quality
                 "streetsidesoftware.code-spell-checker",
+                // Clang-format for C++/proto formatting
+                "xaver.clang-format",
+                // Python formatting
+                "ms-python.autopep8",
                 // Makefile support
                 "ms-vscode.makefile-tools",
                 // YAML support (for docker-compose, configs)
                 "redhat.vscode-yaml",
+                // XML support
+                "redhat.vscode-xml",
                 // Markdown support
                 "yzhang.markdown-all-in-one",
                 "DavidAnson.vscode-markdownlint",
@@ -82,6 +88,10 @@
         "ghcr.io/devcontainers/features/node:1": {
             "version": "24",
             "nodeGypDependencies": true
+        },
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+            "version": "latest",
+            "moby": true
         }
     },
     // Commands to run after container is created

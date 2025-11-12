@@ -1,5 +1,7 @@
 # Backend Configuration Guide
 
+[← Back to Documentation](./README.md)
+
 DataHarbor's Go backend uses a unified configuration system built on [Viper](https://github.com/spf13/viper) that supports YAML files, environment variables, and validation. This guide provides a complete reference for all backend configuration options.
 
 ## Quick Start
@@ -168,11 +170,11 @@ flowchart TD
 
 ### Frontend Configuration (`frontend`)
 
-| Key                    | Type     | Default                   | Description                                                                                           |
-| ---------------------- | -------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Key                    | Type     | Default                   | Description                                                                                                                                                    |
+| ---------------------- | -------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `frontend.url`         | string   | `"http://localhost:5173"` | Frontend application URL. **IMPORTANT**: Set to production URL (e.g., `https://yourdomain.com`) for production deployments. This controls OAuth redirect URIs. |
-| `frontend.asset_paths` | []string | `[]`                      | Additional paths to search for frontend assets                                                        |
-| `frontend.dist_dir`    | string   | `"dist"`                  | Frontend build output directory                                                                       |
+| `frontend.asset_paths` | []string | `[]`                      | Additional paths to search for frontend assets                                                                                                                 |
+| `frontend.dist_dir`    | string   | `"dist"`                  | Frontend build output directory                                                                                                                                |
 
 **Note**: The `frontend.url` must match where users access your application. For development, use `http://localhost:5173` or `https://localhost:5173`. For production, use your actual domain like `https://yourdomain.com` or `https://punch2.gsi.de`. This URL is used for OAuth/OIDC redirect URIs after authentication.
 
@@ -382,3 +384,7 @@ For troubleshooting backend configuration issues, see the **[Troubleshooting Gui
 - **[Frontend Configuration](./FRONTEND_CONFIGURATION.md)** - Vue.js application configuration
 - **[Development Guide](./DEVELOPMENT.md)** - Development environment setup
 - **[Deployment Guide](./DEPLOYMENT.md)** - Production deployment configuration
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#backend-configuration-guide)

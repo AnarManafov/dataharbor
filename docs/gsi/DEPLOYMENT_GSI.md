@@ -1,23 +1,25 @@
-# DataHarbor Deployment Guide for GSI Environment
+# DataHarbor Manual Deployment Guide for GSI Environment
 
-This guide provides step-by-step instructions for deploying DataHarbor on GSI servers using RPM packages.
+[← Back to GSI Documentation](./README.md) | [Main Documentation](../README.md)
+
+This guide provides step-by-step instructions for **manual deployment** of DataHarbor on GSI servers using RPM packages.
+
+> **⚠️ Note**: For production deployments, we **strongly recommend using Docker Compose** instead of manual installation. See [Docker Deployment Guide](../../docker/README.md) for the recommended approach.
+
+**This guide is for:**
+- Legacy systems where Docker is not available
+- Environments requiring traditional RPM package management
+- Custom deployment scenarios with specific requirements
 
 **Document Status**: Production-ready configuration for HTTPS deployment  
-**Last Updated**: October 2025 (Port 443 HTTPS configuration)
-
-**✨ What's New:**
-- **Included SystemD service file** - No need to create manually!
-- **Multiple nginx templates** - Choose GSI-specific, HTTPS, or simple HTTP
-- **Automatic directory creation** - `/etc/dataharbor/` and `/var/log/dataharbor/` created automatically
-- **Example configurations** - Well-documented templates included
-- **Simplified installation** - Fewer manual steps required
+**Last Updated**: December 2025
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Environment Overview](#environment-overview)
+2. [Deployment Overview](#deployment-overview)
 3. [Initial Installation (One-Time Setup)](#initial-installation-one-time-setup)
 4. [Version Updates](#version-updates-upgrading-dataharbor)
 5. [Verification & Testing](#verification--testing)
@@ -31,48 +33,81 @@ This guide provides step-by-step instructions for deploying DataHarbor on GSI se
 ### Required Access & Tools
 - ✅ Root access to GSI server
 - ✅ SSH access with public key authentication
-- ✅ XRootD server already running on the system (port 80 and 1094)
-- ✅ SSL certificates from GEANT CA (located at `/etc/ssl/certs/` and `/etc/ssl/private/`)
+- ✅ XRootD server (see [XRootD ZTN Setup](./XROOTD_ZTN_SETUP.md) for configuration)
+- ✅ SSL certificates from GEANT CA or self-signed certificates
 - ✅ OIDC provider configured at Keycloak (id.gsi.de)
 
 ### Pre-existing Infrastructure
-- **XRootD Server**: Already running on port 80 (HTTP) and 1094 (XRootD protocol)
+- **XRootD Server**: Configured with ZTN protocol and SciTokens support
 - **Keycloak OIDC**: https://id.gsi.de/realms/wl
-- **Network**: GSI institutional network with firewall (port 443 typically open)
+- **Network**: Firewall configured for ports 443 (HTTPS), 22000 (Backend), 1094 (XRootD)
+
+### System Requirements
+
+**For RPM Installation:**
+- **OS**: RHEL/CentOS 8+ or compatible
+- **Nginx**: 1.20+ (reverse proxy)
+- **XRootD**: 5.7+ with required plugins (scitokens, multiuser)
+
+**Note**: Go and Node.js are NOT required for RPM installation - the packages contain pre-built binaries and static files.
 
 ---
 
-## Environment Overview
+## Deployment Overview
 
-### Server Configuration Example
+### Recommended: Docker Compose
 
-**Example Server**: punch2.gsi.de (140.181.3.31)
+Before proceeding with manual installation, consider using Docker Compose for a simpler deployment:
+
+**See:** [Docker Deployment Guide](../../docker/README.md)
+
+Docker Compose advantages:
+- ✅ Pre-configured services (Backend, Frontend, XRootD, Nginx)
+- ✅ Automatic TLS/SSL setup
+- ✅ Easy version updates
+- ✅ Consistent environments
+
+### Manual Installation Architecture
+
+This manual deployment guide will set up:
+
+```mermaid
+graph TB
+    Client[Browser] -->|HTTPS:443| NGX[Nginx Gateway]
+    NGX -->|Reverse Proxy| BE[Backend :22000]
+    NGX -->|Static Files| FE[Frontend Files]
+    BE -->|XRootD:1094| XRD[XRootD Server]
+    
+    style NGX fill:#90EE90
+    style BE fill:#87CEEB
+    style FE fill:#FFE4B5
+    style XRD fill:#FFB6C1
+```
 
 ### Port Allocation
 
-| Service             | Port  | Protocol | Purpose              | Notes                                 |
-| ------------------- | ----- | -------- | -------------------- | ------------------------------------- |
-| XRootD Protocol     | 1094  | XRootD   | File system access   | Pre-existing                          |
-| XRootD HTTP         | 80    | HTTP     | XRootD web interface | Pre-existing                          |
-| DataHarbor Backend  | 22000 | HTTPS    | API server           | SSL enabled                           |
-| DataHarbor Frontend | 443   | HTTPS    | Web UI               | SSL enabled, reverse proxy to backend |
-| Keycloak OIDC       | 443   | HTTPS    | Authentication       | External service                      |
+| Service             | Port  | Protocol | Purpose            | Notes            |
+| ------------------- | ----- | -------- | ------------------ | ---------------- |
+| XRootD Protocol     | 1094  | XRootD   | File system access | ZTN + TLS        |
+| DataHarbor Backend  | 22000 | HTTPS    | API server         | SSL enabled      |
+| DataHarbor Frontend | 443   | HTTPS    | Web UI             | Nginx proxy      |
+| Keycloak OIDC       | 443   | HTTPS    | Authentication     | External service |
 
 ### File Locations (Standard)
 
-| Item                      | Location                                                                    |
-| ------------------------- | --------------------------------------------------------------------------- |
-| Backend binary            | `/usr/local/bin/dataharbor-backend`                                         |
-| Backend config (custom)   | `/root/dataharbor/config/backend-config-gsi-test-server.yaml`               |
-| Backend config (default)  | `/etc/dataharbor/application.yaml` ✨ **New!**                               |
-| Backend service (package) | `/usr/lib/systemd/system/dataharbor-backend.service` ✨ **New!**             |
-| Backend service (custom)  | `/etc/systemd/system/dataharbor-backend.service` (override)                 |
-| Backend logs              | `/var/log/dataharbor/dataharbor-backend.log`                                |
-| Frontend files            | `/usr/share/dataharbor-frontend/`                                           |
-| Frontend config           | `/usr/share/dataharbor-frontend/config.json`                                |
-| Frontend nginx templates  | `/etc/dataharbor-frontend/nginx/templates/` ✨ **New!**                      |
-| Nginx config              | `/etc/nginx/conf.d/dataharbor.conf`                                         |
-| SSL certificates          | `/etc/ssl/certs/punch2.gsi.de.pem` and `/etc/ssl/private/punch2.gsi.de.key` |
+| Item                     | Location                                             |
+| ------------------------ | ---------------------------------------------------- |
+| Backend binary           | `/usr/local/bin/dataharbor-backend`                  |
+| Backend config (default) | `/etc/dataharbor/application.yaml`                   |
+| Backend service          | `/usr/lib/systemd/system/dataharbor-backend.service` |
+| Backend logs             | `/var/log/dataharbor/dataharbor-backend.log`         |
+| Frontend files           | `/usr/share/dataharbor-frontend/`                    |
+| Frontend config          | `/usr/share/dataharbor-frontend/config.json`         |
+| Nginx config             | `/etc/nginx/conf.d/dataharbor.conf`                  |
+| SSL certificates         | `/etc/ssl/certs/` and `/etc/ssl/private/`            |
+| XRootD config            | `/etc/xrootd/xrootd.cfg`                             |
+| XRootD SciTokens config  | `/etc/xrootd/scitokens.cfg`                          |
+| XRootD user mapfile      | `/etc/xrootd/mapfile`                                |
 
 ---
 
@@ -100,97 +135,64 @@ sudo mkdir -p /root/dataharbor/config
 
 ### Step 2: Create Backend Configuration File
 
-Create the backend configuration file **before** installing the RPM:
+Create the backend configuration file **before** installing the RPM.
+
+> **Complete Reference**: See [Backend Configuration Guide](../BACKEND_CONFIGURATION.md) for all configuration options.
+
+**Create minimal production config:**
 
 ```bash
-sudo tee /root/dataharbor/config/backend-config-gsi-test-server.yaml << 'EOF'
+sudo tee /root/dataharbor/config/backend-config.yaml << 'EOF'
 env: production
 
 server:
   address: ":22000"
-  debug: false
-  shutdown_timeout: 30s
-  cors:
-    allow_credentials: true
-    allow_headers:
-      - Origin
-      - Content-Length
-      - Content-Type
-      - Authorization
-    allow_methods:
-      - GET
-      - POST
-      - PUT
-      - DELETE
-      - OPTIONS
-    allow_origins:
-      - https://punch2.gsi.de
   ssl:
     enabled: true
-    cert_file: /etc/ssl/certs/punch2.gsi.de.pem
-    key_file: /etc/ssl/private/punch2.gsi.de.key
+    cert_file: /etc/ssl/certs/your-server.pem
+    key_file: /etc/ssl/private/your-server.key
+  cors:
+    allow_origins:
+      - https://your-server.example.com
 
 logging:
   level: info
-  console:
-    enabled: true
-    level: info
-    format: text
   file:
     enabled: true
-    level: info
     filename: "/var/log/dataharbor/dataharbor-backend.log"
-    maxsize: 10
-    maxbackups: 2
-    maxage: 27
-    compress: true
 
 xrd:
   host: "localhost"
   port: 1094
-  initial_dir: "/"  # XRootD root directory - use "/" for root export
-  user: ""
-  usergroup: ""
-  enable_ztn: true  # REQUIRED for GSI: Enable ZTN protocol (TLS + OAuth token authentication)
-  client_cert: ""
-  client_key: ""
+  initial_dir: "/"
+  enable_ztn: true
 
 frontend:
-  url: "https://punch2.gsi.de"  # Use full domain for production
-  dist_dir: "dist"
-  asset_paths:
-    - "../sandbox/public"
-    - "web"
+  url: "https://your-server.example.com"
 
 auth:
   enabled: true
-  skip_auth_paths:
-    - "/health"
-    - "/api/auth/login"
-    - "/api/auth/callback"
   oidc:
     issuer: "https://id.gsi.de/realms/wl"
-    client_id: "xrootd"  # Use "xrootd" for production, "xrootd-test" for development
-    client_secret: "your-client-secret-here"  # Replace with actual secret
+    client_id: "xrootd"
+    client_secret: "your-client-secret-here"
     discovery_url: "https://id.gsi.de/realms/wl/.well-known/openid-configuration"
     allowed_roles:
       - "xrootd-user"
-    session_secret: "GENERATE-YOUR-OWN-SESSION-SECRET-HERE"  # Generate unique random string
-    token_refresh_buffer_sec: 60
+    session_secret: "GENERATE-RANDOM-SECRET"
 EOF
 ```
 
-**Important**: Replace the following placeholders:
-- `client_id`: Use `"xrootd"` for production, `"xrootd-test"` for development/testing environments
-- `your-client-secret-here`: Your actual Keycloak client secret (different for each client)
-- `session_secret`: Generate a unique random string
-- `https://punch2.gsi.de`: Replace with your actual server hostname
+**Required Changes:**
+- Replace `your-server.example.com` with your actual hostname
+- Replace `your-client-secret-here` with actual Keycloak client secret
+- Generate random string for `session_secret`
+- Update certificate paths if different
 
-**Critical Configuration Notes**:
-- **`frontend.url`**: MUST be set to `https://punch2.gsi.de` (or your actual production domain). Do NOT use `https://localhost:5173` in production, as this will cause OAuth redirects to fail and redirect users to localhost after login.
-- **`xrootd-test` client**: Configured to redirect to localhost for development environments
-- **`xrootd` client**: Uses the full server URL `https://punch2.gsi.de/*` for production
-- **`initial_dir`**: Set to `/` to browse from the root of the XRootD export. Adjust this path based on your XRootD server's export configuration (check `all.export` in `/etc/xrootd/*.cfg`).
+**Critical Settings:**
+- **`frontend.url`**: MUST match the URL users access (affects OAuth redirects)
+- **`enable_ztn`**: Required for XRootD token authentication
+- **`initial_dir`**: Adjust based on XRootD export path (see `all.export` in XRootD config)
 
 ### Step 4: Create Frontend Configuration File
 
@@ -472,6 +474,390 @@ Open your browser and navigate to:
 
 ---
 
+## XRootD Server Configuration
+
+DataHarbor requires an XRootD server configured with:
+
+- **ZTN Protocol**: Zero-Trust Networking for secure authentication
+- **SciTokens**: OAuth token validation via GSI Keycloak
+- **TLS/SSL**: Encrypted connections on port 1094
+- **Multiuser Plugin**: Maps authenticated users to Unix UIDs
+
+> **Reference**: This section provides manual configuration steps based on the production Docker Compose setup. For complete details, see:
+> - [Docker XRootD Configuration](../../docker/xrootd/configs/xrootd-prod.cfg)
+> - [SciTokens Configuration](../../docker/xrootd/configs/scitokens_prod.cfg)
+
+### Architecture Overview
+
+ZTN (Zero-Trust Networking) enables token-based authentication on the native XRootD protocol (port 1094) using OAuth tokens from GSI Keycloak.
+
+**Authentication & Authorization Flow:**
+
+```mermaid
+flowchart TD
+    Client["Client (DataHarbor Backend)<br/>Has OAuth token from Keycloak"]
+    XRD["XRootD Server<br/>Port 1094 (ZTN + TLS)"]
+    SciTokens["SciTokens Library<br/>libXrdAccSciTokens.so"]
+    Mapfile["User Mapfile<br/>/etc/xrootd/mapfile"]
+    Multiuser["Multiuser Plugin<br/>libXrdMultiuser.so"]
+    FS["Filesystem<br/>Files owned by mapped user"]
+    
+    Client -->|1. Connect with Bearer token| XRD
+    XRD -->|2. Extract token| SciTokens
+    SciTokens -->|3. Validate token<br/>issuer, audience, signature| SciTokens
+    SciTokens -->|4. Lookup 'sub' claim| Mapfile
+    Mapfile -->|5. Return Unix username| SciTokens
+    SciTokens -->|6. Set request.name| Multiuser
+    Multiuser -->|7. Switch UID/GID| FS
+    FS -->|8. Perform operation| Client
+    
+    style Client fill:#e3f2fd
+    style XRD fill:#fff3e0
+    style SciTokens fill:#f3e5f5
+    style Mapfile fill:#e8f5e9
+    style Multiuser fill:#fce4ec
+    style FS fill:#e8f5e9
+```
+
+**Key Components:**
+
+1. **SciTokens Library** (`libXrdAccSciTokens.so`):
+   - Validates OAuth tokens from Keycloak
+   - Verifies issuer, audience, signature, expiration
+   - Maps token `sub` claim to Unix username
+   - Same library used for both HTTP and ZTN protocols
+
+2. **Multiuser Plugin** (`libXrdMultiuser.so`):
+   - Takes the mapped Unix username
+   - Switches process UID/GID to the Unix user
+   - Files are created/accessed as the actual user, not as 'xrootd'
+
+3. **Token Mapping** (`/etc/xrootd/mapfile`):
+   - JSON file: `{"sub": "keycloak.username", "result": "unix_user"}`
+   - Maps JWT token subject to Unix system user
+   - Shared between HTTP and ZTN protocols
+
+**How ZTN Token Discovery Works:**
+
+When a client connects to port 1094 with ZTN, XRootD looks for tokens in this order:
+
+1. `BEARER_TOKEN` environment variable
+2. `BEARER_TOKEN_FILE` environment variable → reads file contents
+3. `$XDG_RUNTIME_DIR/bt_u{euid}` (if XDG_RUNTIME_DIR is set)
+4. `/tmp/bt_u{euid}` (fallback)
+
+### Prerequisites
+
+Before configuring XRootD:
+
+- ✅ XRootD packages installed (version 5.7+)
+- ✅ SciTokens library installed (`xrootd-scitokens`)
+- ✅ Multiuser plugin installed (`xrootd-multiuser`)
+- ✅ TLS certificates available (GEANT CA or self-signed)
+- ✅ User mapfile created (token-to-Unix-user mapping)
+
+### Installation (RHEL/CentOS 8+)
+
+```bash
+# Install XRootD and required plugins
+sudo dnf install -y epel-release
+sudo dnf install -y osg-release  # For OSG packages
+
+sudo dnf install -y \
+    xrootd \
+    xrootd-server \
+    xrootd-scitokens \
+    xrootd-multiuser \
+    xrootd-selinux
+
+# Verify installation
+rpm -qa | grep xrootd
+```
+
+### Configuration Files
+
+XRootD configuration consists of three main files:
+
+1. **`/etc/xrootd/xrootd.cfg`** - Main server configuration
+2. **`/etc/xrootd/scitokens.cfg`** - SciTokens validation settings
+3. **`/etc/xrootd/mapfile`** - Token-to-Unix-user mapping (JSON)
+
+### Step 1: Configure Main XRootD Server
+
+Create `/etc/xrootd/xrootd.cfg` based on the Docker production configuration.
+
+> **Complete Reference**: [docker/xrootd/configs/xrootd-prod.cfg](../../docker/xrootd/configs/xrootd-prod.cfg)
+
+```bash
+sudo tee /etc/xrootd/xrootd.cfg << 'EOF'
+# SciTokens logging
+scitokens.trace error
+
+# Export and Path Mapping
+all.export /
+oss.localroot /data/xrootd
+
+# Multi-User Filesystem Plugin (MUST come BEFORE ofs.authlib)
+ofs.osslib ++ libXrdMultiuser.so default
+multiuser.umask 0022
+
+# ZTN Protocol for Native Port 1094
+sec.protocol ztn -tokenlib libXrdAccSciTokens.so
+sec.protbind * only ztn
+
+# Authorization with SciTokens
+ofs.authorize
+ofs.authlib libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
+
+# Trace/Debug Configuration
+xrootd.trace auth
+xrd.trace tls
+
+# TLS Configuration
+xrd.tls /etc/ssl/certs/your-server.pem /etc/ssl/private/your-server.key
+xrd.tlsca certdir /etc/grid-security/certificates
+# For self-signed certs: xrd.tlsca noverify
+xrootd.tls all
+
+# Security Library
+xrootd.seclib /usr/lib64/libXrdSec-5.so
+EOF
+```
+
+**Required Changes:**
+- `oss.localroot /data/xrootd` - Change to your actual data directory
+- `xrd.tls` - Update certificate paths
+- `xrd.tlsca` - Use `noverify` for self-signed certs
+
+**Key Configuration Notes:**
+- `ofs.authorize` + `ofs.authlib` - SciTokens handles both authentication and authorization
+- `sec.protocol` must come BEFORE `sec.protbind`
+- `ofs.osslib` (multiuser) must come BEFORE `ofs.authlib` (scitokens)
+
+### Step 2: Configure SciTokens
+
+Create `/etc/xrootd/scitokens.cfg` for token validation.
+
+> **Complete Reference**: [docker/xrootd/configs/scitokens_prod.cfg](../../docker/xrootd/configs/scitokens_prod.cfg)
+
+```bash
+sudo tee /etc/xrootd/scitokens.cfg << 'EOF'
+[Global]
+onmissing = deny
+audience = https://id.gsi.de/realms/wl
+
+[Issuer GSI]
+issuer = https://id.gsi.de/realms/wl
+base_path = /
+map_subject = true
+name_mapfile = /etc/xrootd/mapfile
+default_user = ""
+EOF
+```
+
+**Security Settings:**
+- `onmissing = deny` - Reject requests without valid tokens
+- `default_user = ""` - No fallback user (unmapped tokens denied)
+- `map_subject = true` - Enable token-to-user mapping
+
+### Step 3: Create User Mapfile
+
+Create `/etc/xrootd/mapfile` for mapping JWT token subjects to Unix users:
+
+```bash
+sudo tee /etc/xrootd/mapfile << 'EOF'
+[
+  {"sub": "user.one", "result": "userone"},
+  {"sub": "user.two", "result": "usertwo"},
+  {"sub": "test.user", "result": "testuser"}
+]
+EOF
+```
+
+**Critical**: 
+
+- The `sub` field must match the `sub` claim from Keycloak JWT tokens
+- The `result` field must be an **existing Unix user** on your system
+- The Unix user must have appropriate permissions on the data directory (`oss.localroot`)
+
+**Example Keycloak token:**
+
+```json
+{
+  "sub": "user.one",
+  "preferred_username": "user.one",
+  "name": "User One",
+  ...
+}
+```
+
+Maps to Unix user `userone` who must exist:
+
+```bash
+# Verify Unix user exists
+id userone
+
+# Create Unix user if needed
+sudo useradd -m userone
+
+# Set appropriate permissions on data directory
+sudo chown -R userone:userone /data/xrootd/userone-files
+```
+
+### Step 4: Configure TLS Certificates
+
+#### Option A: Using GEANT CA Certificates (Production)
+
+```bash
+# Verify certificates exist
+ls -la /etc/ssl/certs/your-server.pem
+ls -la /etc/ssl/private/your-server.key
+
+# Set correct permissions
+sudo chown xrootd:xrootd /etc/ssl/private/your-server.key
+sudo chmod 600 /etc/ssl/private/your-server.key
+sudo chmod 644 /etc/ssl/certs/your-server.pem
+
+# Verify CA certificates
+ls -la /etc/grid-security/certificates/
+```
+
+#### Option B: Using Self-Signed Certificates (Testing)
+
+```bash
+# Create self-signed certificate
+sudo mkdir -p /etc/xrootd/certs
+
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/xrootd/certs/hostkey.pem \
+  -out /etc/xrootd/certs/hostcert.pem \
+  -subj "/C=DE/ST=Hesse/L=Darmstadt/O=GSI/CN=$(hostname -f)"
+
+# Set permissions
+sudo chown xrootd:xrootd /etc/xrootd/certs/hostkey.pem /etc/xrootd/certs/hostcert.pem
+sudo chmod 600 /etc/xrootd/certs/hostkey.pem
+sudo chmod 644 /etc/xrootd/certs/hostcert.pem
+
+# Update xrootd.cfg to use these certificates
+sudo sed -i 's|/etc/ssl/certs/your-server.pem|/etc/xrootd/certs/hostcert.pem|g' /etc/xrootd/xrootd.cfg
+sudo sed -i 's|/etc/ssl/private/your-server.key|/etc/xrootd/certs/hostkey.pem|g' /etc/xrootd/xrootd.cfg
+
+# Disable CA verification for self-signed certs
+sudo sed -i 's|^xrd.tlsca certdir|# xrd.tlsca certdir|g' /etc/xrootd/xrootd.cfg
+sudo sed -i 's|^# xrd.tlsca noverify|xrd.tlsca noverify|g' /etc/xrootd/xrootd.cfg
+```
+
+### Step 5: Configure SystemD Service
+
+Create or edit `/etc/systemd/system/xrootd.service`:
+
+```bash
+sudo tee /etc/systemd/system/xrootd.service << 'EOF'
+[Unit]
+Description=XRootD Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/xrootd -c /etc/xrootd/xrootd.cfg -n xrootd
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+### Step 6: Start and Enable XRootD Service
+
+```bash
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable service to start on boot
+sudo systemctl enable xrootd
+
+# Start XRootD
+sudo systemctl start xrootd
+
+# Check status
+sudo systemctl status xrootd
+
+# Verify port 1094 is listening
+sudo ss -tlnp | grep 1094
+```
+
+### Step 7: Verify XRootD Configuration
+
+Check the XRootD logs for any errors:
+
+```bash
+# View logs
+sudo journalctl -u xrootd -n 50 -f
+
+# Look for successful initialization messages:
+# - "sec.protocol ztn" loaded
+# - TLS certificate loaded
+# - SciTokens library loaded
+# - Multiuser plugin loaded
+```
+
+### Step 8: Test XRootD Connection (Without Token)
+
+Test that XRootD rejects unauthenticated connections:
+
+```bash
+# This should fail without a token
+xrdfs localhost:1094 ls /
+
+# Expected error:
+# [FATAL] Auth failed: No protocols left to try
+```
+
+This confirms ZTN authentication is enforced.
+
+### Troubleshooting XRootD
+
+#### Issue: "Unable to find /opt/xrd/etc/Authfile"
+
+**Cause**: `ofs.authorize` without `ofs.authlib` loads the legacy authorization system.
+
+**Solution**: Ensure your configuration has:
+
+```properties
+ofs.authorize
+ofs.authlib libXrdAccSciTokens.so config=/etc/xrootd/scitokens.cfg
+```
+
+The `ofs.authlib` line replaces the default authorization with SciTokens.
+
+#### Issue: "Anonymous client; no user set"
+
+**Cause**: Token not provided or not mapped to a Unix user.
+
+**Solutions**:
+
+1. Verify token is being sent by the backend
+2. Check `/etc/xrootd/mapfile` has correct mapping
+3. Verify `map_subject = true` in `scitokens.cfg`
+4. Check XRootD logs for token validation errors
+
+#### Issue: TLS Handshake Failures
+
+**Cause**: Certificate issues or CA verification problems.
+
+**Solutions**:
+
+1. For self-signed certs: Use `xrd.tlsca noverify` in `xrootd.cfg`
+2. Verify certificate permissions (key should be 600, owned by xrootd)
+3. Check certificate expiration: `openssl x509 -in /path/to/cert.pem -noout -dates`
+
+---
+
 ## Version Updates (Upgrading DataHarbor)
 
 This section covers upgrading to a new version of DataHarbor. These steps are performed **every time you update** to a new version.
@@ -700,432 +1086,103 @@ curl -k https://punch2.gsi.de/api/health
 
 ## Troubleshooting
 
-### Backend Issues
+> **Complete Troubleshooting Guide**: See [DataHarbor Troubleshooting Guide](../TROUBLESHOOTING.md) for comprehensive issue resolution.
 
-#### Issue: Backend won't start
+This section covers GSI-specific deployment issues. For general DataHarbor troubleshooting, authentication problems, and XRootD integration issues, refer to the main troubleshooting guide.
+
+### Backend Service Issues
+
+**Service won't start:**
 
 ```bash
-# Check logs for errors
-sudo journalctl -u dataharbor-backend -n 100
+# Check logs
+sudo journalctl -u dataharbor-backend -n 50
 
-# Check config file syntax
-cat /root/dataharbor/config/backend-config-gsi-test-server.yaml
-
-# Verify certificates exist and are readable
-ls -la /root/dataharbor/config/cert/
-
-# Check if port 22000 is already in use
-sudo ss -tlnp | grep ':22000'
-
-# Check for permission issues
-sudo journalctl -u dataharbor-backend | grep -i permission
+# Common causes:
+# - Config file syntax errors
+# - Missing/invalid SSL certificates
+# - Port 22000 already in use
+# - Permission issues with log directory
 ```
 
-#### Issue: Health check fails
+**SSL Certificate Issues:**
 
 ```bash
-# Try both health endpoints
-curl -k https://localhost:22000/health
-curl -k https://localhost:22000/api/health
+# Verify certificates exist and have correct permissions
+ls -la /etc/ssl/certs/your-server.pem  # Should be 644
+ls -la /etc/ssl/private/your-server.key  # Should be 600
 
-# Check if backend is listening on port 22000
-sudo ss -tlnp | grep ':22000'
-
-# View real-time logs
-sudo journalctl -u dataharbor-backend -f
-
-# Check SSL certificate issues
-openssl s_client -connect localhost:22000 -showcerts
+# Check certificate validity
+openssl x509 -in /etc/ssl/certs/your-server.pem -noout -dates
 ```
 
-#### Issue: Backend logs show SSL errors
+### Nginx Issues
+
+**Port conflicts with XRootD:**
 
 ```bash
-# Verify SSL certificate files exist and have correct permissions
-ls -la /etc/ssl/certs/punch2.gsi.de.pem
-ls -la /etc/ssl/private/punch2.gsi.de.key
+# Verify XRootD is on port 80, nginx on 443
+sudo ss -tlnp | grep -E ':(80|443|22000|1094)'
 
-# Certificates should be:
-# - punch2.gsi.de.pem: 644 (readable by all)
-# - punch2.gsi.de.key: 600 or 400 (readable by owner/xrootd only)
-
-# Verify certificate validity
-openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -dates
-
-# Check if certificate is expired
-openssl x509 -in /etc/ssl/certs/punch2.gsi.de.pem -noout -checkend 0
-
-# Restart backend
-sudo systemctl restart dataharbor-backend
+# Nginx should only listen on 443, not 80
+grep -n \"listen\" /etc/nginx/conf.d/dataharbor.conf
 ```
 
-**Note**: SSL certificates are managed by GSI IT. If certificates are expired or invalid, contact GSI IT to request renewal from GEANT CA.
-
-### Frontend / Nginx Issues
-
-#### Issue: Nginx won't start - Port conflict
-
-**If you see "bind() to 0.0.0.0:80 failed":**
-
-Port 80 is used by XRootD HTTP service. DataHarbor uses port 443 (HTTPS) only.
+**Proxy not reaching backend:**
 
 ```bash
-# Check what's on port 80
-sudo ss -tlnp | grep ':80'
-
-# Verify nginx config uses port 443 (NOT port 80)
-sudo grep -n 'listen' /etc/nginx/conf.d/dataharbor.conf
-
-# Should show: listen 443 ssl http2;
-# Should NOT have: listen 80;
-
-# If you see port 80, remove it from config
-sudo nano /etc/nginx/conf.d/dataharbor.conf
-```
-
-#### Issue: Frontend loads but API calls fail (502 Bad Gateway)
-
-```bash
-# Check nginx error logs
-sudo tail -f /var/log/nginx/dataharbor-frontend-error.log
-
-# Verify backend is running
+# Test backend directly
 curl -k https://localhost:22000/health
 
-# Check proxy configuration
-sudo grep -A 10 'location /api' /etc/nginx/conf.d/dataharbor.conf
-
-# Verify proxy_pass points to correct backend
-# Should be: proxy_pass https://localhost:22000;
-```
-
-#### Issue: CORS errors in browser console
-
-Update backend CORS configuration to include your frontend HTTPS origin:
-
-```yaml
-# Edit: /root/dataharbor/config/backend-config-gsi-test-server.yaml
-server:
-  cors:
-    allow_origins:
-      - https://punch2.gsi.de  # Use full domain name
-```
-
-Then restart backend:
-
-```bash
-sudo systemctl restart dataharbor-backend
-```
-
-#### Issue: External access fails (connection timeout)
-
-```bash
-# Check if port 443 is open in firewall
-sudo firewall-cmd --list-ports
-# or
-sudo iptables -L -n | grep 443
-
-# Check if nginx is listening on all interfaces (0.0.0.0:443)
-sudo ss -tlnp | grep nginx
-
-# Test from server itself
-curl -k https://localhost/
-
-# If local works but external doesn't, check:
-# 1. Institutional firewall (contact GSI network team)
-# 2. SELinux blocking: sudo setenforce 0 (temporarily)
+# Check nginx config
+sudo nginx -t
 ```
 
 ### Authentication Issues
 
-#### Issue: "Invalid parameter: redirect_uri" Error
+> **See**: [Authentication System Guide](../AUTHENTICATION.md) for OIDC configuration details.
 
-**Symptom**: After clicking Login, redirected to Keycloak but get error: "Invalid parameter: redirect_uri"
+**Common OAuth redirect issues:**
 
-**Cause**: Keycloak client configuration doesn't include your new server URL in allowed redirect URIs.
-
-**Solution**: Contact your Keycloak administrator to add redirect URIs for your server.
-
-**What to tell the Keycloak admin:**
-
-```
-Please add the following Valid Redirect URIs to the appropriate client in Keycloak:
-
-For Production:
-  Client ID: xrootd
-  Valid Redirect URIs:
-    - https://punch2.gsi.de/*
-  Valid Post Logout Redirect URIs:
-    - https://punch2.gsi.de/*
-
-For Development/Testing:
-  Client ID: xrootd-test
-  Valid Redirect URIs:
-    - https://localhost/*
-    - http://localhost/*
-  Valid Post Logout Redirect URIs:
-    - https://localhost/*
-    - http://localhost/*
-
-Realm: wl
-Keycloak URL: https://id.gsi.de
-```
-
-**Alternative - Check current Keycloak configuration** (if you have access):
-
-1. Log into Keycloak admin console: `https://id.gsi.de/admin`
-2. Select realm: `wl`
-3. For Production: Go to Clients → `xrootd`
-   - Check "Valid Redirect URIs" field
-   - Should include: `https://punch2.gsi.de/*`
-4. For Development: Go to Clients → `xrootd-test`
-   - Check "Valid Redirect URIs" field
-   - Should include: `https://localhost/*` and `http://localhost/*`
-
-**Important Notes:**
-- Production environments use the `xrootd` client with `https://punch2.gsi.de/*`
-- Development/test environments use the `xrootd-test` client with localhost redirect URIs
-- The `xrootd-test` client redirects to localhost for local development testing
-
-#### Issue: Can't log in / OIDC redirect fails (general)
-
-```bash
-# Check backend logs for OIDC errors
-sudo journalctl -u dataharbor-backend | grep -i oidc
-
-# Look for specific error messages like:
-# - "redirect_uri mismatch"
-# - "invalid redirect_uri"
-# - "unauthorized client"
-
-# Verify OIDC configuration
-grep -A 10 'oidc:' /root/dataharbor/config/backend-config-gsi-test-server.yaml
-
-# Test OIDC discovery URL
-curl https://id.gsi.de/realms/wl/.well-known/openid-configuration
-
-# Check what redirect_uri DataHarbor is using
-sudo journalctl -u dataharbor-backend | grep redirect_uri
-
-# Common issues:
-# 1. Frontend URL mismatch - backend config frontend.url should match actual access URL
-# 2. Keycloak client redirect URIs not updated
-# 3. HTTP vs HTTPS mismatch
-```
-
-#### Issue: Redirects to localhost:5173 after login
-
-**Symptom**: After successful Keycloak login, browser redirects to `https://localhost:5173` instead of the production server.
-
-**Cause**: The `frontend.url` in the backend configuration is set to the development URL.
-
-**Solution**:
+1. **`frontend.url` mismatch**: Backend config must match actual URL users access
+2. **Keycloak redirect URIs**: Must include `https://your-server/*`
+3. **After config changes**: Users must log out and log back in
 
 ```bash
 # Check current frontend URL setting
-grep -A 3 'frontend:' /root/dataharbor/config/backend-config-gsi-test-server.yaml
+grep -A 2 \"frontend:\" /root/dataharbor/config/backend-config.yaml
 
-# If it shows "https://localhost:5173", update it:
-sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
-
-# Change:
-#   frontend:
-#     url: "https://localhost:5173"
-# To:
-#   frontend:
-#     url: "https://punch2.gsi.de"  # Or your actual server hostname
-
-# Restart backend to apply changes
-sudo systemctl restart dataharbor-backend
-
-# Verify the service restarted successfully
-sudo systemctl status dataharbor-backend
-```
-
-#### Issue: "No tokens found for token ID" or "Not authenticated" errors
-
-**Symptom**: After logging in successfully, subsequent requests return 401 Unauthorized with message "Not authenticated". Backend logs show "No tokens found for token ID".
-
-**Cause**: The backend uses in-memory token storage. When the backend service restarts, all OAuth tokens are lost, but browser session cookies still reference the old (non-existent) token IDs.
-
-**Solution**: Log out and log back in to get a fresh token.
-
-```bash
-# Users must log out and log back in after:
-# 1. Backend service restarts
-# 2. Backend updates/deployments
-# 3. Configuration changes that require backend restart
-```
-
-**Production Considerations**:
-- In-memory token storage means tokens are lost on every restart
-- Users must re-authenticate after each deployment
-- Not suitable for load-balanced multi-instance deployments
-- Consider implementing persistent token storage (Redis, encrypted files) for production
-
-**Quick Fix**: Clear browser cookies or use incognito mode, then log in again.
-
-#### Issue: "Unauthorized" or "Forbidden" after login
-
-```bash
-# Check allowed roles in backend config
-grep -A 5 'allowed_roles:' /root/dataharbor/config/backend-config-gsi-test-server.yaml
-
-# Ensure role matches what Keycloak provides
-# Example: "xrootd-user"
-
-# Check user's Keycloak roles (in Keycloak admin console)
-# User must have the role specified in allowed_roles
+# Should show: url: \"https://your-actual-server.com\"
+# NOT: url: \"https://localhost:5173\"
 ```
 
 ### XRootD Integration Issues
 
-#### Issue: Can't browse XRootD directories
+> **See**: [XRootD Integration Guide](../xrootd.md) for client configuration.
+
+**Connection failures:**
 
 ```bash
-# Check XRootD configuration in backend
-grep -A 10 'xrd:' /root/dataharbor/config/backend-config-gsi-test-server.yaml
-
-# Test XRootD connectivity directly (if no auth required)
-xrdfs localhost:1094 ls /
-
-# If xrdfs works but DataHarbor doesn't, check backend logs
-sudo journalctl -u dataharbor-backend | grep -i xrd
-
-# Common issues:
-# - initial_dir path doesn't match XRootD export path
-# - XRootD authentication required but token not passed correctly
-# - XRootD server not running
-```
-
-**Symptom**: Directory listing returns 400 error or "permission denied"
-
-**Cause**: The `initial_dir` in backend config doesn't match the XRootD server's export configuration.
-
-**Solution**:
-
-1. Check what path XRootD is exporting:
-   ```bash
-   # Find XRootD export paths
-   grep -r 'all.export' /etc/xrootd/
-   ```
-
-2. Update backend configuration to match:
-   ```bash
-   # Edit backend config
-   sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
-   
-   # Update initial_dir to match XRootD export
-   # If XRootD exports "/" use:
-   xrd:
-     initial_dir: "/"
-   
-   # If XRootD exports "/data" use:
-   xrd:
-     initial_dir: "/data"
-   ```
-
-3. Restart backend:
-   ```bash
-   sudo systemctl restart dataharbor-backend
-   ```
-
-**Note**: XRootD at GSI typically exports `/` with authentication via OAuth tokens. DataHarbor passes the user's authentication token to XRootD for access control.
-
-#### Issue: XRootD returns "permission denied" or logs show "Anonymous client"
-
-**Symptom**: Directory browsing returns 400 error. XRootD logs (`/var/log/xrootd/http/xrootd.log`) show:
-```
-multiuser_UserSentry: Anonymous client; no user set, cannot change FS UIDs
-ofs_open: unknown.xxx:xx@localhost Unable to open /; permission denied
-```
-
-**Cause**: The `enable_ztn` flag is set to `false` in backend config, so the OAuth token is not being passed to XRootD.
-
-**Solution**:
-
-```bash
-# Edit backend config
-sudo nano /root/dataharbor/config/backend-config-gsi-test-server.yaml
-
-# Change enable_ztn from false to true:
-xrd:
-  enable_ztn: true  # Enable ZTN protocol (TLS + OAuth token authentication)
-
-# Restart backend
-sudo systemctl restart dataharbor-backend
-
-# Verify browsing works now
-```
-
-**Explanation**: XRootD at GSI requires OAuth token authentication via the ZTN protocol. When `enable_ztn: false`, the backend connects to XRootD using plain protocol without authentication, which XRootD rejects with "permission denied". Setting `enable_ztn: true` enables TLS and makes the backend pass the user's OAuth token (obtained from Keycloak) to XRootD for authentication.
-
-#### Issue: "empty directory path to list" error when browsing
-
-**Symptom**: Directory browsing returns 400 error with message "empty directory path to list". Browser Network tab shows payload with empty path: `{"path":"","page":1,"pageSize":500}`
-
-**Cause**: Frontend is not correctly retrieving or using the initial directory from the backend configuration.
-
-**Diagnosis**:
-
-```bash
-# Check if initialDir endpoint returns the correct value
-curl -k https://localhost/api/v1/xrd/initialDir
-
-# Should return: {"code":200,"data":"/","message":"success"}
-
-# Check backend logs for the actual error
-sudo journalctl -u dataharbor-backend | grep -A 2 "ls/paged"
-
-# Or check in browser DevTools Network tab:
-# - Request payload shows: {"path":"","page":1,"pageSize":500}
-# - Response shows: {"code":400,"error":"empty directory path to list"}
-```
-
-**Solution**: This is a frontend bug where the UI is not properly setting the path parameter before calling the directory listing API.
-
-**Workaround**: Check the frontend code to ensure it:
-1. Calls `/api/v1/xrd/initialDir` on page load
-2. Stores the returned directory path
-3. Uses that path (not empty string) when calling `/api/v1/xrd/ls/paged`
-
-**Note**: This is NOT a backend or XRootD configuration issue. The backend is correctly configured and working. The issue is in the frontend JavaScript code that builds the API request payload.
-
-#### Issue: XRootD authentication errors
-
-```bash
-# If XRootD requires authentication, update backend config:
-# xrd:
-#   host: "localhost"
-#   port: 1094
-#   tls: true
-#   client_cert: "/path/to/client.crt"
-#   client_key: "/path/to/client.key"
-
-# Verify XRootD server allows connections
+# Verify XRootD is running
 sudo systemctl status xrootd
+sudo ss -tlnp | grep 1094
 
-# Check XRootD logs
-sudo journalctl -u xrootd -n 50
+# Test ZTN authentication is enforced (should fail without token)
+xrdfs localhost:1094 ls /
+# Expected: [FATAL] Auth failed
 ```
 
-### Performance Issues
-
-#### Issue: Slow directory browsing
+**User mapping issues:**
 
 ```bash
-# Check XRootD server performance
-xrdfs localhost:1094 ls -l /store/  # Time this command
+# Check token mapping
+cat /etc/xrootd/mapfile | jq '.[0:3]'
 
-# Check network latency to XRootD
-ping localhost
+# Verify Unix user exists
+id username
 
-# Monitor backend resource usage
-top -p $(pgrep dataharbor-backend)
-
-# Increase logging to debug performance
-# In backend config, set: logging.level: debug
-# Then restart and monitor logs
+# Check XRootD logs for SciTokens errors
+sudo journalctl -u xrootd | grep -i scitoken
 ```
 
 ---
@@ -1442,9 +1499,12 @@ du -sh /var/log/dataharbor/
 
 **For DataHarbor issues:**
 
-- See main **[DEPLOYMENT.md](./DEPLOYMENT.md)** - General deployment guide
-- See **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Detailed troubleshooting
-- See **[BACKEND_CONFIGURATION.md](./BACKEND_CONFIGURATION.md)** - Backend config reference
-- See **[FRONTEND_CONFIGURATION.md](./FRONTEND_CONFIGURATION.md)** - Frontend config reference
+- See main **[DEPLOYMENT.md](../DEPLOYMENT.md)** - General deployment guide
+- See **[TROUBLESHOOTING.md](../TROUBLESHOOTING.md)** - Detailed troubleshooting
+- See **[BACKEND_CONFIGURATION.md](../BACKEND_CONFIGURATION.md)** - Backend config reference
+- See **[FRONTEND_CONFIGURATION.md](../FRONTEND_CONFIGURATION.md)** - Frontend config reference
 - GitHub Issues: [https://github.com/AnarManafov/dataharbor/issues](https://github.com/AnarManafov/dataharbor/issues)
 
+---
+
+[← Back to GSI Documentation](./README.md) | [Main Documentation](../README.md) | [↑ Top](#dataharbor-manual-deployment-guide-for-gsi-environment)

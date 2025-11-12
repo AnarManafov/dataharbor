@@ -4,11 +4,20 @@ FROM node:24-alpine AS builder
 
 WORKDIR /build
 
-COPY web/package*.json ./
-RUN npm ci --only=production
+# Copy root package files (npm workspaces - lockfile is in root)
+COPY package.json package-lock.json ./
 
-COPY web/ ./
-RUN npm run build
+# Copy web workspace package.json
+COPY web/package.json ./web/
+
+# Install dependencies using npm workspaces
+RUN npm ci --workspace=web
+
+# Copy web source files
+COPY web/ ./web/
+
+# Build the frontend
+RUN npm run build --workspace=web
 
 FROM nginx:1.28-alpine
 
@@ -17,7 +26,7 @@ RUN apk add --no-cache ca-certificates tzdata
 RUN rm /etc/nginx/conf.d/default.conf
 
 COPY docker/frontend/nginx.conf /etc/nginx/conf.d/dataharbor.conf
-COPY --from=builder /build/dist /usr/share/nginx/html
+COPY --from=builder /build/web/dist /usr/share/nginx/html
 
 # Ensure nginx user exists (may already exist in base image)
 RUN addgroup -g 101 nginx || true && \

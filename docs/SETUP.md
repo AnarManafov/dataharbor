@@ -1,5 +1,7 @@
 # Development Environment Setup
 
+[← Back to Documentation](./README.md)
+
 This guide covers the complete setup process for DataHarbor development environment.
 
 ## Setup Process Overview
@@ -106,35 +108,26 @@ cd ..
 
    ```shell
    cd app/config
-   copy application.template.yaml application.development.yaml
+   cp application.template.yaml application.development.yaml
    ```
 
-1. Edit `application.development.yaml` with your settings:
+2. Edit `application.development.yaml` with your settings. Key settings to configure:
 
-   ```yaml
-   # Server configuration
-   server:
-     port: 8081
-     host: "localhost"
-   
-   # XROOTD configuration
-   xrd:
-     server: "your-xrootd-server.example.com"
-     initial_dir: "/your/initial/path"
-   
-   # Authentication (optional for development)
-   auth:
-     enabled: false  # Set to true when testing auth
-     oidc:
-       issuer: "https://your-oidc-provider.com"
-       client_id: "your-client-id"
-       client_secret: "your-client-secret"
-   ```
+   | Setting           | Description                                        |
+   | ----------------- | -------------------------------------------------- |
+   | `server.address`  | Backend port (default: `:8081`)                    |
+   | `xrd.host`        | Your XROOTD server hostname                        |
+   | `xrd.initial_dir` | Starting directory for file browser                |
+   | `auth.enabled`    | Set `false` for local dev, `true` for auth testing |
+
+   > **📖 Complete configuration reference:** See **[Backend Configuration Guide](./BACKEND_CONFIGURATION.md)** for all available options, environment variables, and production examples.
 
 #### Frontend Configuration
 
 1. The frontend automatically proxies API calls to the backend during development
 2. SSL certificates are handled automatically (see [Certificate Setup](#ssl-certificate-setup))
+
+   > **📖 Complete frontend config:** See **[Frontend Configuration Guide](./FRONTEND_CONFIGURATION.md)** for all options.
 
 ### 4. SSL Certificate Setup (Development)
 
@@ -164,46 +157,40 @@ npm run cert:setup
 
 If no certificates are found, the development server will run in HTTP mode.
 
-## Development Workflow
+## Running the Development Environment
 
-### Starting Development Servers
+### Quick Start Commands
 
-#### Option 1: Start Both Services Concurrently
+| Command                | Description                                  |
+| ---------------------- | -------------------------------------------- |
+| `npm run dev`          | Start both frontend and backend concurrently |
+| `npm run dev:frontend` | Start frontend only (https://localhost:5173) |
+| `npm run dev:backend`  | Start backend only (http://localhost:8081)   |
+| `npm run build`        | Build both for production                    |
 
-```shell
-npm run dev
-```
-
-This starts both frontend (<https://localhost:5173>) and backend (<http://localhost:8081>).
-
-## Developer Workflow
-
-### Starting Both Services Concurrently
+### Starting Both Services
 
 ```shell
 npm run dev
 ```
 
-This starts both frontend (<https://localhost:5173>) and backend (<http://localhost:8081>).
+This starts:
+- **Frontend**: https://localhost:5173 (with hot reload)
+- **Backend**: http://localhost:8081 (with auto-restart)
 
 ### Starting Services Separately
 
-**Backend:**
-
 ```shell
+# Terminal 1: Backend
 npm run dev:backend
-# Or with custom config:
-$env:CONFIG_FILE_PATH = "app/config/application.development.yaml"
-npm run dev:backend
-```
 
-**Frontend:**
-
-```shell
+# Terminal 2: Frontend
 npm run dev:frontend
 ```
 
-### Building for Production
+> **📖 For detailed development workflow**, including Git branching, CI/CD, and contribution guidelines, see **[Development Guide](./DEVELOPMENT.md)**.
+
+## Building for Production
 
 ```shell
 # Build both frontend and backend
@@ -214,7 +201,7 @@ npm run build:frontend
 npm run build:backend
 ```
 
-### Running Tests
+## Running Tests
 
 #### Backend Tests
 
@@ -308,3 +295,7 @@ For troubleshooting common issues, see the **[Troubleshooting Guide](./TROUBLESH
 - Backend logs: Check console output when running `npm run dev:backend`
 - Frontend logs: Check browser console and terminal output
 - Network requests: Use browser DevTools Network tab
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#development-environment-setup)

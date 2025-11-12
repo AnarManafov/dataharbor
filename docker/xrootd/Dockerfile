@@ -1,8 +1,23 @@
-# XRootD Server - Multi-stage build for minimal runtime image
-# Version: XRootD 5.9.0 from official CERN repository
-# Features: ZTN protocol, TLS, SciTokens auth, multiuser plugin
-# Platform: linux/amd64 required (ARM64 packages unavailable)
+# ============================================
+# XRootD Server - Development Dockerfile
+# ============================================
+# Full-featured development environment with:
+# - Auto-generated self-signed TLS certificates
+# - Pre-configured test users for user mapping demo
+# - Test data generation
+# - Verbose logging for debugging
+#
+# For production, use Dockerfile.prod instead
+#
+# Platform: linux/amd64 required (ARM64 packages unavailable from CERN/OSG)
+#
+# Usage:
+#   docker build -f Dockerfile -t dataharbor-xrootd:dev ..
+# ============================================
 
+# ---------------------------------------------
+# Build stage: Install XRootD and dependencies
+# ---------------------------------------------
 FROM rockylinux:9 AS builder
 
 # Install XRootD repository and base dependencies
@@ -15,14 +30,16 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf clean all
 
 # Install XRootD 5.9.0 and plugins
+# Pinned version for reproducible builds
 # Note: xrootd-multiuser comes from OSG repo, others from official XRootD repo
+ARG XROOTD_VERSION=5.9.0
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
-    xrootd-5.9.0 \
-    xrootd-server-5.9.0 \
-    xrootd-client-5.9.0 \
-    xrootd-libs-5.9.0 \
-    xrootd-scitokens-5.9.0 \
+    xrootd-${XROOTD_VERSION} \
+    xrootd-server-${XROOTD_VERSION} \
+    xrootd-client-${XROOTD_VERSION} \
+    xrootd-libs-${XROOTD_VERSION} \
+    xrootd-scitokens-${XROOTD_VERSION} \
     xrootd-multiuser \
     openssl \
     libcap \
@@ -33,9 +50,21 @@ RUN setcap 'cap_setuid,cap_setgid=+ep' /usr/bin/xrootd
 
 RUN mkdir -p /usr/lib64/xrootd /usr/share/xrootd
 
+# ---------------------------------------------
+# Runtime stage: Development image
+# ---------------------------------------------
 FROM rockylinux:9
 
-# Minimal runtime dependencies only
+# Labels for container identification
+LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Development)" \
+    org.opencontainers.image.description="XRootD server with test users and self-signed certs for development" \
+    org.opencontainers.image.version="5.9.0" \
+    org.opencontainers.image.vendor="DataHarbor" \
+    xrootd.version="5.9.0" \
+    xrootd.features="ztn,tls,scitokens,multiuser" \
+    xrootd.mode="development"
+
+# Minimal runtime dependencies + dos2unix for Windows/WSL compatibility
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y openssl ca-certificates dos2unix && \
     dnf clean all
@@ -86,22 +115,25 @@ RUN mkdir -p \
 
 # Copy configuration files
 COPY docker/xrootd/configs/xrootd-dev.cfg /etc/xrootd/xrootd-dev.cfg
-#COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
+COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
 COPY docker/xrootd/configs/scitokens_dev.cfg /etc/xrootd/scitokens_dev.cfg
-#COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
+COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
 COPY docker/xrootd/configs/mapfile /etc/xrootd/mapfile
 
 # Copy scripts
 COPY docker/xrootd/scripts/setup-test-data.sh /usr/local/bin/setup-test-data.sh
 COPY docker/xrootd/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY docker/xrootd/scripts/docker-entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh
 
 # Convert line endings for all config files and scripts (fixes WSL/Windows CRLF issues)
 RUN dos2unix /etc/xrootd/*.cfg \
     /etc/xrootd/mapfile \
     /usr/local/bin/setup-test-data.sh \
-    /usr/local/bin/docker-entrypoint.sh && \
+    /usr/local/bin/docker-entrypoint.sh \
+    /usr/local/bin/docker-entrypoint-prod.sh && \
     chmod +x /usr/local/bin/setup-test-data.sh \
-    /usr/local/bin/docker-entrypoint.sh && \
+    /usr/local/bin/docker-entrypoint.sh \
+    /usr/local/bin/docker-entrypoint-prod.sh && \
     chown -R xrootd:xrootd /etc/xrootd && \
     chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
 
@@ -110,18 +142,12 @@ EXPOSE 1094
 # Work around xrootd home directory issue: https://github.com/xrootd/xrootd/issues/365
 WORKDIR /var/spool/xrootd
 
+# Health check - verify XRootD port is responding
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD timeout 2 bash -c '</dev/tcp/localhost/1094' || exit 1
 
-# Entrypoint handles cert generation, then drops to xrootd user
+# Development entrypoint handles cert setup, test users, and test data
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
-# Default: use dev config (override in docker-compose for production)
+# Default: use dev config
 CMD ["/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-dev.cfg", "-n", "xrootd"]
-
-LABEL org.opencontainers.image.title="DataHarbor XRootD Server" \
-    org.opencontainers.image.description="XRootD 5.9.0 server with ZTN protocol and TLS support" \
-    org.opencontainers.image.version="5.9.0" \
-    org.opencontainers.image.vendor="DataHarbor" \
-    xrootd.version="5.9.0" \
-    xrootd.features="ztn,tls,scitokens,multiuser"

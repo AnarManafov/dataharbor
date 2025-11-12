@@ -17,13 +17,11 @@ DataHarbor is a high-performance, full-stack web application that provides resea
 
 DataHarbor empowers users who need to:
 
-- **Browse & Navigate**: Explore remote file systems on GSI Lustre clusters with an intuitive web interface
-- **File Operations**: View detailed metadata (size, permissions, timestamps) and perform secure file operations
-- **High-Performance Downloads**: Stream individual files directly from remote storage with zero temporary storage
-- **Secure Access**: Leverage enterprise-grade authentication with OIDC integration and session management
-- **Large-Scale Data Management**: Handle file operations for massive datasets in high-performance computing environments
-- **Cross-Platform Access**: Access HPC storage systems from any device through a modern web browser
-- **Real-Time Monitoring**: Track file operations with comprehensive logging and performance metrics
+- **Browse & Navigate**: Explore GSI Lustre clusters with an intuitive web interface, view metadata, and perform secure file operations
+- **High-Performance Streaming**: Download files directly from remote storage with zero temporary storage overhead
+- **Secure Access**: Enterprise-grade OIDC authentication with session management
+- **Cross-Platform**: Access HPC storage from any device through a modern web browser
+- **Observability**: Comprehensive logging and performance metrics for file operations
 
 ## Architecture Overview
 
@@ -35,67 +33,53 @@ DataHarbor empowers users who need to:
 
 ## Quick Start
 
-### Using Docker (Recommended)
+### Using Dev Containers (Recommended for Development)
 
-The fastest way to get started with DataHarbor is using Docker Compose:
+Zero-configuration development environment with all tools pre-installed:
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Clone and open: `git clone https://github.com/AnarManafov/dataharbor.git && code dataharbor`
+3. Click "Reopen in Container" when prompted
+4. Run `npm run dev` — access at `https://localhost:5173`
+
+🛠️ **[Dev Container Guide](./.devcontainer/README.md)** — Full setup details, WSL2 instructions, troubleshooting.
+
+### Using Docker Compose
+
+Run the full stack (frontend + backend + XRootD) in containers:
 
 ```bash
-# Clone the repository
-git clone https://github.com/AnarManafov/dataharbor.git
-cd dataharbor
-
-# Start development environment (includes XRootD server)
-cd docker
+cd dataharbor/docker
+cp .env.example .env && nano .env
 docker compose up -d
-
-# Access the application at https://localhost:443
+# Access at https://localhost
 ```
 
-See **[Docker Deployment Guide](./docker/README.md)** for complete Docker setup instructions.
+📦 **[Docker Deployment Guide](./docker/README.md)** — Development & production setup, certificates, troubleshooting.
 
-### Manual Development Setup
+### Manual Setup
 
-For developers who prefer manual setup:
+For running services directly on your machine without containers:
 
 #### Prerequisites
 
-- **Go** 1.24+ (for backend development)
-- **Node.js** 18+ & **npm** (for frontend development)
-- **XROOTD client** tools (for file system operations)
+- **Go** 1.25+
+- **Node.js** 20+
 
-#### Development Setup
+#### Setup
 
-1. **Clone and setup the repository**
+```shell
+git clone https://github.com/AnarManafov/dataharbor.git && cd dataharbor
 
-   ```shell
-   git clone https://github.com/AnarManafov/dataharbor.git
-   cd dataharbor
-   
-   # Install frontend dependencies
-   cd web
-   npm install
-   cd ..
-   
-   # Install backend dependencies
-   cd app
-   go mod download
-   cd ..
-   ```
+# Install dependencies
+cd web && npm install && cd ..
+cd app && go mod download && cd ..
 
-2. **Start development servers**
+# Start development servers
+npm run dev  # Or: npm run dev:frontend / npm run dev:backend
+```
 
-   ```shell
-   # Start both frontend and backend concurrently
-   npm run dev
-   
-   # Or start them separately:
-   npm run dev:frontend  # Frontend on https://localhost:5173
-   npm run dev:backend   # Backend on http://localhost:8081
-   ```
-
-3. **Access the application**
-   - Open your browser to `https://localhost:5173`
-   - Accept the self-signed certificate warning for development
+Access at `https://localhost:5173` (accept the self-signed certificate warning).
 
 ## Documentation
 
@@ -103,12 +87,13 @@ For developers who prefer manual setup:
 
 ### Getting Started
 
-| Document                                                       | Description                                                  |
-| -------------------------------------------------------------- | ------------------------------------------------------------ |
-| **[Setup Guide](./docs/SETUP.md)**                             | Development environment setup, dependencies, and first steps |
-| **[Development Guide](./docs/DEVELOPMENT.md)**                 | Development workflow, Git conventions, and testing           |
-| **[Backend Configuration](./docs/BACKEND_CONFIGURATION.md)**   | Go backend config, environment variables, and YAML settings  |
-| **[Frontend Configuration](./docs/FRONTEND_CONFIGURATION.md)** | Vue.js frontend config, SSL setup, and deployment settings   |
+| Document                                                       | Description                                                 |
+| -------------------------------------------------------------- | ----------------------------------------------------------- |
+| **[Dev Container Guide](./.devcontainer/README.md)**           | Zero-config development environment (recommended)           |
+| **[Setup Guide](./docs/SETUP.md)**                             | Manual environment setup, dependencies, and first steps     |
+| **[Development Guide](./docs/DEVELOPMENT.md)**                 | Development workflow, Git conventions, and testing          |
+| **[Backend Configuration](./docs/BACKEND_CONFIGURATION.md)**   | Go backend config, environment variables, and YAML settings |
+| **[Frontend Configuration](./docs/FRONTEND_CONFIGURATION.md)** | Vue.js frontend config, SSL setup, and deployment settings  |
 
 ### Architecture & Design
 
@@ -126,29 +111,28 @@ For developers who prefer manual setup:
 
 ### Technical References
 
-| Document                                          | Description                                                         |
-| ------------------------------------------------- | ------------------------------------------------------------------- |
-| **[REST API Reference](./docs/API.md)**           | Complete API endpoints, request/response examples                   |
-| **[System Architecture](./docs/ARCHITECTURE.md)** | Overall architecture, design patterns, and streaming implementation |
-| **[XROOTD Integration](./docs/xrootd.md)**        | XROOTD client configuration and file operations                     |
+| Document                                   | Description                                       |
+| ------------------------------------------ | ------------------------------------------------- |
+| **[REST API Reference](./docs/API.md)**    | Complete API endpoints, request/response examples |
+| **[XROOTD Integration](./docs/xrootd.md)** | XROOTD client configuration and file operations   |
 
 ### Operations & Deployment
 
 | Document                                               | Description                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------- |
-| **[Docker Deployment](./docker/README.md)**            | Docker Compose setup for development and production           |
-| **[Docker Quick Start](./docker/QUICKSTART.md)**       | Quick reference commands for Docker deployment                |
+| **[Docker Deployment](./docker/README.md)**            | Docker Compose setup, certificates, troubleshooting           |
 | **[Deployment Guide](./docs/DEPLOYMENT.md)**           | Production deployment and environment setup                   |
 | **[Testing Guide](./docs/TESTING.md)**                 | Testing strategies, coverage requirements, and test execution |
 | **[Troubleshooting Guide](./docs/TROUBLESHOOTING.md)** | Comprehensive issue resolution and debugging                  |
 
 ### Quick Reference
 
-- **Development**: Start with [Setup Guide](./docs/SETUP.md) → [Development Guide](./docs/DEVELOPMENT.md)
-- **Architecture**: Read [System Architecture](./docs/ARCHITECTURE.md) → [Authentication](./docs/AUTHENTICATION.md)
-- **API Development**: Check [Backend Guide](./docs/BACKEND.md) → [API Reference](./docs/API.md)
-- **UI Development**: See [Frontend Guide](./docs/FRONTEND.md) → [Components](./docs/FRONTEND.md#components)
-- **Deployment**: Follow [Deployment Guide](./docs/DEPLOYMENT.md) → [Backend Configuration](./docs/BACKEND_CONFIGURATION.md)
+- **Development**: [Dev Container](./.devcontainer/README.md) (recommended) or [Manual Setup](./docs/SETUP.md)
+- **Docker Deployment**: [Docker Guide](./docker/README.md) — run full stack in containers
+- **Architecture**: [System Architecture](./docs/ARCHITECTURE.md) → [Authentication](./docs/AUTHENTICATION.md)
+- **API Development**: [Backend Guide](./docs/BACKEND.md) → [API Reference](./docs/API.md)
+- **UI Development**: [Frontend Guide](./docs/FRONTEND.md)
+- **Production**: [Deployment Guide](./docs/DEPLOYMENT.md)
 
 ## Common Development Tasks
 
@@ -197,23 +181,28 @@ npm run prepare-release
 
 ```text
 dataharbor/
+├── .devcontainer/          # Dev Container configuration (VS Code)
 ├── app/                    # Go backend application
+│   ├── common/             # Shared utilities (logger, XRootD client)
+│   ├── config/             # Configuration management
 │   ├── controller/         # HTTP request handlers
 │   ├── middleware/         # Authentication, CORS, logging middleware
-│   ├── route/             # API route definitions
-│   ├── config/            # Configuration management
-│   └── docs/api/          # Backend API documentation
-├── web/                   # Vue.js frontend application
-│   ├── src/
-│   │   ├── components/    # Reusable Vue components
-│   │   ├── views/         # Page-level components
-│   │   ├── api/           # API client and HTTP services
-│   │   └── stores/        # Pinia state management
-│   └── public/            # Static assets and configuration
-├── docs/                  # Developer documentation
-├── packaging/             # RPM packaging and build scripts
-├── tools/                 # Development and release utilities
-└── playground/            # Experimental code and prototypes
+│   ├── response/           # API response helpers
+│   └── route/              # API route definitions
+├── web/                    # Vue.js frontend application
+│   └── src/
+│       ├── api/            # API client and HTTP services
+│       ├── components/     # Reusable Vue components
+│       ├── router/         # Vue Router configuration
+│       ├── store/          # Vuex state management
+│       └── views/          # Page-level components
+├── docker/                 # Docker Compose deployments
+│   ├── backend/            # Backend Dockerfile
+│   ├── frontend/           # Frontend Dockerfile
+│   ├── nginx/              # Gateway configuration
+│   └── xrootd/             # XRootD server container
+├── docs/                   # Developer documentation
+└── packaging/              # RPM packaging and build scripts
 ```
 
 ## Contributing

@@ -1,9 +1,10 @@
 # Deployment Guide
 
+[← Back to Documentation](./README.md)
+
 This document covers production deployment and packaging for DataHarbor.
 
-**Note**: This is the general deployment guide. For environment-specific deployments, see:
-- **[GSI Deployment Guide](./DEPLOYMENT_GSI.md)** - Specific instructions for GSI servers with XRootD on port 80
+> **Note**: This is the general deployment guide. For environment-specific deployments, see the **[GSI Documentation](./gsi/README.md)** section.
 
 ## Deployment Architecture Diagrams
 
@@ -52,6 +53,129 @@ graph LR
     class StageFE,StageBE,StageXRD,StageOIDC staging
     class ProdFE,ProdBE,ProdXRD,ProdOIDC prod
 ```
+
+## Docker Production Deployment
+
+The recommended way to deploy DataHarbor in production is using pre-built Docker images from GitHub Container Registry (GHCR).
+
+### Quick Start
+
+```bash
+# 1. Get the deployment files
+git clone https://github.com/AnarManafov/dataharbor.git
+cd dataharbor/docker
+
+# 2. Configure environment
+cp .env.production.example .env
+nano .env  # Edit with your settings
+
+# 3. Deploy (pulls images automatically)
+docker compose -f docker-compose.deploy.yml up -d
+
+# 4. Verify
+docker compose -f docker-compose.deploy.yml ps
+```
+
+### Available Images
+
+All images are publicly available on GHCR:
+
+| Image    | Pull Command                                                 |
+| -------- | ------------------------------------------------------------ |
+| Backend  | `docker pull ghcr.io/anarmanafov/dataharbor-backend:latest`  |
+| Frontend | `docker pull ghcr.io/anarmanafov/dataharbor-frontend:latest` |
+| Nginx    | `docker pull ghcr.io/anarmanafov/dataharbor-nginx:latest`    |
+| XRootD   | `docker pull ghcr.io/anarmanafov/dataharbor-xrootd:latest`   |
+
+### Version Tags
+
+- **`latest`** - Most recent stable release
+- **`X.Y.Z`** (e.g., `0.14.6`) - Specific version
+- **`dev`** - Manual development builds (see [Manual Build Script](#manual-docker-build))
+
+### Deploy Specific Version
+
+```bash
+# Deploy specific release version
+VERSION=0.14.6 docker compose -f docker-compose.deploy.yml up -d
+
+# Test a PR build before merging
+VERSION=pr-41 docker compose -f docker-compose.deploy.yml up -d
+```
+
+### Required Configuration
+
+Edit `.env` with these required settings:
+
+```bash
+# XRootD data directory (Lustre/GPFS/local)
+XROOTD_DATA_DIR=/lustre/dataharbor
+
+# XRootD TLS certificates
+XRD_CERT_PATH=/etc/grid-security/hostcert.pem
+XRD_KEY_PATH=/etc/grid-security/hostkey.pem
+
+# User mapping file
+XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+
+# Nginx SSL certificates
+SSL_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
+SSL_KEY_PATH=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+
+# OIDC authentication
+OIDC_ISSUER=https://your-oidc-provider.com/realms/your-realm
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+OIDC_SESSION_SECRET=$(openssl rand -hex 32)
+```
+
+### Updating Deployment
+
+```bash
+# Pull latest images
+docker compose -f docker-compose.deploy.yml pull
+
+# Restart with new images
+docker compose -f docker-compose.deploy.yml up -d
+
+# Or update to specific version
+VERSION=0.15.0 docker compose -f docker-compose.deploy.yml pull
+VERSION=0.15.0 docker compose -f docker-compose.deploy.yml up -d
+```
+
+### Manual Docker Build
+
+For development and testing, you can build images manually using the provided script:
+
+```bash
+# Set GitHub token (required for pushing)
+export GITHUB_TOKEN="ghp_your_token_here"
+
+# Build and push all images with "dev" tag
+./scripts/build-docker.sh
+
+# Build specific images
+./scripts/build-docker.sh backend frontend
+
+# Build without pushing (local only)
+./scripts/build-docker.sh --no-push
+
+# Build with custom tag
+./scripts/build-docker.sh --tag my-feature
+```
+
+The script always builds for `linux/amd64` platform, even on ARM64 hosts.
+
+**Deploy dev images:**
+```bash
+VERSION=dev docker compose -f docker/docker-compose.deploy.yml up -d
+```
+
+### Detailed Documentation
+
+For complete Docker deployment instructions including Lustre/GPFS setup, see **[docker/README.md](../docker/README.md)**.
+
+---
 
 ## RPM Package Deployment
 
@@ -961,8 +1085,13 @@ For troubleshooting deployment and production issues, see the **[Troubleshooting
 
 ## Related Documentation
 
+- **[GSI Deployment](./gsi/README.md)** - GSI-specific deployment guides
 - **[Backend Configuration](./BACKEND_CONFIGURATION.md)** - Complete backend configuration reference
 - **[Frontend Configuration](./FRONTEND_CONFIGURATION.md)** - Frontend deployment and configuration
 - **[Setup Guide](./SETUP.md)** - Development environment setup
 - **[Architecture Guide](./ARCHITECTURE.md)** - System architecture overview
 - **[XROOTD Integration](./xrootd.md)** - XROOTD server configuration and integration
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#deployment-guide)

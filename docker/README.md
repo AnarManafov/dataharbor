@@ -1,5 +1,7 @@
 # DataHarbor - Docker Deployment Guide
 
+[← Back to Main README](../README.md) | [Documentation](../docs/README.md)
+
 Complete guide for deploying DataHarbor using Docker Compose in both development and production environments.
 
 ## Architecture
@@ -7,20 +9,36 @@ Complete guide for deploying DataHarbor using Docker Compose in both development
 ### Production Deployment
 
 ```mermaid
-graph LR
-    Client1[Browser] -->|HTTPS:443 ONLY| NGX1[📦 Nginx Container]
-    NGX1 -->|Internal :8080| BE1[📦 Backend Container]
-    NGX1 -->|Internal :80| FE1[📦 Frontend Container]
-    BE1 -->|XRootD:1094<br/>ZTN + TLS| XRD1[📦 XRootD Container]
+graph TB
+    subgraph "Host System"
+        HostFS[Lustre/GPFS/Local Storage<br/>/lustre/dataharbor]
+        HostCerts[TLS Certificates<br/>/etc/grid-security/]
+        HostMap[User Mapfile<br/>/opt/xrootd/mapfile]
+    end
+    
+    subgraph "Docker Network"
+        Client[Browser] -->|HTTPS:443| NGX1[📦 Nginx Gateway]
+        NGX1 -->|Internal :8080| BE1[📦 Backend API]
+        NGX1 -->|Internal :80| FE1[📦 Frontend Static]
+        BE1 -->|Internal :1094<br/>ZTN + TLS| XRD1[📦 XRootD Server]
+        
+        HostFS -.->|bind mount<br/>rslave propagation| XRD1
+        HostCerts -.->|read-only mount| XRD1
+        HostMap -.->|read-only mount| XRD1
+    end
     
     style NGX1 fill:#90EE90
     style BE1 fill:#87CEEB
     style FE1 fill:#87CEEB
     style XRD1 fill:#FFB6C1
+    style HostFS fill:#FFF9C4
+    style HostCerts fill:#FFF9C4
+    style HostMap fill:#FFF9C4
 ```
 
 **Containers:** Nginx Gateway • Backend (Go) • Frontend (Nginx) • XRootD Server  
-**Security:** ZTN (Zero Trust Networking) + TLS encryption for XRootD communication
+**Host Mounts:** Data directory (Lustre/GPFS/local) • TLS certificates • User mapfile  
+**Security:** ZTN (Zero Trust Networking) + TLS encryption • User mapping • Resource limits
 
 ### Development Deployment
 
@@ -55,10 +73,17 @@ graph LR
 
 ## Overview
 
-DataHarbor provides two Docker Compose configurations:
+DataHarbor provides three Docker Compose configurations:
 
-- **`docker-compose.yml`** - Development deployment (includes XRootD server, source mounting, hot reload)
-- **`docker-compose.prod.yml`** - Production deployment (Backend + Frontend + Nginx Gateway + XRootD - production ready)
+| File                            | Purpose                  | Use Case                                               |
+| ------------------------------- | ------------------------ | ------------------------------------------------------ |
+| **`docker-compose.yml`**        | Development              | Local dev with hot reload, Vite HMR, self-signed certs |
+| **`docker-compose.deploy.yml`** | Production (recommended) | Deploy pre-built images from GHCR                      |
+| **`docker-compose.prod.yml`**   | Production (alternative) | Build images locally from source                       |
+
+**For production deployment, use `docker-compose.deploy.yml`** (pulls pre-built images from GitHub Container Registry). Use `docker-compose.prod.yml` only if you need to build images locally.
+
+**CI/CD:** Docker images are automatically built and pushed to GHCR only on releases (not on PRs to save CI minutes). For development builds, use the manual build script: `./scripts/build-docker.sh`
 
 ### Container Services
 
@@ -69,11 +94,45 @@ Both deployments run the following containers:
 | **nginx**    | Gateway with HTTPS            | Gateway with HTTPS      | Reverse proxy, SSL termination |
 | **backend**  | Go dev server (hot reload)    | Compiled Go binary      | REST API, XRootD client        |
 | **frontend** | Vite dev server (HMR)         | Nginx static server     | Vue.js web interface           |
-| **xrootd**   | Dev config, self-signed certs | Prod config, real certs | Storage server                 |
+| **xrootd**   | Dev config, self-signed certs | Prod config, host certs | Storage server                 |
 
-**Key Differences:**
-- **Dev:** Source code mounted, auto-reload, self-signed certificates, debug logging
-- **Prod:** Pre-built images, optimized binaries, production certificates, structured logging
+### Container Architecture (CPU Platform)
+
+| Image        | CI/Release Builds         | Local Dev Builds          | Reason                                           |
+| ------------ | ------------------------- | ------------------------- | ------------------------------------------------ |
+| **backend**  | linux/amd64 + linux/arm64 | linux/amd64 + linux/arm64 | Go cross-compiles natively (no emulation needed) |
+| **frontend** | linux/amd64 + linux/arm64 | linux/amd64 + linux/arm64 | Node.js + nginx have native ARM64 support        |
+| **nginx**    | linux/amd64 + linux/arm64 | linux/amd64 + linux/arm64 | nginx has native ARM64 images                    |
+| **xrootd**   | linux/amd64 only          | linux/amd64 only          | CERN/OSG XRootD packages are x86_64 only         |
+
+**Notes:**
+
+- **ARM64 Mac users**: backend, frontend, and nginx run natively; xrootd uses QEMU emulation
+- **AMD64 Linux**: All containers run natively
+- **Multi-arch images**: Docker automatically pulls the correct architecture for your platform
+
+### Production XRootD Setup
+
+Production deployment includes a **containerized XRootD server** that serves data from the host filesystem:
+
+- **Lustre/GPFS Support**: Bind mount with proper propagation (`rslave`)
+- **Host Certificates**: TLS certificates mounted from host system
+- **User Mapping**: External mapfile for token-to-Unix-user mapping
+- **Performance**: Near-zero overhead (~1% CPU), respects Lustre striping
+- **Security**: SELinux/AppArmor aware, resource limits, TLS verification
+
+**Key Architecture Points:**
+- XRootD runs in container but serves host filesystem (Lustre/GPFS/local storage)
+- Bind mount with `rslave` propagation ensures Lustre mount changes propagate to container
+- No data copying - direct I/O path: XRootD → Lustre client → Network → Lustre servers
+- Extended attributes enabled for Lustre striping information
+- User mapping via external mapfile (UIDs must match host filesystem UIDs)
+
+**Path Mapping (Production):**
+- Your `XROOTD_DATA_DIR` (e.g., `/lustre/dataharbor`) is mounted at `/data` inside the container
+- XRootD uses `oss.localroot /data` to map client path `/` → container path `/data`
+- Users see `/` as the root in the file browser, which maps to your `XROOTD_DATA_DIR`
+- SciTokens `base_path = /` allows access to the entire exported path
 
 ## Quick Start
 
@@ -87,13 +146,48 @@ docker compose up -d
 open https://localhost
 ```
 
-### Production (external XRootD)
+### Production (with containerized XRootD serving host filesystem)
+
+**Option A: Using pre-built images from GHCR (recommended)**
 
 ```bash
 cd docker
-cp .env.example .env
-# Edit .env with your configuration
+
+# 1. Configure environment
+cp .env.production.example .env
+nano .env
+
+# Required settings - see "Required Environment Variables" section below
+
+# 2. Deploy (pulls images from GHCR)
+docker compose -f docker-compose.deploy.yml up -d
+
+# 3. Verify
+docker compose -f docker-compose.deploy.yml ps
+
+# Deploy specific version
+VERSION=0.14.6 docker compose -f docker-compose.deploy.yml up -d
+
+# Deploy dev build (built with scripts/build-docker.sh)
+VERSION=dev docker compose -f docker-compose.deploy.yml up -d
+```
+
+**Option B: Build images locally**
+
+```bash
+cd docker
+
+# 1. Configure environment
+cp .env.production.example .env
+nano .env
+
+# 2. Build and deploy
+docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
+
+# 3. Verify
+docker compose -f docker-compose.prod.yml ps
+docker logs dataharbor-xrootd-prod
 ```
 
 ## Prerequisites
@@ -113,9 +207,56 @@ docker compose -f docker-compose.prod.yml up -d
 
 ### For Development
 
-- **WSL2** (Windows) or native Linux/macOS
-- **Go** 1.25+ (optional, for local development)
-- **Node.js** 22+ (optional, for local development)
+- **WSL2** (Windows), colima (macOS) or native Linux/macOS
+- **Go** 1.25+ (optional, for local development without devcontainers)
+- **Node.js** 22+ (optional, for local development without devcontainers)
+
+### Apple Silicon (ARM64) Users - QEMU Setup
+
+The XRootD container requires `linux/amd64` (x86_64) architecture. On Apple Silicon Macs, you need **QEMU emulation** to run x86_64 containers.
+
+#### Checking QEMU Support
+
+Docker supports QEMU natively via the `tonistiigi/binfmt` image. First, check if QEMU is already configured:
+
+```bash
+# Check current emulation support
+docker run --privileged --rm tonistiigi/binfmt
+
+# Expected output shows supported platforms and emulators:
+# {
+#   "supported": ["linux/arm64", "linux/amd64", ...],
+#   "emulators": ["qemu-x86_64", ...]
+# }
+```
+
+#### Installing QEMU Support
+
+If QEMU is not configured or you need to reinstall it:
+
+```bash
+# Install QEMU emulators for all architectures
+docker run --privileged --rm tonistiigi/binfmt --install all
+
+# Or install only x86_64 support (sufficient for XRootD)
+docker run --privileged --rm tonistiigi/binfmt --install amd64
+```
+
+This registers QEMU handlers in the Linux kernel's `binfmt_misc` system, enabling automatic emulation of foreign binaries.
+
+#### Verifying QEMU Setup
+
+After installation, verify x86_64 emulation works:
+
+```bash
+# Test running an x86_64 container on ARM64 host
+docker run --rm --platform linux/amd64 alpine uname -m
+# Should output: x86_64
+
+# Check buildx supported platforms
+docker buildx ls
+# Should show: linux/amd64, linux/arm64, etc.
+```
 
 ### Installing Docker Buildx
 
@@ -158,28 +299,50 @@ docker buildx version
 
 ## Directory Structure
 
-```
+```text
 docker/
 ├── docker-compose.yml          # Development deployment
-├── docker-compose.prod.yml     # Production deployment
-├── .env.example                # Environment template
+├── docker-compose.prod.yml     # Production build (builds images locally)
+├── docker-compose.deploy.yml   # Production deployment (pulls from GHCR)
+├── .env.example                # Development environment template
+├── .env.production.example     # Production environment template
+├── .dockerignore               # Docker ignore patterns
 ├── README.md                   # This file
-├── backend/                    # Backend Dockerfile
-├── frontend/                   # Frontend Dockerfile
-├── nginx/                      # Nginx configuration
+├── backend/                    # Backend container
 │   ├── Dockerfile
+│   ├── .dockerignore
+│   └── README.md
+├── frontend/                   # Frontend container
+│   ├── Dockerfile              # Production build
+│   ├── Dockerfile.dev          # Development build
+│   ├── nginx.conf              # Static file server config
+│   ├── .dockerignore
+│   └── README.md
+├── nginx/                      # Nginx gateway
+│   ├── Dockerfile
+│   ├── docker-entrypoint.sh    # Entrypoint with config templating
 │   ├── nginx.conf              # Main configuration
-│   ├── nginx.dev.conf          # Development sites
-│   └── nginx.prod.conf         # Production sites
-├── xrootd/                     # XRootD server configuration
-│   ├── Dockerfile.dev          # Development Dockerfile
-│   ├── Dockerfile.prod         # Production Dockerfile
+│   └── README.md
+├── xrootd/                     # XRootD server
+│   ├── Dockerfile              # Multi-stage Dockerfile
+│   ├── README.md
 │   ├── configs/                # XRootD configuration files
 │   │   ├── xrootd-dev.cfg      # Development config
-│   │   └── xrootd-prod.cfg     # Production config
+│   │   ├── xrootd-prod.cfg     # Production config
+│   │   ├── scitokens.cfg       # SciTokens base config
+│   │   ├── scitokens_dev.cfg   # SciTokens dev config
+│   │   ├── scitokens_prod.cfg  # SciTokens prod config
+│   │   └── mapfile             # User mapping file
 │   └── scripts/                # Setup scripts
-├── certs/                      # SSL certificates (generated)
+│       ├── docker-entrypoint.sh      # Development entrypoint
+│       ├── docker-entrypoint-prod.sh # Production entrypoint
+│       └── setup-test-data.sh        # Test data generator
+├── cert-init/                  # Certificate initialization
+│   ├── Dockerfile
+│   ├── generate-dev-certs.sh   # Self-signed cert generator
+│   └── README.md
 └── config/                     # Application configuration
+    └── application.yaml        # Backend config template
 ```
 
 ## Container Documentation
@@ -199,103 +362,149 @@ Create `.env` from template:
 
 ```bash
 cd docker
+# For development:
 cp .env.example .env
+# For production:
+cp .env.production.example .env
+
 nano .env
 ```
 
-#### Required Variables
+#### Development Variables
 
 ```bash
-# Application environment
-DATAHARBOR_ENV=development          # or production
-
-# Backend configuration
-DATAHARBOR_SERVER_ADDRESS=:8080
-DATAHARBOR_SERVER_DEBUG=true        # Verbose logging
-
-# XRootD connection
-DATAHARBOR_XRD_HOST=xrootd          # For dev: 'xrootd', for prod: external server
-DATAHARBOR_XRD_PORT=1094
-DATAHARBOR_XRD_ENABLE_ZTN=true
+# Host project path (REQUIRED for development)
+# Path to project root as seen by Docker daemon
+HOST_PROJECT_ROOT=/path/to/dataharbor
 
 # Authentication (OIDC)
-DATAHARBOR_AUTH_ENABLED=true
-DATAHARBOR_AUTH_OIDC_ISSUER=https://id.gsi.de/realms/wl
-DATAHARBOR_AUTH_OIDC_CLIENT_ID=your-client-id-here
-DATAHARBOR_AUTH_OIDC_REDIRECT_URL=https://localhost/auth/callback
-DATAHARBOR_AUTH_OIDC_ALLOWED_ORIGINS=https://localhost
+AUTH_ENABLED=true
+OIDC_ISSUER=https://id.gsi.de/realms/wl
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+OIDC_DISCOVERY_URL=https://id.gsi.de/realms/wl/.well-known/openid-configuration
+OIDC_SESSION_SECRET=$(openssl rand -hex 32)
 
-# SSL Certificates
-SSL_CERT_PATH=/etc/nginx/certs/server.crt
-SSL_KEY_PATH=/etc/nginx/certs/server.key
-```
+# SSL Certificates (for nginx gateway)
+SSL_CERT_PATH=/path/to/server.crt
+SSL_KEY_PATH=/path/to/server.key
 
-#### Optional Variables (with defaults)
+# XRootD data directory (optional - defaults to named volume)
+# This directory will be mounted as /data in the XRootD container
+XROOTD_DATA_DIR=./xrootd-data
 
-```bash
 # Logging
 LOG_LEVEL=info                      # debug, info, warn, error
+```
 
-# CORS
-ALLOWED_ORIGINS=https://localhost   # Comma-separated list
+#### Production Variables
 
-# Nginx
-NGINX_WORKER_PROCESSES=auto
-NGINX_WORKER_CONNECTIONS=1024
+```bash
+# XRootD Server Connection
+XRD_HOST=xrootd                     # Service name for container, or external hostname
+XRD_PORT=1094
+XRD_INITIAL_DIR=/
+XRD_ENABLE_ZTN=true
 
-# XRootD (development only)
-XRD_HOME_DIR=${HOME}               # User's home directory for XRootD
+# XRootD Data Directory (REQUIRED)
+XROOTD_DATA_DIR=/lustre/dataharbor  # or /data/xrootd
+
+# XRootD TLS Certificates (REQUIRED)
+XRD_CERT_PATH=/etc/grid-security/hostcert.pem
+XRD_KEY_PATH=/etc/grid-security/hostkey.pem
+
+# XRootD User Mapfile (REQUIRED)
+XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+
+# XRootD CA Certificates (optional - for TLS verification)
+CA_CERTS_PATH=/etc/grid-security/certificates
+
+# XRootD Client Certificates (optional - for backend ZTN auth)
+XRD_CLIENT_CERT_PATH=./certs/client
+
+# XRootD Logging
+XROOTD_LOG_DIR=./logs/xrootd
+
+# Nginx SSL Certificates (REQUIRED)
+SSL_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
+SSL_KEY_PATH=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+
+# Authentication (OIDC)
+AUTH_ENABLED=true
+OIDC_ISSUER=https://id.gsi.de/realms/wl
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+OIDC_DISCOVERY_URL=https://id.gsi.de/realms/wl/.well-known/openid-configuration
+OIDC_SESSION_SECRET=$(openssl rand -hex 32)
+
+# Logging and Timezone
+LOG_LEVEL=info                      # debug, info, warn, error
+TZ=UTC                              # or Europe/Berlin, America/New_York
 ```
 
 ### XRootD Configuration
 
-In development, XRootD runs as a local container and mounts the user's home directory:
+In development, XRootD runs as a local container:
 
 ```bash
-# XRootD settings
-DATAHARBOR_XRD_HOST=xrootd          # Container name
-XRD_HOME_DIR=${HOME}                # Mounts your home directory as /data in container
+# XRootD settings (hardcoded in docker-compose.yml)
+# Backend connects to: xrootd:1094
+# Optional: Mount local directory for testing
+XROOTD_DATA_DIR=./xrootd-data        # Mounted as /data in container
 ```
 
 **Development Notes:**
-- XRootD runs locally with **self-signed certificates**
-- **`XRD_HOME_DIR`** mounts your home directory into XRootD at `/data`
-- ZTN (Zero Trust Networking) is enabled by default
-- Files in `$HOME` can be accessed via `xroot://localhost:1094/data/`
 
-In production, configure these settings based on your external XRootD deployment:
+- XRootD runs locally with **self-signed certificates**
+- **`XROOTD_DATA_DIR`** mounts a directory into XRootD at `/data`
+- ZTN (Zero Trust Networking) is enabled by default
+- Files in the data directory can be accessed via `xroot://localhost:1094/data/`
+
+In production, configure these settings based on your XRootD deployment:
 
 ```bash
-DATAHARBOR_XRD_HOST=punch2.gsi.de
-DATAHARBOR_XRD_PORT=1094
-DATAHARBOR_XRD_ENABLE_ZTN=true    # Must match server's ZTN configuration
+XRD_HOST=xrootd                      # Container service name (default)
+XRD_PORT=1094
+XRD_ENABLE_ZTN=true                  # Must match server's ZTN configuration
+XRD_INITIAL_DIR=/                    # Initial directory path
 ```
 
 **Production Notes:**
+
 - XRootD runs as a container with **production certificates**
-- Configure **`DATAHARBOR_XRD_HOST`** to point to your XRootD server
-- Ensure **`DATAHARBOR_XRD_ENABLE_ZTN`** matches the server configuration
+- Configure **`XRD_HOST`** to point to your XRootD service
+- Ensure **`XRD_ENABLE_ZTN`** matches the server configuration
 
 ### Application Configuration Files
 
-Backend uses `config/application.yaml`:
+Backend uses `config/application.yaml` as a template. Environment variables override these values at runtime:
 
 ```yaml
 env: production
+
 server:
   address: ":8080"
   debug: false
+  shutdown_timeout: 30s
+
+logging:
+  level: info
+  format: json
+
 xrd:
-  host: "punch2.gsi.de"
-  port: 1094
+  host: "${DATAHARBOR_XRD_HOST}"
+  port: ${DATAHARBOR_XRD_PORT}
+  initial_dir: "/"
   enable_ztn: true
+
 auth:
   enabled: true
   oidc:
     issuer: "${DATAHARBOR_AUTH_OIDC_ISSUER}"
     client_id: "${DATAHARBOR_AUTH_OIDC_CLIENT_ID}"
-    redirect_url: "${DATAHARBOR_AUTH_OIDC_REDIRECT_URL}"
-    allowed_origins: ["${DATAHARBOR_AUTH_OIDC_ALLOWED_ORIGINS}"]
+    client_secret: "${DATAHARBOR_AUTH_OIDC_CLIENT_SECRET}"
+    discovery_url: "${DATAHARBOR_AUTH_OIDC_DISCOVERY_URL}"
+    session_secret: "${DATAHARBOR_AUTH_OIDC_SESSION_SECRET}"
 ```
 
 ### Certificate Management
@@ -327,6 +536,33 @@ chmod 600 certs/server.key
 
 Development setup includes XRootD server, source code mounting, and hot reload.
 
+### Environment Setup
+
+Before starting, create a `.env` file from the template:
+
+```bash
+cd docker
+cp .env.example .env
+```
+
+Edit `.env` and set the **required** `HOST_PROJECT_ROOT` variable:
+
+```bash
+# HOST_PROJECT_ROOT - Path to the project root as seen by Docker daemon
+# 
+# macOS/Linux (native Docker):
+HOST_PROJECT_ROOT=/Users/yourname/projects/dataharbor
+
+# WSL2 with Docker (running inside WSL):
+HOST_PROJECT_ROOT=/home/yourname/workspace/dataharbor
+
+# VS Code devcontainer (Docker-from-Docker):
+# Use the HOST path, not /workspaces/... path inside the container
+HOST_PROJECT_ROOT=/home/yourname/workspace/dataharbor
+```
+
+**Why is this needed?** Volume mounts for hot reload require the path as seen by the Docker daemon, which may differ from your working directory (especially in devcontainers).
+
 ### Start Development Environment
 
 ```bash
@@ -346,8 +582,8 @@ docker compose down
 
 - **Hot Reload:** Source code changes are reflected immediately
 - **XRootD Server:** Runs locally with ZTN/TLS enabled
-- **Self-Signed Certs:** Automatically generated for development
-- **Home Directory:** Mounted into XRootD (`$HOME` → `/data`)
+- **Self-Signed Certs:** Automatically generated by `cert-init` service
+- **Data Directory:** Optional `XROOTD_DATA_DIR` mounts a host directory as `/data` in XRootD (defaults to named volume)
 - **Access:**
   - Gateway (HTTPS only): <https://localhost>
   - XRootD: xroot://localhost:1094
@@ -358,11 +594,16 @@ docker compose down
 #### Backend Changes
 
 ```bash
-# Backend runs with 'go run' for automatic recompilation
+# Backend uses 'go run' which compiles on startup
 # Edit files in app/ directory
 nano ../app/controller/file_controller.go
 
-# Changes will be picked up automatically
+# Restart the backend container to pick up changes
+docker compose restart backend
+
+# Or rebuild and restart for a clean state
+docker compose up -d --build backend
+
 # Check logs: docker compose logs -f backend
 ```
 
@@ -408,66 +649,205 @@ docker compose exec xrootd xrdfs localhost:1094 ls /data
 
 ## Production Deployment
 
-Production deployment uses pre-built images and external XRootD server.
+Production deployment uses pre-built images and containerized XRootD server serving host filesystem.
 
 ### Prerequisites
 
-1. **External XRootD Server** configured with ZTN/TLS
-2. **SSL Certificates** (real certificates, not self-signed)
-3. **OIDC Configuration** from Keycloak admin
-4. **Domain Name** pointing to your server
+1. **Host System Requirements**:
+   - Linux host with Lustre/GPFS mount or local storage directory
+   - Docker 24.0+ with Compose V2
+   - Port 443 (HTTPS) available
+
+2. **Required Files on Host**:
+   - **Data directory**: Lustre/GPFS mount or local filesystem (e.g., `/lustre/dataharbor`)
+   - **XRootD TLS certificates**: Host certificate and private key
+   - **Nginx SSL certificates**: For HTTPS gateway (can be same as XRootD certs)
+   - **User mapfile**: JSON file mapping token usernames to Unix users
+   - **CA certificates**: For TLS verification (optional for testing)
+
+3. **User Mapping Requirements**:
+   - Unix users in mapfile **must exist on host system**
+   - UIDs must match between host and filesystem (critical for Lustre/NFS)
+   - Users must have proper permissions on data directory
+
+### Required Environment Variables
+
+Create `.env.production.example` → `.env` and configure:
+
+```bash
+# === XROOTD DATA DIRECTORY (REQUIRED) ===
+# Path on HOST to serve via XRootD
+XROOTD_DATA_DIR=/lustre/dataharbor    # Lustre mount
+# XROOTD_DATA_DIR=/data/xrootd        # or local storage
+
+# === XROOTD TLS CERTIFICATES (REQUIRED) ===
+# Paths on HOST to TLS certificate files
+XRD_CERT_PATH=/etc/grid-security/hostcert.pem
+XRD_KEY_PATH=/etc/grid-security/hostkey.pem
+
+# === USER MAPFILE (REQUIRED) ===
+# Path on HOST to user mapping file
+XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+
+# === NGINX SSL CERTIFICATES (REQUIRED) ===
+# Paths on HOST to SSL certificate for HTTPS gateway
+SSL_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
+SSL_KEY_PATH=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+
+# === CA CERTIFICATES (OPTIONAL) ===
+# For TLS verification - comment out for self-signed certs
+CA_CERTS_PATH=/etc/grid-security/certificates
+
+# === AUTHENTICATION (REQUIRED) ===
+OIDC_ISSUER=https://id.gsi.de/realms/wl
+OIDC_CLIENT_ID=your-client-id
+OIDC_CLIENT_SECRET=your-client-secret
+OIDC_DISCOVERY_URL=https://id.gsi.de/realms/wl/.well-known/openid-configuration
+OIDC_SESSION_SECRET=$(openssl rand -hex 32)
+
+# === XROOTD CONFIGURATION (OPTIONAL) ===
+XRD_HOST=xrootd                        # Service name (default)
+XRD_PORT=1094                          # XRootD port (default)
+XROOTD_LOG_DIR=./logs/xrootd          # Host directory for logs
+```
+
+### User Mapfile Setup
+
+Create mapfile at `/opt/xrootd/mapfile` on host:
+
+```bash
+sudo mkdir -p /opt/xrootd
+sudo nano /opt/xrootd/mapfile
+```
+
+**Format** (JSON):
+```json
+[
+  {
+    "sub": "alice",
+    "result": "alice"
+  },
+  {
+    "sub": "bob.smith",
+    "result": "bobsmith"
+  }
+]
+```
+
+**Critical Requirements**:
+1. `"result"` users **must exist on host**: `id alice` should work
+2. UIDs must match filesystem (especially for Lustre/NFS)
+3. Users must have permissions on `XROOTD_DATA_DIR`
+
+**Example for Lustre**:
+```bash
+# On host where Lustre is mounted
+sudo useradd -u 1001 alice
+sudo chown alice:alice /lustre/dataharbor/alice-data
+ls -ln /lustre/dataharbor/alice-data  # Should show UID 1001
+```
+
+### Lustre-Specific Configuration
+
+#### Bind Mount Propagation
+
+The `docker-compose.prod.yml` automatically uses `rslave` propagation:
+
+```yaml
+volumes:
+  - type: bind
+    source: ${XROOTD_DATA_DIR}
+    target: /data
+    bind:
+      propagation: rslave  # Critical for Lustre!
+```
+
+**Why `rslave`?**
+- Ensures Lustre mount changes on host propagate to container
+- Required for dynamic mount updates
+- Prevents stale mount references
+
+#### SELinux/AppArmor Issues
+
+If SELinux or AppArmor blocks container access to Lustre:
+
+**Option 1: Set SELinux context** (recommended)
+```bash
+sudo chcon -Rt svirt_sandbox_file_t /lustre/dataharbor
+```
+
+**Option 2: Disable confinement** (less secure)
+
+Uncomment in `docker-compose.prod.yml`:
+```yaml
+xrootd:
+  security_opt:
+    - label:disable
+    - apparmor:unconfined
+```
+
+#### Performance Optimizations
+
+The production config includes Lustre optimizations:
+
+```properties
+# xrootd-prod.cfg (already configured)
+ofs.xattr * on                         # Required for Lustre striping
+```
+
+**Performance Characteristics**:
+- **Bind mount overhead**: <1% CPU, negligible memory
+- **I/O path**: XRootD → Lustre client → Network → Lustre servers (no buffering)
+- **Lustre striping**: Automatically respected
+- **TLS overhead**: ~5-10% (acceptable for security)
 
 ### Deployment Steps
 
-#### 1. Prepare Configuration
+#### 1. Prepare Host System
+
+```bash
+# Create data directory (or use existing Lustre mount)
+# For Lustre: Use existing mount point
+# For local: Create directory
+sudo mkdir -p /data/xrootd
+sudo chown -R $(id -u):$(id -g) /data/xrootd
+
+# Prepare certificates directory
+sudo mkdir -p /etc/xrootd-prod
+sudo cp /path/to/hostcert.pem /etc/xrootd-prod/
+sudo cp /path/to/hostkey.pem /etc/xrootd-prod/
+sudo chmod 644 /etc/xrootd-prod/hostcert.pem
+sudo chmod 600 /etc/xrootd-prod/hostkey.pem
+
+# Create user mapfile
+sudo nano /opt/xrootd/mapfile
+# (Add JSON user mappings as shown above)
+
+# Create users on host
+sudo useradd -u 1001 alice
+sudo useradd -u 1002 bob
+```
+
+#### 2. Configure Environment
 
 ```bash
 cd docker
 
 # Copy environment template
-cp .env.example .env
+cp .env.production.example .env
 
-# Edit with production values
+# Edit with your configuration
 nano .env
 ```
 
-#### 2. Prepare Certificates
+Set these required variables:
+- `XROOTD_DATA_DIR`
+- `XRD_CERT_PATH`, `XRD_KEY_PATH`
+- `XRD_MAPFILE_PATH`
+- `SSL_CERT_PATH`, `SSL_KEY_PATH`
+- `OIDC_*` variables
 
-```bash
-# Create certificates directory
-mkdir -p certs
-
-# Copy your SSL certificates
-cp /path/to/your/server.crt certs/
-cp /path/to/your/server.key certs/
-
-# Set proper permissions
-chmod 644 certs/server.crt
-chmod 600 certs/server.key
-```
-
-#### 3. Create Backend Configuration
-
-```bash
-# Create config directory
-mkdir -p ../config
-
-# Create application.yaml
-cat > ../config/application.yaml << EOF
-env: production
-server:
-  address: ":8080"
-  debug: false
-xrd:
-  host: "punch2.gsi.de"
-  port: 1094
-  enable_ztn: true
-auth:
-  enabled: true
-EOF
-```
-
-#### 4. Build and Start Services
+#### 3. Deploy Services
 
 ```bash
 # Build images
@@ -478,22 +858,28 @@ docker compose -f docker-compose.prod.yml up -d
 
 # Check status
 docker compose -f docker-compose.prod.yml ps
-
-# View logs
-docker compose -f docker-compose.prod.yml logs -f
 ```
 
-#### 5. Verify Deployment
+#### 4. Verify Deployment
 
 ```bash
-# Check health endpoints
+# Check XRootD startup logs
+docker logs dataharbor-xrootd-prod
+
+# Look for these confirmations:
+# [+] TLS Certificates verified
+# [+] User mapfile verified
+# [+] Data directory verified
+# [+] Filesystem type: lustre (if using Lustre)
+
+# Test XRootD connection
+docker exec dataharbor-xrootd-prod xrdfs localhost:1094 query config version
+
+# Check mounted filesystem
+docker exec dataharbor-xrootd-prod df -h /data
+
+# Test HTTPS gateway
 curl -k https://localhost/health
-
-# Check backend API
-curl -k https://localhost/api/health
-
-# Check all services are running
-docker compose ps
 ```
 
 ### Production Monitoring
@@ -510,6 +896,65 @@ docker compose exec nginx tail -f /var/log/nginx/dataharbor-access.log
 
 # View backend logs
 docker compose exec backend tail -f /app/log/dataharbor.log
+```
+
+### Staging with Self-Signed Certificates
+
+For staging/testing environments where you don't have CA-signed certificates, you can use self-signed certificates:
+
+#### 1. Generate Self-Signed Certificates
+
+```bash
+# Create certificates directory
+mkdir -p certs
+
+# Generate self-signed certificate (valid for 365 days)
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout certs/server.key \
+  -out certs/server.crt \
+  -subj "/C=US/ST=State/L=City/O=Organization/CN=localhost"
+
+# Set proper permissions
+chmod 644 certs/server.crt
+chmod 600 certs/server.key
+```
+
+#### 2. Configure Environment for Self-Signed Certs
+
+In your `.env` file, point to the self-signed certificates:
+
+```bash
+# Use self-signed certs for both nginx and XRootD
+SSL_CERT_PATH=./certs/server.crt
+SSL_KEY_PATH=./certs/server.key
+XRD_CERT_PATH=./certs/server.crt
+XRD_KEY_PATH=./certs/server.key
+```
+
+#### 3. Disable TLS CA Verification in XRootD
+
+Edit `docker/xrootd/configs/xrootd-prod.cfg` and ensure this line is uncommented:
+
+```properties
+# For self-signed certificates - disable CA verification
+xrd.tlsca noverify
+```
+
+**⚠️ Security Warning:** Only use `noverify` for staging/testing. For production with real CA certificates, use:
+
+```properties
+# For production with CA certificates
+xrd.tlsca certdir /etc/grid-security/certificates
+```
+
+#### 4. Deploy and Test
+
+```bash
+# Deploy
+docker compose -f docker-compose.deploy.yml up -d
+
+# Test (use -k to skip certificate verification in curl)
+curl -k https://localhost/health
 ```
 
 ## Certificate Management
@@ -634,6 +1079,71 @@ docker compose exec xrootd ls -la /data
 
 # Check XRootD logs
 docker compose exec xrootd tail -f /var/log/xrootd/xrootd.log
+
+# Verify user exists in container
+docker exec dataharbor-xrootd-prod id alice
+```
+
+### Lustre-Specific Issues
+
+#### Filesystem Not Accessible
+
+```bash
+# Check if Lustre is mounted on host
+df -h | grep lustre
+mount | grep lustre
+
+# Check SELinux is not blocking
+sudo ausearch -m avc -ts recent | grep xrootd
+
+# Fix SELinux context
+sudo chcon -Rt svirt_sandbox_file_t /lustre/dataharbor
+
+# Verify bind mount in container
+docker exec dataharbor-xrootd-prod df -h /data
+docker exec dataharbor-xrootd-prod df -T /data  # Show filesystem type
+```
+
+#### User Mapping Fails
+
+```bash
+# Verify user exists on host
+id alice
+
+# Verify UID matches in container and on Lustre
+ls -ln /lustre/dataharbor/alice-data        # On host
+docker exec dataharbor-xrootd-prod ls -ln /data/alice-data  # In container
+
+# Check mapfile syntax
+cat /opt/xrootd/mapfile | python3 -m json.tool
+```
+
+#### Lustre Mount Changes Not Reflected
+
+```bash
+# Check bind mount propagation
+docker inspect dataharbor-xrootd-prod | grep -A5 "Propagation"
+
+# Should show: "Propagation": "rslave"
+
+# If not, update docker-compose.prod.yml and recreate container
+docker compose -f docker-compose.prod.yml up -d --force-recreate xrootd
+```
+
+#### XRootD Performance Issues on Lustre
+
+```bash
+# Check Lustre striping
+lfs getstripe /lustre/dataharbor
+
+# View XRootD trace logs
+docker exec dataharbor-xrootd-prod tail -f /var/log/xrootd/xrootd.log
+
+# Check for Lustre errors on host
+dmesg | grep -i lustre
+
+# Verify extended attributes are accessible
+docker exec dataharbor-xrootd-prod getfattr -d /data
 ```
 
 ## Maintenance
@@ -750,9 +1260,26 @@ healthcheck:
 3. **Keep certificates secure** - Restrict file permissions (600 for keys)
 4. **Update regularly** - Pull latest images and rebuild
 5. **Monitor logs** - Check for suspicious activity
-6. **Use network isolation** - Keep database/backend on internal network
+6. **Use network isolation** - Keep services on internal Docker network
 7. **Enable firewall** - Only expose port 443 (HTTPS)
 8. **Use HTTPS only** - Port 80 is NOT exposed externally
+9. **TLS verification** - Always use CA verification in production (`xrd.tlsca certdir:...`)
+10. **User mapping audit** - Only authorized users in mapfile
+11. **Resource limits** - Enable CPU/memory limits to prevent DoS
+12. **Lustre quotas** - User quotas on Lustre are enforced by XRootD
+13. **SELinux/AppArmor** - Use confinement when possible, only disable if necessary
+14. **Certificate rotation** - Rotate certificates before expiration
+15. **UID consistency** - Use LDAP/NIS for consistent UID mapping across cluster
+
+### Production-Specific Security
+
+**For Lustre/GPFS deployments**:
+
+- **User synchronization**: Ensure UIDs match between host, container, and filesystem
+- **Mapfile protection**: Restrict access to mapfile on host (`chmod 600 /opt/xrootd/mapfile`)
+- **Data directory permissions**: Use Lustre ACLs for fine-grained access control
+- **Network security**: XRootD port (1094) is internal to Docker network, not exposed externally
+- **Audit logging**: Enable XRootD audit plugin for compliance requirements
 
 ## Port Exposure
 
@@ -765,16 +1292,15 @@ healthcheck:
 - **80** - Frontend static files / Nginx health checks (NOT exposed externally)
 - **8080** - Backend API (NOT exposed externally)
 - **5173** - Frontend dev server (NOT exposed externally, dev only)
-- **1094** - XRootD server (NOT exposed externally)
+- **1094** - XRootD server (NOT exposed externally, backend access only)
 
-**Security Note:** Only HTTPS (port 443) is accessible from outside. All other ports are internal to the Docker network and cannot be accessed from the host or external networks.
+**Security Note:** Only HTTPS (port 443) is accessible from outside. All other ports, including XRootD (1094), are internal to the Docker network and cannot be accessed from the host or external networks. The backend communicates with XRootD via the internal Docker network.
 
 ## Support
 
 - **Main Documentation**: [docs/](../docs/)
-- **Issues**: https://github.com/AnarManafov/dataharbor/issues
-- **Version**: 0.14.6
+- **GitHub Issues**: [github.com/AnarManafov/dataharbor/issues](https://github.com/AnarManafov/dataharbor/issues)
 
 ---
 
-**Last Updated**: October 2025
+[← Back to Main README](../README.md) | [Documentation](../docs/README.md) | [↑ Top](#dataharbor---docker-deployment-guide)

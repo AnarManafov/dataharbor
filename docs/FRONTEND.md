@@ -1,5 +1,7 @@
 # Frontend Development Guide
 
+[← Back to Documentation](./README.md)
+
 This guide covers frontend development for DataHarbor's Vue.js single-page application, focusing on architecture, patterns, and development workflows.
 
 ## Overview
@@ -8,13 +10,17 @@ The frontend is a modern Vue 3 single-page application (SPA) that provides an in
 
 ## Technology Stack
 
-- **Vue 3** with Composition API - Modern reactive framework for component-based development
-- **Vite** - Fast build tool with HMR for efficient development workflow
-- **Element Plus** - Enterprise-grade Vue 3 component library for consistent UI
-- **Pinia** - Lightweight state management with TypeScript support
-- **Vue Router** - Client-side routing with navigation guards
-- **Axios** - HTTP client with interceptors for API communication
-- **Bulma** - CSS framework providing responsive design foundation
+| Technology       | Purpose                                              |
+| ---------------- | ---------------------------------------------------- |
+| **Vue 3**        | Modern reactive framework with Composition API       |
+| **Vite**         | Fast build tool with Hot Module Replacement (HMR)    |
+| **Element Plus** | Enterprise-grade Vue 3 component library             |
+| **Pinia**        | Lightweight state management with TypeScript support |
+| **Vue Router**   | Client-side routing with navigation guards           |
+| **Axios**        | HTTP client with request/response interceptors       |
+| **Bulma**        | CSS framework for responsive design foundation       |
+
+> See **[System Architecture](./ARCHITECTURE.md)** for how these components fit together.
 
 ## Project Structure
 
@@ -726,22 +732,18 @@ DataHarbor supports automatic HTTPS configuration for secure local development:
 
 **Dependency Management**: Regular updates and security audits of dependencies
 
+---
+
 ## Related Documentation
 
-For additional information, see:
+- **[Frontend Configuration](./FRONTEND_CONFIGURATION.md)** - Configuration and deployment settings
+- **[Backend Development](./BACKEND.md)** - Backend API development and integration
+- **[Authentication](./AUTHENTICATION.md)** - OIDC authentication flow and security
+- **[API Reference](./API.md)** - Complete API documentation
+- **[Setup Guide](./SETUP.md)** - Development environment setup
+- **[Deployment](./DEPLOYMENT.md)** - Production deployment strategies
+- **[Troubleshooting](./TROUBLESHOOTING.md)** - Common issues and solutions
 
-- **[BACKEND.md](./BACKEND.md)** - Backend API development and integration
-- **[AUTHENTICATION.md](./AUTHENTICATION.md)** - OIDC authentication flow and security
-- **[API.md](./API.md)** - Complete API documentation
-- **[SETUP.md](./SETUP.md)** - Development environment setup
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment strategies
+---
 
-### Need Help?
-
-For troubleshooting frontend development issues, see the **[Troubleshooting Guide](./TROUBLESHOOTING.md)**.
-
-- **[BACKEND.md](./BACKEND.md)** - Backend API development and integration
-- **[AUTHENTICATION.md](./AUTHENTICATION.md)** - OIDC authentication flow and security
-- **[API.md](./API.md)** - Complete API documentation
-- **[SETUP.md](./SETUP.md)** - Development environment setup
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Production deployment strategies
+[← Back to Documentation](./README.md) | [↑ Top](#frontend-development-guide)

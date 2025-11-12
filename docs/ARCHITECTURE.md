@@ -1,5 +1,7 @@
 # System Architecture
 
+[← Back to Documentation](./README.md)
+
 This document describes the overall architecture, design patterns, and technical decisions for DataHarbor.
 
 ## Overview
@@ -100,14 +102,9 @@ graph TB
 
 ### Frontend (Vue.js SPA)
 
-**Technology Stack:**
+**Technology Stack:** Vue 3, Vite, Element Plus, Pinia, Vue Router, Axios
 
-- **Vue 3**: Progressive JavaScript framework with Composition API
-- **Vite**: Fast build tool and development server
-- **Element Plus**: UI component library
-- **Pinia**: State management
-- **Vue Router**: Client-side routing
-- **Axios**: HTTP client for API communication
+> For detailed frontend technology information, see **[Frontend Development](./FRONTEND.md)**.
 
 **Key Features:**
 
@@ -117,32 +114,15 @@ graph TB
 - State management for user session and application data
 - HTTPS-only communication with backend
 
-**Directory Structure:**
+**Key Directories:** `web/src/components/`, `web/src/views/`, `web/src/store/`, `web/src/api/`
 
-```text
-web/
-├── src/
-│   ├── components/     # Reusable Vue components
-│   ├── views/          # Page-level components
-│   ├── api/            # API client and request handlers
-│   ├── store/          # Pinia stores for state management
-│   ├── router/         # Vue Router configuration
-│   ├── composables/    # Vue composables for shared logic
-│   └── utils/          # Utility functions
-├── public/             # Static assets
-└── dist/               # Built application (production)
-```
+> For complete directory structure, see **[Frontend Development → Project Structure](./FRONTEND.md#project-structure)**.
 
 ### Backend (Go REST API)
 
-**Technology Stack:**
+**Technology Stack:** Go 1.24+, Gin, Viper, Zap, Gorilla Sessions, Go XROOTD Client
 
-- **Go 1.24+**: Modern, compiled language with excellent concurrency
-- **Gin**: High-performance HTTP web framework
-- **Viper**: Configuration management
-- **Zap**: Structured logging
-- **Gorilla Sessions**: Session management
-- **XROOTD Client**: File system operations
+> For detailed backend technology information, see **[Backend Development](./BACKEND.md)**.
 
 **Key Features:**
 
@@ -153,20 +133,9 @@ web/
 - Asynchronous file operations with timeouts
 - Session-based authentication
 
-**Directory Structure:**
+**Key Directories:** `app/controller/`, `app/middleware/`, `app/config/`, `app/common/`
 
-```text
-app/
-├── controller/         # HTTP request handlers
-├── middleware/         # Request processing middleware
-├── route/             # API route definitions
-├── config/            # Configuration management
-├── common/            # Shared utilities (logger, XROOTD client)
-├── core/              # Business logic (file sanitation)
-├── request/           # Request DTO structures
-├── response/          # Response DTO structures
-└── util/              # General utility functions
-```
+> For complete directory structure, see **[Backend Development → Project Structure](./BACKEND.md#project-structure)**.
 
 ## Authentication Architecture
 
@@ -507,3 +476,16 @@ xrd:
 2. **Environment variables**: `DATAHARBOR_*`
 3. **Configuration files**: YAML format
 4. **Default values**: Hardcoded fallbacks
+
+---
+
+## Related Documentation
+
+- **[Authentication System](./AUTHENTICATION.md)** - Security and OIDC integration details
+- **[Backend Development](./BACKEND.md)** - Backend implementation guide
+- **[Frontend Development](./FRONTEND.md)** - Frontend implementation guide
+- **[API Reference](./API.md)** - Complete REST API documentation
+
+---
+
+[← Back to Documentation](./README.md) | [↑ Top](#system-architecture)
