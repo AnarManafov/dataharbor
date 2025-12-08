@@ -28,8 +28,6 @@
 #   IMAGE_TAG       - Custom tag (default: dev)
 # =============================================================================
 
-set -euo pipefail
-
 # Configuration
 REGISTRY="ghcr.io"
 IMAGE_OWNER="${GITHUB_USER:-anarmanafov}"
@@ -49,17 +47,33 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Image definitions: name -> dockerfile
-declare -A IMAGES=(
-    ["backend"]="docker/backend/Dockerfile"
-    ["frontend"]="docker/frontend/Dockerfile"
-    ["nginx"]="docker/nginx/Dockerfile"
-    ["xrootd"]="docker/xrootd/Dockerfile"
-)
-
 # Images that support multi-arch (arm64 + amd64)
 # xrootd is NOT in this list because CERN/OSG packages are x86_64 only
 MULTI_ARCH_IMAGES=("backend" "frontend" "nginx")
+
+# Enable strict mode after variable declarations
+set -euo pipefail
+
+# Helper function to get dockerfile for an image
+get_dockerfile() {
+    local name=$1
+    case "$name" in
+        backend)  echo "docker/backend/Dockerfile" ;;
+        frontend) echo "docker/frontend/Dockerfile" ;;
+        nginx)    echo "docker/nginx/Dockerfile" ;;
+        xrootd)   echo "docker/xrootd/Dockerfile" ;;
+        *)        echo "" ;;
+    esac
+}
+
+# Helper function to check if image name is valid
+is_valid_image() {
+    local name=$1
+    case "$name" in
+        backend|frontend|nginx|xrootd) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 # Functions
 log_info() {
@@ -277,8 +291,9 @@ main() {
     # Build images
     local failed=()
     for name in "${images_to_build[@]}"; do
-        if [[ -v "IMAGES[$name]" ]]; then
-            if ! build_image "$name" "${IMAGES[$name]}"; then
+        local dockerfile=$(get_dockerfile "$name")
+        if [[ -n "$dockerfile" ]]; then
+            if ! build_image "$name" "$dockerfile"; then
                 failed+=("$name")
             fi
         else
