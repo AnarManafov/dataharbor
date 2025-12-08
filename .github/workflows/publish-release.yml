@@ -63,6 +63,13 @@ jobs:
           echo "- Frontend: web/v$FRONTEND_VERSION"
           echo "- Backend: app/v$BACKEND_VERSION"
 
+      - name: Upload version info for subsequent workflows
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-info
+          path: /tmp/version-info
+          retention-days: 1
+
       - name: Download changelog from version-tag-processor workflow
         uses: dawidd6/action-download-artifact@v3
         with:
