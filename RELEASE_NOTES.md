@@ -1,30 +1,26 @@
 # Release Notes
 
-## v0.15.0 (2025-10-16)
+## v1.0.0 (2025-12-08)
 
 Changelog:
 ### Added
-- add ZTN protocol support for OAuth token authentication (xrootd) (a703d7c)
-- enhance ZTN protocol configuration guide (docs) (e7dee77)
-- Update RPM packaging for DataHarbor backend and frontend (packaging) (299166a)
+- add Docker Compose deployment and ZTN/TLS XRootD support (63b6089)
+- add Dockerfile and configuration files (devcontainer) (c275b69)
+- add Go configuration settings (vscode) (48a2eb2)
+- add comprehensive configuration tests (tests) (d2cb35b)
 
 ### Fixed
-- handle error when setting BEARER_TOKEN (xrd) (405aafc)
-
-### Documentation
-- update README for improved clarity and formatting (02e87b6)
+- update dependencies to latest versions (go.mod) (a591164)
 
 ### Maintenance
-- Updated coverage badge. (9be86b3)
-- Updated coverage badge. (ee885ea)
-- Updated coverage badge. (a7145a8)
+- Updated coverage badge. (773debb)
+- Updated coverage badge. (8c3d60d)
+- update VSCode settings exclusion (.gitignore) (4023018)
+- Updated coverage badge. (45dfec4)
 
-### Style
-- reorder XRDConfig fields for consistency (tests) (c401b1f)
-
-### CI
-- update workflow triggers for packaging changes (8fd3933)
+### Build
+- add dos2unix for line ending normalization (docker) (d9a7e5c)
 
 ### Other
-- Add GSI Deployment Guide for DataHarbor (fe8e1c1)
-- Update hep fork dependency with TLS/ZTN connection logging (05abd9f)
+- feat(docker)!: add production Docker deployment (06dd378)
+
