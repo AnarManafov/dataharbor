@@ -21,6 +21,7 @@
 #   ./scripts/build-docker.sh xrootd       # Build only xrootd
 #   ./scripts/build-docker.sh --no-push    # Build without pushing
 #   ./scripts/build-docker.sh --amd64-only # Force AMD64 only for all images
+#   ./scripts/build-docker.sh --cleanup    # Clean unreferenced layers from GHCR
 #
 # Environment Variables:
 #   GITHUB_TOKEN    - GitHub PAT with packages:write (required for push)
@@ -102,6 +103,7 @@ OPTIONS:
     --no-push       Build images without pushing to registry
     --tag TAG       Use custom tag (default: dev)
     --amd64-only    Force AMD64-only builds for all images
+    --cleanup       Clean unreferenced layers from GHCR (removes untagged versions)
     --help, -h      Show this help message
 
 IMAGES:
@@ -117,9 +119,10 @@ EXAMPLES:
     $(basename "$0") --no-push          # Build all without pushing
     $(basename "$0") --tag test backend # Build backend with 'test' tag
     $(basename "$0") --amd64-only       # Build all images for amd64 only
+    $(basename "$0") --cleanup          # Clean unreferenced layers from all images
 
 ENVIRONMENT:
-    GITHUB_TOKEN    GitHub PAT with packages:write scope (required for push)
+    GITHUB_TOKEN    GitHub PAT with packages:write scope (required for push/cleanup)
     GITHUB_USER     GitHub username (default: anarmanafov)
     IMAGE_TAG       Default tag (default: dev)
 
@@ -127,6 +130,11 @@ ARCHITECTURE NOTES:
     - backend, frontend, nginx: Multi-arch (linux/amd64 + linux/arm64)
       Go cross-compiles natively, Node.js/nginx have ARM64 support
     - xrootd: AMD64 only (CERN/OSG XRootD packages are x86_64 only)
+
+CLEANUP NOTES:
+    The --cleanup option removes untagged/unreferenced image versions from GHCR.
+    This frees up storage by removing orphaned layers that are no longer used.
+    Requires: gh CLI (GitHub CLI) to be installed
 EOF
 }
 
@@ -220,10 +228,165 @@ build_image() {
     fi
 }
 
+cleanup_ghcr_layers() {
+    log_info "Cleaning unreferenced layers from GHCR..."
+    
+    # Check if gh CLI is installed
+    if ! command -v gh &> /dev/null; then
+        log_error "GitHub CLI (gh) is not installed"
+        log_info "Install with: brew install gh"
+        exit 1
+    fi
+    
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null; then
+        log_error "jq is not installed (required for JSON parsing)"
+        log_info "Install with: brew install jq"
+        exit 1
+    fi
+    
+    # Check if GITHUB_TOKEN is set
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        log_error "GITHUB_TOKEN environment variable is not set"
+        log_info "Create a PAT at: https://github.com/settings/tokens"
+        log_info "Required scopes: read:packages, delete:packages"
+        log_info "Note: Classic tokens need 'delete:packages' scope"
+        log_info "      Fine-grained tokens need 'Packages: Read and write' permission"
+        exit 1
+    fi
+    
+    # Export token for gh CLI to use
+    export GH_TOKEN="${GITHUB_TOKEN}"
+    
+    local all_images=("backend" "frontend" "nginx" "xrootd")
+    local total_deleted=0
+    local total_size=0
+    local temp_file="/tmp/ghcr_versions_$$.json"
+    
+    # Arrays to store per-image stats
+    declare -A image_deleted_count
+    declare -A image_deleted_size
+    
+    for image in "${all_images[@]}"; do
+        log_info "Processing dataharbor-${image}..."
+        
+        # Fetch all versions with pagination
+        if ! gh api "/user/packages/container/dataharbor-${image}/versions" --paginate > "$temp_file" 2>&1; then
+            log_warn "Failed to fetch versions for dataharbor-${image}"
+            continue
+        fi
+        
+        # Extract IDs and sizes of untagged versions
+        local versions_to_delete
+        versions_to_delete=$(jq -r '.[] | select(.metadata.container.tags==[]) | "\(.id)|\(.name)|\(.metadata.package_type // "unknown")"' "$temp_file")
+        
+        if [[ -z "$versions_to_delete" ]]; then
+            log_info "  No untagged versions found"
+            image_deleted_count[$image]=0
+            image_deleted_size[$image]=0
+            continue
+        fi
+        
+        # Count versions to delete
+        local count=$(echo "$versions_to_delete" | wc -l | tr -d ' ')
+        log_info "  Found ${count} untagged version(s) to delete"
+        
+        # Delete each untagged version and track size
+        local deleted_count=0
+        local deleted_size=0
+        
+        while IFS='|' read -r id name pkg_type; do
+            [[ -z "$id" ]] && continue
+            
+            # Get detailed version info to extract size
+            local version_detail
+            if version_detail=$(gh api "/user/packages/container/dataharbor-${image}/versions/${id}" 2>/dev/null); then
+                # Try to get size from metadata (in bytes)
+                local size=$(echo "$version_detail" | jq -r '.metadata.container.tags | length // 0')
+                # Since tags is empty, try to get actual package size if available
+                # Note: GHCR API doesn't always expose exact layer sizes, but we can estimate
+                local manifest_size=$(echo "$version_detail" | jq -r '.name' | wc -c)
+                # Rough estimate: each untagged manifest is typically part of a multi-arch image
+                # For better accuracy, we'd need to query manifest details, but this adds complexity
+                size=0  # Set to 0 since we can't easily get accurate size without manifest API
+            else
+                size=0
+            fi
+            
+            # Use the --input - workaround for DELETE method (gh cli issue #4286)
+            if echo -n | gh api --silent --method DELETE "/user/packages/container/dataharbor-${image}/versions/${id}" --input - 2>/dev/null; then
+                log_success "  ✓ Deleted version ID: ${id} (${name})"
+                ((deleted_count++))
+                ((total_deleted++))
+                ((deleted_size+=size))
+                ((total_size+=size))
+            else
+                log_warn "  ✗ Failed to delete version ID: ${id}"
+            fi
+        done <<< "$versions_to_delete"
+        
+        image_deleted_count[$image]=$deleted_count
+        image_deleted_size[$image]=$deleted_size
+        
+        if [[ $deleted_count -gt 0 ]]; then
+            log_success "  Cleaned ${deleted_count} untagged version(s) from dataharbor-${image}"
+        fi
+    done
+    
+    # Cleanup temp file
+    rm -f "$temp_file"
+    
+    # Helper function to format bytes
+    format_bytes() {
+        local bytes=$1
+        if [[ $bytes -eq 0 ]]; then
+            echo "0 B"
+        elif [[ $bytes -lt 1024 ]]; then
+            echo "${bytes} B"
+        elif [[ $bytes -lt 1048576 ]]; then
+            echo "$(( bytes / 1024 )) KB"
+        elif [[ $bytes -lt 1073741824 ]]; then
+            echo "$(( bytes / 1048576 )) MB"
+        else
+            echo "$(( bytes / 1073741824 )) GB"
+        fi
+    }
+    
+    echo ""
+    echo "=========================================="
+    echo "  Cleanup Summary"
+    echo "=========================================="
+    
+    if [[ $total_deleted -eq 0 ]]; then
+        log_info "No untagged versions found across all images"
+    else
+        echo ""
+        printf "%-20s %10s %15s\n" "Image" "Deleted" "Note"
+        printf "%-20s %10s %15s\n" "--------------------" "----------" "---------------"
+        
+        for image in "${all_images[@]}"; do
+            local count=${image_deleted_count[$image]:-0}
+            if [[ $count -gt 0 ]]; then
+                printf "%-20s %10s %15s\n" "dataharbor-${image}" "${count} versions" "Layers freed"
+            fi
+        done
+        
+        echo ""
+        log_success "Total deleted: ${total_deleted} untagged version(s)"
+        log_info "Orphaned layers have been freed and will be garbage collected by GHCR"
+        log_info ""
+        log_info "Note: GHCR doesn't expose exact layer sizes via API for untagged versions."
+        log_info "      Actual storage savings will be visible in your GitHub package settings"
+        log_info "      after garbage collection completes (may take a few minutes)."
+    fi
+    echo "=========================================="
+}
+
 # Main script
 main() {
     local images_to_build=()
     DO_PUSH="true"
+    DO_CLEANUP="false"
     
     # Parse arguments
     while [[ $# -gt 0 ]]; do
@@ -238,6 +401,10 @@ main() {
                 ;;
             --amd64-only)
                 AMD64_ONLY="true"
+                shift
+                ;;
+            --cleanup)
+                DO_CLEANUP="true"
                 shift
                 ;;
             -h|--help)
@@ -255,6 +422,12 @@ main() {
                 ;;
         esac
     done
+    
+    # If cleanup mode, run cleanup and exit
+    if [[ "${DO_CLEANUP}" == "true" ]]; then
+        cleanup_ghcr_layers
+        exit 0
+    fi
     
     # Default to all images if none specified
     if [[ ${#images_to_build[@]} -eq 0 ]]; then
