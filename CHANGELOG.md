@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-12-08
+
+### Added
+
+- add Docker Compose deployment and ZTN/TLS XRootD support (63b6089)
+- add Dockerfile and configuration files (devcontainer) (c275b69)
+- add Go configuration settings (vscode) (48a2eb2)
+- add comprehensive configuration tests (tests) (d2cb35b)
+
+### Fixed
+
+- update dependencies to latest versions (go.mod) (a591164)
+
+### Maintenance
+
+- Updated coverage badge. (773debb, 8c3d60d, 45dfec4, 5bbbbd3)
+- update VSCode settings exclusion (.gitignore) (4023018)
+
+### Build
+
+- add dos2unix for line ending normalization (docker) (d9a7e5c)
+
+### Other
+
+- feat(docker)!: add production Docker deployment (06dd378)
+
 ## [0.15.0] - 2025-10-16
 
 ### Added
