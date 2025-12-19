@@ -17,8 +17,6 @@
                 "ms-azuretools.vscode-docker",
                 // Code quality
                 "streetsidesoftware.code-spell-checker",
-                // Clang-format for C++/proto formatting
-                "xaver.clang-format",
                 // Python formatting
                 "ms-python.autopep8",
                 // Makefile support
