@@ -76,23 +76,39 @@
     },
     // Features to add to the dev container
     "features": {
+        // Go development with tools (gopls, dlv, staticcheck, etc.)
+        "ghcr.io/devcontainers/features/go:1": {
+            "version": "1.25.5",
+            "golangciLintVersion": "latest"
+        },
+        // Node.js for Vue.js frontend
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "24.12",
+            "nodeGypDependencies": true
+        },
+        // Git with latest version
         "ghcr.io/devcontainers/features/git:1": {
             "version": "latest"
         },
+        // GitHub CLI for repository management
         "ghcr.io/devcontainers/features/github-cli:1": {
             "version": "latest"
         },
-        "ghcr.io/devcontainers/features/node:latest": {
-            "version": "24",
-            "nodeGypDependencies": true
-        },
+        // Docker outside of Docker for container management
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
             "version": "latest",
             "moby": true
+        },
+        // Common utilities (curl, wget, jq, etc.)
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "installZsh": true,
+            "installOhMyZsh": true,
+            "configureZshAsDefaultShell": true,
+            "upgradePackages": true
         }
     },
     // Commands to run after container is created
-    "postCreateCommand": "cd app && go mod download && cd .. && npm install",
+    "postCreateCommand": "npm install -g npm@latest && cd app && go mod download && cd .. && npm install",
     // Commands to run when container starts
     "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} || true && git config --global core.editor 'code --wait'",
     // Comment out to connect as root instead
