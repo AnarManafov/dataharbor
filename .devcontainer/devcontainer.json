@@ -11,7 +11,6 @@
                 "golang.go",
                 // Vue.js/Frontend development
                 "vue.volar",
-                "vue.vscode-typescript-vue-plugin",
                 "dbaeumer.vscode-eslint",
                 "esbenp.prettier-vscode",
                 // Docker support
@@ -85,7 +84,7 @@
         "ghcr.io/devcontainers/features/github-cli:1": {
             "version": "latest"
         },
-        "ghcr.io/devcontainers/features/node:1": {
+        "ghcr.io/devcontainers/features/node:latest": {
             "version": "24",
             "nodeGypDependencies": true
         },
