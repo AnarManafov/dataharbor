@@ -246,11 +246,8 @@ The project uses npm workspaces with a single `package-lock.json` at the root le
 # Check all workspaces from root (recommended)
 npx npm-check-updates --workspaces
 
-# Check only web dependencies
+# Or check specific workspace
 npx npm-check-updates --workspace=web
-
-# Or from web directory
-cd web && npx npm-check-updates
 ```
 
 **Update dependencies:**
@@ -260,11 +257,7 @@ cd web && npx npm-check-updates
 npx npm-check-updates --workspaces -u
 npm install
 
-# Update only web dependencies
-npx npm-check-updates --workspace=web -u
-npm install
-
-# Update specific packages only
+# Or update specific packages only
 npx npm-check-updates --workspace=web -u vue axios element-plus
 npm install
 ```
