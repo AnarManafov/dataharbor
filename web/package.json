@@ -7,12 +7,9 @@
     "dev": "vite",
     "dev:with-config": "VITE_CONFIG_FILE_PATH='/config.json' vite",
     "dev:env-certs": "vite",
-    "sandbox:env-certs": "vite --config vite.sandbox.config.js",
     "dev:pkm-certs": "VITE_SSL_KEY=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.key\" VITE_SSL_CERT=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.crt\" vite",
-    "sandbox:pkm-certs": "VITE_SSL_KEY=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.key\" VITE_SSL_CERT=\"$HOME/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/server.crt\" vite --config vite.sandbox.config.js",
     "build": "vite build",
     "preview": "vite preview",
-    "sandbox": "vite --config vite.sandbox.config.js",
     "cert:check": "node scripts/check-certs.js",
     "cert:setup": "bash scripts/setup-certs-example.sh"
   },
