@@ -232,14 +232,6 @@ export VITE_API_BASE_URL="https://api.yourdomain.com"
 | `cert:check` | Check certificate availability | `npm run cert:check` |
 | `cert:setup` | Setup certificate example      | `npm run cert:setup` |
 
-### Sandbox Environment
-
-| Script              | Description                   | Usage                       |
-| ------------------- | ----------------------------- | --------------------------- |
-| `sandbox`           | Sandbox development server    | `npm run sandbox`           |
-| `sandbox:env-certs` | Sandbox with env certificates | `npm run sandbox:env-certs` |
-| `sandbox:pkm-certs` | Sandbox with PKM certificates | `npm run sandbox:pkm-certs` |
-
 ## Deployment Configuration
 
 ### Development Deployment

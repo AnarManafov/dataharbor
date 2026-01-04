@@ -234,19 +234,6 @@ npm run sync-versions
 npm run prepare-release
 ```
 
-### Sandbox Environment
-
-```shell
-# Create sandbox
-npm run sandbox:create
-
-# Run sandbox
-npm run sandbox:run
-
-# Clean sandbox
-npm run sandbox:clean
-```
-
 ### Certificate Management
 
 ```shell
