@@ -9,7 +9,7 @@
                     </h2>
                     <div class='button-block'>
                         <router-link to="/browse" class='button is-primary is-rounded'>
-                            <el-icon class="mr-2">
+                            <el-icon class="mr-2" size="48">
                                 <FolderOpened />
                             </el-icon>
                             Start Browsing Files
@@ -25,32 +25,34 @@
                 <div class="features-grid">
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="24" color="var(--el-color-primary)">
+                            <el-icon size="48" color="var(--el-color-primary)">
                                 <FolderOpened />
                             </el-icon>
                         </div>
-                        <h3>File Browsing</h3>
-                        <p>Browse and navigate through your file system with an intuitive interface</p>
+                        <h3>Intuitive File Browser</h3>
+                        <p>Navigate directories, inspect metadata, and explore large-scale datasets with ease</p>
                     </el-card>
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="24" color="var(--el-color-success)">
+                            <el-icon size="48" color="var(--el-color-success)">
                                 <Download />
                             </el-icon>
                         </div>
-                        <h3>File Downloads</h3>
-                        <p>Securely download files with authentication and access control</p>
+                        <h3>Efficient Large File Downloads</h3>
+                        <p>Stream multi-gigabyte files directly to your browser with chunked transfer and adaptive
+                            buffering</p>
                     </el-card>
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="24" color="var(--el-color-warning)">
-                                <Monitor />
+                            <el-icon size="48" color="var(--el-color-warning)">
+                                <Lock />
                             </el-icon>
                         </div>
-                        <h3>Real-time Monitoring</h3>
-                        <p>Monitor system status and file operations in real-time</p>
+                        <h3>Enterprise-Grade Security</h3>
+                        <p>OpenID Connect authentication with server-side token management and TLS-encrypted XRootD
+                            connections</p>
                     </el-card>
                 </div>
             </div>
@@ -59,14 +61,14 @@
 </template>
 
 <script>
-import { FolderOpened, Download, Monitor } from '@element-plus/icons-vue';
+import { FolderOpened, Download, Lock } from '@element-plus/icons-vue';
 
 export default {
     name: 'HomeView',
     components: {
         FolderOpened,
         Download,
-        Monitor
+        Lock
     },
 };
 </script>
