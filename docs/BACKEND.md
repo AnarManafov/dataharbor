@@ -125,7 +125,7 @@ graph TB
 
 | Technology           | Purpose                                              |
 | -------------------- | ---------------------------------------------------- |
-| **Go 1.24+**         | Main programming language with excellent concurrency |
+| **Go 1.25+**         | Main programming language with excellent concurrency |
 | **Gin**              | High-performance HTTP web framework                  |
 | **Viper**            | Configuration management (YAML, env vars)            |
 | **Zap**              | Structured, leveled logging                          |
@@ -177,12 +177,6 @@ app/
 
 ## Getting Started
 
-### Prerequisites
-
-1. **Go 1.24+** installed
-2. **XROOTD client** tools available in PATH
-3. **Git** for version control
-
 ### Setup
 
 ```shell
@@ -198,7 +192,7 @@ cd config
 copy application.template.yaml application.development.yaml
 
 # Edit configuration as needed
-notepad application.development.yaml
+code application.development.yaml
 ```
 
 ### Running the Backend

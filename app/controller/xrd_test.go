@@ -2,13 +2,17 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/AnarManafov/dataharbor/app/config"
 )
 
 // Helper function to create a mock gin context with user claims
@@ -57,6 +61,93 @@ func TestSanitizeFilename(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+// Test sanitizeFilename with special characters
+func TestSanitizeFilename_SpecialChars(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "newline in filename",
+			input:    "file\nname.txt",
+			expected: "file_name.txt",
+		},
+		{
+			name:     "carriage return in filename",
+			input:    "file\rname.txt",
+			expected: "file_name.txt",
+		},
+		{
+			name:     "null byte in filename",
+			input:    "file\x00name.txt",
+			expected: "filename.txt",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := sanitizeFilename(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// Test sanitizeFilename with long filenames
+func TestSanitizeFilename_LongFilename(t *testing.T) {
+	// Create a filename longer than 255 characters
+	longName := ""
+	for i := 0; i < 300; i++ {
+		longName += "a"
+	}
+
+	result := sanitizeFilename(longName)
+	assert.LessOrEqual(t, len(result), 255, "Sanitized filename should be at most 255 characters")
+}
+
+// Test sanitizeFilename with invalid UTF-8
+func TestSanitizeFilename_InvalidUTF8(t *testing.T) {
+	// Create a string with invalid UTF-8 sequence
+	// 0xff is an invalid UTF-8 byte
+	invalidUTF8 := "test\xfffile.txt"
+
+	result := sanitizeFilename(invalidUTF8)
+
+	// Result should have the invalid byte replaced with underscore
+	assert.Contains(t, result, "_")
+	assert.Contains(t, result, "file.txt")
+}
+
+// Test sanitizeFilename with mixed valid and invalid UTF-8
+func TestSanitizeFilename_MixedUTF8(t *testing.T) {
+	// Valid UTF-8 string with Unicode characters
+	validUTF8 := "tëst_filé.txt"
+
+	result := sanitizeFilename(validUTF8)
+
+	// Should remain unchanged (no dangerous chars)
+	assert.Equal(t, validUTF8, result)
+}
+
+// Test sanitizeFilename with all dangerous characters
+func TestSanitizeFilename_AllDangerous(t *testing.T) {
+	dangerous := "file/with\\path..traversal\x00null\nnewline\rcarriage"
+	result := sanitizeFilename(dangerous)
+
+	// Should not contain any dangerous characters
+	assert.NotContains(t, result, "/")
+	assert.NotContains(t, result, "\\")
+	assert.NotContains(t, result, "..")
+	assert.NotContains(t, result, "\x00")
+	assert.NotContains(t, result, "\n")
+	assert.NotContains(t, result, "\r")
 }
 
 // Test for xrdDirEntry structure
@@ -278,4 +369,665 @@ func TestDownloadSlotWithContextCancellation(t *testing.T) {
 
 	// Clean up
 	releaseDownloadSlot(c)
+}
+
+// ============================================
+// validateFilePath Tests
+// ============================================
+
+func TestValidateFilePath(t *testing.T) {
+	testCases := []struct {
+		name        string
+		path        string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid absolute path",
+			path:        "/data/files/test.txt",
+			expectError: false,
+		},
+		{
+			name:        "valid nested path",
+			path:        "/home/user/data/files/test.txt",
+			expectError: false,
+		},
+		{
+			name:        "valid root path",
+			path:        "/",
+			expectError: false,
+		},
+		{
+			name:        "path with directory traversal",
+			path:        "/data/../etc/passwd",
+			expectError: true,
+			errorMsg:    "path contains directory traversal",
+		},
+		{
+			name:        "path with double dots in middle",
+			path:        "/data/files/../secrets/key.txt",
+			expectError: true,
+			errorMsg:    "path contains directory traversal",
+		},
+		{
+			name:        "path starting with directory traversal",
+			path:        "/../data/file.txt",
+			expectError: true,
+			errorMsg:    "path contains directory traversal",
+		},
+		{
+			name:        "relative path without leading slash",
+			path:        "data/files/test.txt",
+			expectError: true,
+			errorMsg:    "path must be absolute",
+		},
+		{
+			name:        "empty path",
+			path:        "",
+			expectError: true,
+			errorMsg:    "path must be absolute",
+		},
+		{
+			name:        "path with null byte",
+			path:        "/data/files/test\x00.txt",
+			expectError: true,
+			errorMsg:    "path contains invalid characters",
+		},
+		{
+			name:        "path with newline",
+			path:        "/data/files/test\n.txt",
+			expectError: true,
+			errorMsg:    "path contains invalid characters",
+		},
+		{
+			name:        "path with carriage return",
+			path:        "/data/files/test\r.txt",
+			expectError: true,
+			errorMsg:    "path contains invalid characters",
+		},
+		{
+			name:        "path with spaces",
+			path:        "/data/files/test file.txt",
+			expectError: false,
+		},
+		{
+			name:        "path with unicode characters",
+			path:        "/data/files/测试文件.txt",
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateFilePath(tc.path)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorMsg != "" {
+					assert.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// ============================================
+// FetchInitialDir and FetchHostName Tests
+// ============================================
+
+func setupTestXRDConfig() {
+	testConfig := &config.Config{
+		Env: "test",
+		Server: config.ServerConfig{
+			Address: ":8080",
+		},
+		XRD: config.XRDConfig{
+			Host:       "test-xrd-server.example.com",
+			Port:       1094,
+			InitialDir: "/test/initial/dir",
+			User:       "testuser",
+			Download: config.DownloadConfig{
+				BufferSize:    2097152,
+				FlushInterval: 4194304,
+			},
+		},
+	}
+	config.SetConfig(testConfig)
+}
+
+func TestFetchInitialDir(t *testing.T) {
+	setupTestXRDConfig()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/xrd/initial-dir", nil)
+
+	FetchInitialDir(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, float64(http.StatusOK), response["code"])
+	assert.Equal(t, "/test/initial/dir", response["data"])
+}
+
+func TestFetchHostName(t *testing.T) {
+	setupTestXRDConfig()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/xrd/hostname", nil)
+
+	FetchHostName(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, float64(http.StatusOK), response["code"])
+	assert.Equal(t, "test-xrd-server.example.com", response["data"])
+}
+
+// ============================================
+// GetInitialDirectory Tests
+// ============================================
+
+func TestGetInitialDirectory(t *testing.T) {
+	setupTestXRDConfig()
+
+	t.Run("without user claims", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/directory", nil)
+
+		GetInitialDirectory(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, "/", response["directory"])
+	})
+
+	t.Run("with user claims", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/directory", nil)
+
+		// Set user claims
+		claims := map[string]interface{}{
+			"sub": "test.user@example.com",
+		}
+		c.Set("user_claims", claims)
+
+		GetInitialDirectory(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		// Currently returns "/" even with claims, future enhancement could use user-specific directories
+		assert.Equal(t, "/", response["directory"])
+	})
+}
+
+// ============================================
+// GetHostName Tests
+// ============================================
+
+func TestGetHostName(t *testing.T) {
+	setupTestXRDConfig()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/api/xrd/host", nil)
+
+	GetHostName(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-xrd-server.example.com", response["hostname"])
+}
+
+// ============================================
+// GetDownloadSlotStatus Tests
+// ============================================
+
+func TestGetDownloadSlotStatus(t *testing.T) {
+	// Clear slots for clean test
+	userDownloadSlots = make(map[string]bool)
+
+	t.Run("no active slots", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
+		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("access_token", "token1")
+
+		GetDownloadSlotStatus(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, false, response["hasActiveSlot"])
+		assert.Equal(t, float64(0), response["totalActiveSlots"])
+	})
+
+	t.Run("with active slot for current user", func(t *testing.T) {
+		// Clear and acquire a slot
+		userDownloadSlots = make(map[string]bool)
+		c1 := createMockContext("user1", "token1")
+		acquireDownloadSlot(c1)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
+		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("access_token", "token1")
+
+		GetDownloadSlotStatus(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, true, response["hasActiveSlot"])
+		assert.Equal(t, float64(1), response["totalActiveSlots"])
+
+		// Clean up
+		releaseDownloadSlot(c1)
+	})
+
+	t.Run("with active slots for other users", func(t *testing.T) {
+		// Clear and acquire slots for other users
+		userDownloadSlots = make(map[string]bool)
+		c1 := createMockContext("user1", "token1")
+		c2 := createMockContext("user2", "token2")
+		acquireDownloadSlot(c1)
+		acquireDownloadSlot(c2)
+
+		// Check status for a different user
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
+		c.Set("user_claims", map[string]interface{}{"sub": "user3"})
+		c.Set("access_token", "token3")
+
+		GetDownloadSlotStatus(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, false, response["hasActiveSlot"])
+		assert.Equal(t, float64(2), response["totalActiveSlots"])
+
+		// Clean up
+		releaseDownloadSlot(c1)
+		releaseDownloadSlot(c2)
+	})
+}
+
+// ============================================
+// ForceReleaseDownloadSlot Tests
+// ============================================
+
+func TestForceReleaseDownloadSlot(t *testing.T) {
+	t.Run("no active slot to release", func(t *testing.T) {
+		userDownloadSlots = make(map[string]bool)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
+		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("access_token", "token1")
+
+		ForceReleaseDownloadSlot(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["message"], "No active download slot found")
+	})
+
+	t.Run("force release active slot", func(t *testing.T) {
+		// Clear and acquire a slot
+		userDownloadSlots = make(map[string]bool)
+		c1 := createMockContext("user1", "token1")
+		acquireDownloadSlot(c1)
+
+		// Verify slot is acquired
+		assert.True(t, userDownloadSlots[getUserKey(c1)])
+
+		// Force release
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
+		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("access_token", "token1")
+
+		ForceReleaseDownloadSlot(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["message"], "Download slot forcefully released")
+		assert.Equal(t, float64(0), response["remainingSlots"])
+
+		// Verify slot is released
+		assert.False(t, userDownloadSlots[getUserKey(c1)])
+	})
+
+	t.Run("force release only affects current user", func(t *testing.T) {
+		// Clear and acquire slots for multiple users
+		userDownloadSlots = make(map[string]bool)
+		c1 := createMockContext("user1", "token1")
+		c2 := createMockContext("user2", "token2")
+		acquireDownloadSlot(c1)
+		acquireDownloadSlot(c2)
+
+		// Force release user1's slot
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
+		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("access_token", "token1")
+
+		ForceReleaseDownloadSlot(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Equal(t, float64(1), response["remainingSlots"])
+
+		// Verify user1's slot is released but user2's remains
+		assert.False(t, userDownloadSlots[getUserKey(c1)])
+		assert.True(t, userDownloadSlots[getUserKey(c2)])
+
+		// Clean up
+		releaseDownloadSlot(c2)
+	})
+}
+
+// ============================================
+// FetchDirItemsByPage Tests
+// ============================================
+
+func TestFetchDirItemsByPage(t *testing.T) {
+	setupTestXRDConfig()
+
+	t.Run("missing request body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/xrd/dir-items", nil)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		FetchDirItemsByPage(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid page number - zero", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := `{"path": "/test", "page": 0, "pageSize": 10}`
+		c.Request = httptest.NewRequest("POST", "/api/xrd/dir-items", strings.NewReader(reqBody))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		FetchDirItemsByPage(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("empty directory path", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		reqBody := `{"path": "", "page": 1, "pageSize": 10}`
+		c.Request = httptest.NewRequest("POST", "/api/xrd/dir-items", strings.NewReader(reqBody))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		FetchDirItemsByPage(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// ============================================
+// ListDirectory Tests
+// ============================================
+
+func TestListDirectory(t *testing.T) {
+	setupTestXRDConfig()
+
+	t.Run("missing directory parameter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/list", nil)
+
+		ListDirectory(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["error"], "Directory parameter is required")
+	})
+
+	t.Run("empty directory parameter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/list?dir=", nil)
+
+		ListDirectory(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// ============================================
+// GetFileInfo Tests
+// ============================================
+
+func TestGetFileInfo(t *testing.T) {
+	setupTestXRDConfig()
+
+	t.Run("missing path parameter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/file-info", nil)
+
+		GetFileInfo(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["error"], "File path parameter is required")
+	})
+
+	t.Run("empty path parameter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/file-info?path=", nil)
+
+		GetFileInfo(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// ============================================
+// DownloadFile Tests
+// ============================================
+
+func TestDownloadFile(t *testing.T) {
+	setupTestXRDConfig()
+
+	t.Run("missing path parameter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download", nil)
+
+		DownloadFile(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["error"], "File path parameter is required")
+	})
+
+	t.Run("empty path parameter", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download?path=", nil)
+
+		DownloadFile(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid path with directory traversal", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download?path=/../etc/passwd", nil)
+
+		DownloadFile(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["error"], "Invalid file path")
+	})
+
+	t.Run("invalid path - relative", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download?path=relative/path/file.txt", nil)
+
+		DownloadFile(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var response map[string]interface{}
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		assert.NoError(t, err)
+		assert.Contains(t, response["error"], "Invalid file path")
+	})
+
+	t.Run("invalid path with null byte", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		// URL encode the null byte
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download?path=/data/file%00.txt", nil)
+
+		DownloadFile(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("invalid path with newline", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		// URL encode the newline
+		c.Request = httptest.NewRequest("GET", "/api/xrd/download?path=/data/file%0A.txt", nil)
+
+		DownloadFile(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// ============================================
+// maskToken Tests
+// ============================================
+
+func TestMaskToken(t *testing.T) {
+	testCases := []struct {
+		name     string
+		token    string
+		expected string
+	}{
+		{
+			name:     "empty token",
+			token:    "",
+			expected: "anonymous",
+		},
+		{
+			name:     "short token (8 chars or less)",
+			token:    "short",
+			expected: "***",
+		},
+		{
+			name:     "exactly 8 chars",
+			token:    "12345678",
+			expected: "***",
+		},
+		{
+			name:     "normal token",
+			token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+			expected: "eyJh...VCJ9",
+		},
+		{
+			name:     "longer token",
+			token:    "abcdefghijklmnopqrstuvwxyz1234567890",
+			expected: "abcd...7890",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := maskToken(tc.token)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+// ============================================
+// min function Tests
+// ============================================
+
+func TestMin(t *testing.T) {
+	testCases := []struct {
+		a, b, expected uint32
+	}{
+		{1, 2, 1},
+		{2, 1, 1},
+		{5, 5, 5},
+		{0, 10, 0},
+		{10, 0, 0},
+		{100, 200, 100},
+	}
+
+	for _, tc := range testCases {
+		result := min(tc.a, tc.b)
+		assert.Equal(t, tc.expected, result)
+	}
 }
