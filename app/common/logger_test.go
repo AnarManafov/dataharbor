@@ -243,3 +243,196 @@ func TestConcatTid(t *testing.T) {
 		}
 	}
 }
+
+func TestConcatTid_NilContext(t *testing.T) {
+	// Test with nil context
+	result := concatTid(nil, "template")
+	assert.Equal(t, "template", result, "concatTid with nil context should return template unchanged")
+}
+
+func TestGetZapLevel(t *testing.T) {
+	testCases := []struct {
+		levelName string
+		expected  zapcore.Level
+	}{
+		{"debug", zap.DebugLevel},
+		{"info", zap.InfoLevel},
+		{"warn", zap.WarnLevel},
+		{"error", zap.ErrorLevel},
+		{"invalid", zapcore.InvalidLevel},
+		{"", zapcore.InvalidLevel},
+		{"INFO", zapcore.InvalidLevel}, // Case-sensitive
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.levelName, func(t *testing.T) {
+			result := getZapLevel(tc.levelName)
+			assert.Equal(t, tc.expected, result, "getZapLevel(%q) should return %v", tc.levelName, tc.expected)
+		})
+	}
+}
+
+func TestCreateConsoleCore(t *testing.T) {
+	testCases := []struct {
+		name   string
+		config *config.LoggingConfig
+	}{
+		{
+			name: "json format with console level",
+			config: &config.LoggingConfig{
+				Level: "info",
+				Console: config.ConsoleConfig{
+					Enabled: true,
+					Format:  "json",
+					Level:   "debug",
+				},
+			},
+		},
+		{
+			name: "text format with fallback to global level",
+			config: &config.LoggingConfig{
+				Level: "warn",
+				Console: config.ConsoleConfig{
+					Enabled: true,
+					Format:  "text",
+					Level:   "", // Empty level, should fallback to global
+				},
+			},
+		},
+		{
+			name: "console format (default)",
+			config: &config.LoggingConfig{
+				Level: "error",
+				Console: config.ConsoleConfig{
+					Enabled: true,
+					Format:  "console",
+					Level:   "info",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			core := createConsoleCore(tc.config)
+			assert.NotNil(t, core, "createConsoleCore should return a non-nil core")
+		})
+	}
+}
+
+func TestCreateFileCore(t *testing.T) {
+	// Create a temporary directory for log files
+	tmpDir := t.TempDir()
+
+	testCases := []struct {
+		name   string
+		config *config.LoggingConfig
+	}{
+		{
+			name: "json format with file level",
+			config: &config.LoggingConfig{
+				Level: "info",
+				File: config.FileConfig{
+					Enabled:    true,
+					Filename:   tmpDir + "/test_json.log",
+					Format:     "json",
+					Level:      "debug",
+					MaxSize:    10,
+					MaxBackups: 3,
+					MaxAge:     7,
+					Compress:   false,
+				},
+			},
+		},
+		{
+			name: "text format with fallback to global level",
+			config: &config.LoggingConfig{
+				Level: "warn",
+				File: config.FileConfig{
+					Enabled:    true,
+					Filename:   tmpDir + "/test_text.log",
+					Format:     "text",
+					Level:      "", // Empty level, should fallback to global
+					MaxSize:    5,
+					MaxBackups: 2,
+					MaxAge:     30,
+					Compress:   true,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			core := createFileCore(tc.config)
+			assert.NotNil(t, core, "createFileCore should return a non-nil core")
+		})
+	}
+}
+
+func TestInitLoggerFromViper(t *testing.T) {
+	// Clear any existing logger
+	DestroyLogger()
+
+	// Call InitLoggerFromViper
+	InitLoggerFromViper()
+
+	// Check that logger is initialized
+	assert.NotNil(t, Logger, "InitLoggerFromViper should initialize Logger")
+}
+
+func TestInitLoggerWithConfig_NilConfig(t *testing.T) {
+	DestroyLogger()
+
+	// Initialize with nil config
+	initLoggerWithConfig(nil)
+
+	// Logger should be initialized with development logger
+	assert.NotNil(t, Logger, "initLoggerWithConfig with nil should initialize Logger")
+}
+
+func TestInitLoggerWithConfig_ConsoleAndFile(t *testing.T) {
+	DestroyLogger()
+	tmpDir := t.TempDir()
+
+	cfg := &config.LoggingConfig{
+		Level: "info",
+		Console: config.ConsoleConfig{
+			Enabled: true,
+			Format:  "text",
+			Level:   "debug",
+		},
+		File: config.FileConfig{
+			Enabled:    true,
+			Filename:   tmpDir + "/combined.log",
+			Format:     "json",
+			Level:      "info",
+			MaxSize:    10,
+			MaxBackups: 3,
+			MaxAge:     7,
+		},
+	}
+
+	initLoggerWithConfig(cfg)
+
+	assert.NotNil(t, Logger, "initLoggerWithConfig with console and file should initialize Logger")
+}
+
+func TestInitLoggerWithConfig_NoOutputsEnabled(t *testing.T) {
+	DestroyLogger()
+
+	cfg := &config.LoggingConfig{
+		Level: "info",
+		Console: config.ConsoleConfig{
+			Enabled: false,
+		},
+		File: config.FileConfig{
+			Enabled: false,
+		},
+	}
+
+	initLoggerWithConfig(cfg)
+
+	// Should fallback to development logger
+	assert.NotNil(t, Logger, "initLoggerWithConfig with no outputs should still initialize Logger")
+}

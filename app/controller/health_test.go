@@ -55,3 +55,49 @@ func TestHealth(t *testing.T) {
 		})
 	}
 }
+
+func TestHealthCheck(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name         string
+		expectedCode int
+		expectedBody gin.H
+	}{
+		{
+			name:         "health check endpoint",
+			expectedCode: http.StatusOK,
+			expectedBody: gin.H{
+				"code":    200,
+				"data":    "ok",
+				"message": "success",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a new gin context
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			// Call the HealthCheck function
+			HealthCheck(c)
+
+			// Convert actual response to expected type
+			var actualBody gin.H
+			if err := json.Unmarshal(w.Body.Bytes(), &actualBody); err != nil {
+				t.Fatalf("Failed to unmarshal response body: %v", err)
+			}
+
+			// Convert code field to int
+			if code, ok := actualBody["code"].(float64); ok {
+				actualBody["code"] = int(code)
+			}
+
+			// Assert equality
+			assert.Equal(t, tt.expectedCode, w.Code)
+			assert.Equal(t, tt.expectedBody, actualBody)
+		})
+	}
+}
