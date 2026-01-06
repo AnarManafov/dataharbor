@@ -9,7 +9,7 @@
                     </h2>
                     <div class='button-block'>
                         <router-link to="/browse" class='button is-primary is-rounded'>
-                            <el-icon class="mr-2" size="48">
+                            <el-icon class="mr-2" size="large">
                                 <FolderOpened />
                             </el-icon>
                             Start Browsing Files
@@ -25,7 +25,7 @@
                 <div class="features-grid">
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="48" color="var(--el-color-primary)">
+                            <el-icon size="large" color="var(--el-color-primary)">
                                 <FolderOpened />
                             </el-icon>
                         </div>
@@ -35,7 +35,7 @@
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="48" color="var(--el-color-success)">
+                            <el-icon size="large" color="var(--el-color-success)">
                                 <Download />
                             </el-icon>
                         </div>
@@ -46,7 +46,7 @@
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
-                            <el-icon size="48" color="var(--el-color-warning)">
+                            <el-icon size="large" color="var(--el-color-warning)">
                                 <Lock />
                             </el-icon>
                         </div>

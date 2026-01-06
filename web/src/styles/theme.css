@@ -238,75 +238,21 @@
 .dh-normal-spacing { gap: 12px !important; }
 .dh-loose-spacing { gap: 16px !important; }
 
-/* Global Element Plus Font Override - Ensures consistent typography across all components */
+/* Font override for teleported/portal Element Plus components only */
+/* These elements are rendered outside the Vue app's DOM tree and don't inherit from html/body */
 .el-popper,
 .el-tooltip__popper,
 .el-dropdown__popper,
 .el-select-dropdown,
 .el-picker-panel,
-.el-date-picker,
-.el-time-picker,
-.el-cascader-panel,
-.el-color-picker__panel,
-.el-autocomplete-suggestion,
-.el-tree-select__popper,
 .el-popconfirm__popper,
 .el-popover__popper,
-.el-message,
-.el-message-box,
-.el-notification,
-.el-drawer,
-.el-dialog,
-.el-loading-mask,
-*[class*="el-"] {
-  font-family: var(--dh-font-family) !important;
-  font-size: var(--dh-font-size-sm) !important;
-  line-height: var(--dh-line-height-normal) !important;
-}
-
-/* Critical overrides for teleported/portal elements to ensure font consistency */
-/* These selectors target common teleported components with high specificity */
-div[class*="el-popper"],
-div[class*="el-dropdown"],
-div[class*="el-select-dropdown"],
-div[class*="el-picker"],
-div[class*="el-cascader"],
-div[class*="el-color-picker"],
-div[class*="el-autocomplete"],
-div[class*="el-tree-select"],
-div[class*="el-popconfirm"],
-div[class*="el-popover"],
-div[class*="el-tooltip"],
-.el-overlay .el-overlay-message-box,
+body > .el-message,
+body > .el-notification,
 .el-overlay .el-message-box,
 .el-overlay .el-dialog,
-.el-overlay .el-drawer,
-body > .el-message,
-body > .el-notification {
+.el-overlay .el-drawer {
   font-family: var(--dh-font-family) !important;
-}
-
-/* Additional specificity for nested elements within teleported components */
-div[class*="el-popper"] *,
-div[class*="el-dropdown"] *,
-div[class*="el-select-dropdown"] *,
-.el-overlay * {
-  font-family: var(--dh-font-family) !important;
-}
-
-/* Ensure message box buttons use consistent styling */
-.el-message-box__btns .el-button {
-  font-family: var(--dh-font-family) !important;
-  font-size: var(--dh-font-size-sm) !important;
-  font-weight: var(--dh-font-weight-medium) !important;
-}
-
-/* Message and notification text consistency */
-.el-message__content,
-.el-notification__content {
-  font-family: var(--dh-font-family) !important;
-  font-size: var(--dh-font-size-sm) !important;
-  line-height: var(--dh-line-height-normal) !important;
 }
 
 /* Global body and html styles - ensures teleported components inherit proper fonts */
