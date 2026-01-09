@@ -2,6 +2,10 @@
     "name": "DataHarbor - Full Stack Development (Go + Vue.js)",
     "dockerFile": "Dockerfile",
     "context": "..",
+    // Mount parent directory to support git worktrees with relative paths
+    // Create worktrees with: git worktree add --relative-paths ../branch-name branch-name
+    "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind,consistency=cached",
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // Configure tool-specific properties
     "customizations": {
         "vscode": {
