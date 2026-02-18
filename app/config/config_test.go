@@ -510,7 +510,7 @@ func TestGetConfig_Concurrency(t *testing.T) {
 	configs := make([]*Config, numGoroutines)
 	var wg sync.WaitGroup
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()

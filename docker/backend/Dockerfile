@@ -7,7 +7,7 @@ ARG TARGETARCH
 ARG BUILDPLATFORM
 
 # Use the native build platform for faster compilation with cross-compilation
-FROM --platform=${BUILDPLATFORM} golang:1.25-alpine AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.26-alpine AS builder
 
 # Re-declare ARGs after FROM to make them available in this stage
 ARG TARGETOS

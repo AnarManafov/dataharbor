@@ -1,5 +1,5 @@
 # Nginx Gateway - Reverse proxy for backend API and frontend SPA
-# 
+#
 # Multi-stage build with separate dev and prod targets:
 #   - dev:  Proxies to Vite dev server (https://frontend:5173) with HMR support
 #   - prod: Proxies to static nginx (http://frontend:80) - SELF-CONTAINED
@@ -15,7 +15,7 @@
 # ============================================
 # Base stage - common setup for both dev/prod
 # ============================================
-FROM nginx:1.28-alpine AS base
+FROM nginx:1.29-alpine AS base
 
 RUN apk add --no-cache \
     ca-certificates \

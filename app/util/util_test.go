@@ -89,7 +89,7 @@ func TestNextUid_Uniqueness(t *testing.T) {
 	uids := make(map[string]bool)
 	count := 1000
 
-	for i := 0; i < count; i++ {
+	for range count {
 		uid := NextUid()
 		assert.NotEmpty(t, uid, "NextUid should not return empty string")
 
@@ -112,15 +112,13 @@ func TestNextUid_Concurrent(t *testing.T) {
 	uidsPerGoroutine := 10
 
 	// Generate UIDs concurrently
-	for i := 0; i < goroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < uidsPerGoroutine; j++ {
+	for range goroutines {
+		wg.Go(func() {
+			for range uidsPerGoroutine {
 				uid := NextUid()
 				uidChan <- uid
 			}
-		}()
+		})
 	}
 
 	// Wait for all goroutines to finish
@@ -226,7 +224,7 @@ func TestNextUid_UniqueGeneration(t *testing.T) {
 	ids := make(map[string]bool)
 	numIds := 1000
 
-	for i := 0; i < numIds; i++ {
+	for range numIds {
 		uid := NextUid()
 		assert.False(t, ids[uid], "NextUid should generate unique IDs")
 		ids[uid] = true

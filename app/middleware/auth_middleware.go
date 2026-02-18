@@ -27,9 +27,9 @@ func GetUserToken(c *gin.Context) (string, bool) {
 
 // GetUserClaims retrieves the parsed user identity information that was previously
 // extracted and validated from the JWT token by SessionAuthMiddleware
-func GetUserClaims(c *gin.Context) (map[string]interface{}, bool) {
+func GetUserClaims(c *gin.Context) (map[string]any, bool) {
 	if claims, exists := c.Get("user_claims"); exists {
-		if userClaims, ok := claims.(map[string]interface{}); ok {
+		if userClaims, ok := claims.(map[string]any); ok {
 			return userClaims, true
 		}
 	}

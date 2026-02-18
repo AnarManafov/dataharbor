@@ -123,7 +123,7 @@ func TestTraceRequest_UniqueTraceIds(t *testing.T) {
 	})
 
 	// Make multiple requests
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		w := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/test", nil)
 		router.ServeHTTP(w, req)

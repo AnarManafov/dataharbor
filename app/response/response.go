@@ -8,14 +8,14 @@ import (
 
 // Response structure for standardized API responses
 type Response struct {
-	Code    int         `json:"code"`              // Internal code (typically HTTP status code)
-	Data    interface{} `json:"data,omitempty"`    // Response payload
-	Message string      `json:"message,omitempty"` // User-friendly message
-	Error   string      `json:"error,omitempty"`   // Error message if applicable
+	Code    int    `json:"code"`              // Internal code (typically HTTP status code)
+	Data    any    `json:"data,omitempty"`    // Response payload
+	Message string `json:"message,omitempty"` // User-friendly message
+	Error   string `json:"error,omitempty"`   // Error message if applicable
 }
 
 // sendResponse sends a standardized JSON response
-func sendResponse(ctx *gin.Context, httpStatus int, code int, data interface{}, message string, errorMsg string) {
+func sendResponse(ctx *gin.Context, httpStatus int, code int, data any, message string, errorMsg string) {
 	response := Response{
 		Code:    code,
 		Data:    data,
@@ -26,7 +26,7 @@ func sendResponse(ctx *gin.Context, httpStatus int, code int, data interface{}, 
 }
 
 // Success sends a successful response with data
-func Success(ctx *gin.Context, data interface{}) {
+func Success(ctx *gin.Context, data any) {
 	sendResponse(ctx, http.StatusOK, http.StatusOK, data, "success", "")
 }
 
@@ -37,7 +37,7 @@ func Error(ctx *gin.Context, status int, message string) {
 }
 
 // ValidationError sends a response for validation failures
-func ValidationError(ctx *gin.Context, data interface{}) {
+func ValidationError(ctx *gin.Context, data any) {
 	statusCode := http.StatusUnprocessableEntity
 	sendResponse(ctx, statusCode, statusCode, data, "", http.StatusText(statusCode))
 }
@@ -73,6 +73,6 @@ func FailWithErr(ctx *gin.Context, err TransferProtocolError) {
 
 // JSON sends a raw JSON response without using the standard Response structure
 // Use this only for special cases where the standard Response format doesn't fit
-func JSON(ctx *gin.Context, status int, data interface{}) {
+func JSON(ctx *gin.Context, status int, data any) {
 	ctx.JSON(status, data)
 }

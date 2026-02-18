@@ -99,7 +99,7 @@ func TestGetUserClaims_Valid(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/", nil)
 
-	expectedClaims := map[string]interface{}{
+	expectedClaims := map[string]any{
 		"sub":   "user-123",
 		"email": "user@example.com",
 		"name":  "Test User",
@@ -147,7 +147,7 @@ func TestGetUserClaims_EmptyMap(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("GET", "/", nil)
-	c.Set("user_claims", map[string]interface{}{})
+	c.Set("user_claims", map[string]any{})
 
 	claims, ok := GetUserClaims(c)
 

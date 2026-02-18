@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -35,12 +36,7 @@ func (w CustomResponseWriter) WriteString(s string) (int, error) {
 // Used to implement a whitelist approach for header logging, which is
 // more secure than a blacklist approach when dealing with sensitive data
 func sliceContain(sli []string, k string) bool {
-	for _, i := range sli {
-		if i == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sli, k)
 }
 
 // AccessLogger creates a middleware that logs incoming requests and their responses

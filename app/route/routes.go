@@ -205,7 +205,7 @@ func findByProjectRoot(startDir, distDir string, frontendPath *string, indexFoun
 	currentDir := startDir
 
 	// Try going up directories until we find the project root
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		parentDir := filepath.Dir(currentDir)
 		if parentDir == currentDir {
 			break // Stop if we can't go up anymore
@@ -235,7 +235,7 @@ func findBySandboxDirectory(startDir string, frontendPath *string, indexFound *b
 	currentDir := startDir
 
 	// Try going up directories until we find the sandbox directory
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		// Check current directory for sandbox
 		sandboxPath := filepath.Join(currentDir, "sandbox", "public")
 		*attemptedPaths = append(*attemptedPaths, sandboxPath)
