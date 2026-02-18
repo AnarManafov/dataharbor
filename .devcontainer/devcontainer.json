@@ -1,131 +1,131 @@
 {
-    "name": "DataHarbor - Full Stack Development (Go + Vue.js)",
-    "dockerFile": "Dockerfile",
-    "context": "..",
-    // Mount parent directory to support git worktrees with relative paths
-    // Create worktrees with: git worktree add --relative-paths ../branch-name branch-name
-    "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind,consistency=cached",
-    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-    // Configure tool-specific properties
-    "customizations": {
-        "vscode": {
-            // Extensions to install automatically when container is created
-            "extensions": [
-                // Go language support
-                "golang.go",
-                // Vue.js/Frontend development
-                "vue.volar",
-                "dbaeumer.vscode-eslint",
-                "esbenp.prettier-vscode",
-                // Docker support
-                "ms-azuretools.vscode-docker",
-                // Code quality
-                "streetsidesoftware.code-spell-checker",
-                // Python formatting
-                "ms-python.autopep8",
-                // Makefile support
-                "ms-vscode.makefile-tools",
-                // YAML support (for docker-compose, configs)
-                "redhat.vscode-yaml",
-                // XML support
-                "redhat.vscode-xml",
-                // Markdown support
-                "yzhang.markdown-all-in-one",
-                "DavidAnson.vscode-markdownlint",
-                "bierner.markdown-mermaid",
-                // GitHub Copilot (optional - requires license)
-                "github.copilot",
-                "github.copilot-chat"
-            ],
-            // Workspace settings applied in container
-            "settings": {
-                // Go settings - essential for project
-                "go.useLanguageServer": true,
-                "go.lintTool": "golangci-lint",
-                "go.toolsManagement.autoUpdate": true,
-                "[go]": {
-                    "editor.codeActionsOnSave": {
-                        "source.organizeImports": "explicit"
-                    }
-                },
-                // ESLint settings - essential for Vue.js project
-                "eslint.validate": [
-                    "javascript",
-                    "typescript",
-                    "vue"
-                ],
-                // File associations - project-specific file types
-                "files.associations": {
-                    "*.vue": "vue",
-                    "docker-compose*.yml": "dockercompose"
-                }
-            }
+  "name": "DataHarbor - Full Stack Development (Go + Vue.js)",
+  "dockerFile": "Dockerfile",
+  "context": "..",
+  // Mount parent directory to support git worktrees with relative paths
+  // Create worktrees with: git worktree add --relative-paths ../branch-name branch-name
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=/workspaces,type=bind,consistency=cached",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  // Configure tool-specific properties
+  "customizations": {
+    "vscode": {
+      // Extensions to install automatically when container is created
+      "extensions": [
+        // Go language support
+        "golang.go",
+        // Vue.js/Frontend development
+        "vue.volar",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        // Docker support
+        "ms-azuretools.vscode-docker",
+        // Code quality
+        "streetsidesoftware.code-spell-checker",
+        // Python formatting
+        "ms-python.autopep8",
+        // Makefile support
+        "ms-vscode.makefile-tools",
+        // YAML support (for docker-compose, configs)
+        "redhat.vscode-yaml",
+        // XML support
+        "redhat.vscode-xml",
+        // Markdown support
+        "yzhang.markdown-all-in-one",
+        "DavidAnson.vscode-markdownlint",
+        "bierner.markdown-mermaid",
+        // GitHub Copilot (optional - requires license)
+        "github.copilot",
+        "github.copilot-chat"
+      ],
+      // Workspace settings applied in container
+      "settings": {
+        // Go settings - essential for project
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.toolsManagement.autoUpdate": true,
+        "[go]": {
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        // ESLint settings - essential for Vue.js project
+        "eslint.validate": [
+          "javascript",
+          "typescript",
+          "vue"
+        ],
+        // File associations - project-specific file types
+        "files.associations": {
+          "*.vue": "vue",
+          "docker-compose*.yml": "dockercompose"
         }
+      }
+    }
+  },
+  // Use 'forwardPorts' to make a list of ports inside the container available locally
+  "forwardPorts": [
+    5173, // Frontend dev server (Vite)
+    8081 // Backend API server (Go)
+  ],
+  // Port attributes for better labeling
+  "portsAttributes": {
+    "5173": {
+      "label": "Frontend (Vite)",
+      "onAutoForward": "notify"
     },
-    // Use 'forwardPorts' to make a list of ports inside the container available locally
-    "forwardPorts": [
-        5173, // Frontend dev server (Vite)
-        8081 // Backend API server (Go)
-    ],
-    // Port attributes for better labeling
-    "portsAttributes": {
-        "5173": {
-            "label": "Frontend (Vite)",
-            "onAutoForward": "notify"
-        },
-        "8081": {
-            "label": "Backend API (Go)",
-            "onAutoForward": "notify"
-        }
+    "8081": {
+      "label": "Backend API (Go)",
+      "onAutoForward": "notify"
+    }
+  },
+  // Features to add to the dev container
+  "features": {
+    // Go development with tools (gopls, dlv, staticcheck, etc.)
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "latest",
+      "golangciLintVersion": "latest"
     },
-    // Features to add to the dev container
-    "features": {
-        // Go development with tools (gopls, dlv, staticcheck, etc.)
-        "ghcr.io/devcontainers/features/go:1": {
-            "version": "1.25.5",
-            "golangciLintVersion": "latest"
-        },
-        // Node.js for Vue.js frontend
-        "ghcr.io/devcontainers/features/node:1": {
-            "version": "24.12",
-            "nodeGypDependencies": true
-        },
-        // Git with latest version
-        "ghcr.io/devcontainers/features/git:1": {
-            "version": "latest"
-        },
-        // GitHub CLI for repository management
-        "ghcr.io/devcontainers/features/github-cli:1": {
-            "version": "latest"
-        },
-        // Docker outside of Docker for container management
-        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-            "version": "latest",
-            "moby": true
-        },
-        // Common utilities (curl, wget, jq, etc.)
-        "ghcr.io/devcontainers/features/common-utils:2": {
-            "installZsh": true,
-            "installOhMyZsh": true,
-            "configureZshAsDefaultShell": true,
-            "upgradePackages": true
-        }
+    // Node.js for Vue.js frontend
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "latest",
+      "nodeGypDependencies": true
     },
-    // Commands to run after container is created
-    "postCreateCommand": "npm install -g npm@latest && cd app && go mod download && cd .. && npm install",
-    // Commands to run when container starts
-    "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} || true && git config --global core.editor 'code --wait'",
-    // Comment out to connect as root instead
-    "remoteUser": "vscode",
-    // Set environment variables
-    "remoteEnv": {
-        "GOPATH": "/home/vscode/go",
-        "PATH": "${containerEnv:PATH}:/home/vscode/go/bin"
+    // Git with latest version
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
     },
-    // Mount the workspace folder and additional volumes
-    "mounts": [
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
-    ],
-    // Fix SSH key permissions after container starts
-    "postAttachCommand": "chmod 700 ~/.ssh 2>/dev/null || true; find ~/.ssh -type f -exec chmod 600 {} \\; 2>/dev/null || true"
+    // GitHub CLI for repository management
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+    // Docker outside of Docker for container management
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "version": "latest",
+      "moby": true
+    },
+    // Common utilities (curl, wget, jq, etc.)
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": true,
+      "configureZshAsDefaultShell": true,
+      "upgradePackages": true
+    }
+  },
+  // Commands to run after container is created
+  "postCreateCommand": "npm install -g npm@latest && cd app && go mod download && cd .. && npm install",
+  // Commands to run when container starts
+  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} || true && git config --global core.editor 'code --wait'",
+  // Comment out to connect as root instead
+  "remoteUser": "vscode",
+  // Set environment variables
+  "remoteEnv": {
+    "GOPATH": "/home/vscode/go",
+    "PATH": "${containerEnv:PATH}:/home/vscode/go/bin"
+  },
+  // Mount the workspace folder and additional volumes
+  "mounts": [
+    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
+  ],
+  // Fix SSH key permissions after container starts
+  "postAttachCommand": "chmod 700 ~/.ssh 2>/dev/null || true; find ~/.ssh -type f -exec chmod 600 {} \\; 2>/dev/null || true"
 }

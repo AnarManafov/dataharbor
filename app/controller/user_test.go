@@ -45,7 +45,7 @@ func TestGetCurrentUser_NoSession(t *testing.T) {
 	// Should return unauthorized since no session
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Contains(t, response["error"], "Not authenticated")
@@ -150,7 +150,7 @@ func TestFetchUserInfo_MockServer(t *testing.T) {
 	// Create mock OIDC discovery server
 	discoveryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issuer":            "http://test-issuer",
 				"userinfo_endpoint": "http://test-issuer/userinfo",
 			}
@@ -179,7 +179,7 @@ func TestFetchUserInfo_NoUserInfoEndpoint(t *testing.T) {
 	// Create mock OIDC discovery server without userinfo_endpoint
 	discoveryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/openid-configuration" {
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issuer": "http://test-issuer",
 				// No userinfo_endpoint
 			}
@@ -211,7 +211,7 @@ func TestFetchUserInfo_FullMockServer(t *testing.T) {
 		case "/.well-known/openid-configuration":
 			// Return discovery document with userinfo endpoint pointing to same server
 			serverURL := "http://" + r.Host
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issuer":            serverURL,
 				"userinfo_endpoint": serverURL + "/userinfo",
 			}
@@ -219,7 +219,7 @@ func TestFetchUserInfo_FullMockServer(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(response)
 		case "/userinfo":
 			// Return user info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"sub":            "test-user-123",
 				"name":           "Test User",
 				"email":          "test@example.com",
@@ -257,7 +257,7 @@ func TestFetchUserInfo_BadStatusCode(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			serverURL := "http://" + r.Host
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issuer":            serverURL,
 				"userinfo_endpoint": serverURL + "/userinfo",
 			}
@@ -293,7 +293,7 @@ func TestGetCurrentUser_WithTokensButExpired(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			serverURL := "http://" + r.Host
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issuer":            serverURL,
 				"userinfo_endpoint": serverURL + "/userinfo",
 				"token_endpoint":    serverURL + "/token",
@@ -306,7 +306,7 @@ func TestGetCurrentUser_WithTokensButExpired(t *testing.T) {
 			_, _ = w.Write([]byte(`{"error": "invalid_grant"}`))
 		case "/userinfo":
 			// User info endpoint
-			response := map[string]interface{}{
+			response := map[string]any{
 				"sub":  "test-user",
 				"name": "Test User",
 			}
@@ -375,7 +375,7 @@ func TestGetCurrentUser_WithValidTokens(t *testing.T) {
 		switch r.URL.Path {
 		case "/.well-known/openid-configuration":
 			serverURL := "http://" + r.Host
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issuer":            serverURL,
 				"userinfo_endpoint": serverURL + "/userinfo",
 			}
@@ -388,7 +388,7 @@ func TestGetCurrentUser_WithValidTokens(t *testing.T) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			response := map[string]interface{}{
+			response := map[string]any{
 				"sub":   "test-user-123",
 				"name":  "Test User",
 				"email": "test@example.com",
@@ -449,7 +449,7 @@ func TestGetCurrentUser_WithValidTokens(t *testing.T) {
 	// Should return 200 OK with user info
 	assert.Equal(t, http.StatusOK, w2.Code)
 
-	var userInfo map[string]interface{}
+	var userInfo map[string]any
 	err = json.Unmarshal(w2.Body.Bytes(), &userInfo)
 	assert.NoError(t, err)
 	assert.Equal(t, "test-user-123", userInfo["sub"])

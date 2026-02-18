@@ -25,7 +25,7 @@ func createMockContext(sub string, token string) *gin.Context {
 
 	// Set user claims in context
 	if sub != "" {
-		claims := map[string]interface{}{
+		claims := map[string]any{
 			"sub": sub,
 		}
 		c.Set("user_claims", claims)
@@ -103,12 +103,12 @@ func TestSanitizeFilename_SpecialChars(t *testing.T) {
 // Test sanitizeFilename with long filenames
 func TestSanitizeFilename_LongFilename(t *testing.T) {
 	// Create a filename longer than 255 characters
-	longName := ""
-	for i := 0; i < 300; i++ {
-		longName += "a"
+	var longName strings.Builder
+	for range 300 {
+		longName.WriteString("a")
 	}
 
-	result := sanitizeFilename(longName)
+	result := sanitizeFilename(longName.String())
 	assert.LessOrEqual(t, len(result), 255, "Sanitized filename should be at most 255 characters")
 }
 
@@ -292,7 +292,7 @@ func TestDownloadSlotReleaseAfterCompletion(t *testing.T) {
 	c.Request = req
 
 	// Set up user claims for stable user identification
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"sub": "test.user@example.com",
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Hour).Unix(),
@@ -334,7 +334,7 @@ func TestDownloadSlotWithContextCancellation(t *testing.T) {
 	c.Request = req
 
 	// Set up user claims for stable user identification
-	claims := map[string]interface{}{
+	claims := map[string]any{
 		"sub": "test.user2@example.com",
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(time.Hour).Unix(),
@@ -508,7 +508,7 @@ func TestFetchInitialDir(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, float64(http.StatusOK), response["code"])
@@ -526,7 +526,7 @@ func TestFetchHostName(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, float64(http.StatusOK), response["code"])
@@ -549,7 +549,7 @@ func TestGetInitialDirectory(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, "/", response["directory"])
@@ -561,7 +561,7 @@ func TestGetInitialDirectory(t *testing.T) {
 		c.Request = httptest.NewRequest("GET", "/api/xrd/directory", nil)
 
 		// Set user claims
-		claims := map[string]interface{}{
+		claims := map[string]any{
 			"sub": "test.user@example.com",
 		}
 		c.Set("user_claims", claims)
@@ -570,7 +570,7 @@ func TestGetInitialDirectory(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		// Currently returns "/" even with claims, future enhancement could use user-specific directories
@@ -593,7 +593,7 @@ func TestGetHostName(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
-	var response map[string]interface{}
+	var response map[string]any
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "test-xrd-server.example.com", response["hostname"])
@@ -611,14 +611,14 @@ func TestGetDownloadSlotStatus(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
-		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("user_claims", map[string]any{"sub": "user1"})
 		c.Set("access_token", "token1")
 
 		GetDownloadSlotStatus(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, false, response["hasActiveSlot"])
@@ -634,14 +634,14 @@ func TestGetDownloadSlotStatus(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
-		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("user_claims", map[string]any{"sub": "user1"})
 		c.Set("access_token", "token1")
 
 		GetDownloadSlotStatus(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, true, response["hasActiveSlot"])
@@ -663,14 +663,14 @@ func TestGetDownloadSlotStatus(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
-		c.Set("user_claims", map[string]interface{}{"sub": "user3"})
+		c.Set("user_claims", map[string]any{"sub": "user3"})
 		c.Set("access_token", "token3")
 
 		GetDownloadSlotStatus(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, false, response["hasActiveSlot"])
@@ -693,14 +693,14 @@ func TestForceReleaseDownloadSlot(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
-		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("user_claims", map[string]any{"sub": "user1"})
 		c.Set("access_token", "token1")
 
 		ForceReleaseDownloadSlot(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["message"], "No active download slot found")
@@ -719,14 +719,14 @@ func TestForceReleaseDownloadSlot(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
-		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("user_claims", map[string]any{"sub": "user1"})
 		c.Set("access_token", "token1")
 
 		ForceReleaseDownloadSlot(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["message"], "Download slot forcefully released")
@@ -748,14 +748,14 @@ func TestForceReleaseDownloadSlot(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
-		c.Set("user_claims", map[string]interface{}{"sub": "user1"})
+		c.Set("user_claims", map[string]any{"sub": "user1"})
 		c.Set("access_token", "token1")
 
 		ForceReleaseDownloadSlot(c)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Equal(t, float64(1), response["remainingSlots"])
@@ -830,7 +830,7 @@ func TestListDirectory(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["error"], "Directory parameter is required")
@@ -863,7 +863,7 @@ func TestGetFileInfo(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["error"], "File path parameter is required")
@@ -896,7 +896,7 @@ func TestDownloadFile(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["error"], "File path parameter is required")
@@ -921,7 +921,7 @@ func TestDownloadFile(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["error"], "Invalid file path")
@@ -936,7 +936,7 @@ func TestDownloadFile(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		assert.NoError(t, err)
 		assert.Contains(t, response["error"], "Invalid file path")

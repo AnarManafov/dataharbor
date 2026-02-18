@@ -14,7 +14,7 @@ import (
 // This prevents the entire application from crashing when a single request handler fails,
 // improving overall system stability and availability under unexpected conditions.
 func Recovery() gin.HandlerFunc {
-	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
+	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
 		if err, ok := recovered.(string); ok {
 			c.String(http.StatusInternalServerError, fmt.Sprintf("Server error: %s", err))
 		}

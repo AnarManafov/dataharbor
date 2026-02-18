@@ -131,7 +131,7 @@ func GetCurrentUser(c *gin.Context) {
 }
 
 // fetchUserInfo gets the user profile from Keycloak's userinfo endpoint
-func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]interface{}, error) {
+func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]any, error) {
 	logger := common.GetLogger()
 
 	// Get discovery document using centralized helper function
@@ -167,7 +167,7 @@ func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]interface
 		return nil, fmt.Errorf("userinfo endpoint returned status %d: %s", userInfoResp.StatusCode, string(body))
 	}
 
-	var userInfo map[string]interface{}
+	var userInfo map[string]any
 	if err := json.NewDecoder(userInfoResp.Body).Decode(&userInfo); err != nil {
 		return nil, fmt.Errorf("failed to parse userinfo response: %w", err)
 	}

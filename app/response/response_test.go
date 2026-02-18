@@ -171,7 +171,7 @@ func TestJSON(t *testing.T) {
 	tests := []struct {
 		name         string
 		status       int
-		data         interface{}
+		data         any
 		expectedBody string
 	}{
 		{

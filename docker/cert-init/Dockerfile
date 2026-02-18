@@ -1,6 +1,6 @@
 # Certificate Init Container - Generates self-signed certs for development
 
-FROM alpine:3.22
+FROM alpine:3
 
 RUN apk add --no-cache openssl dos2unix
 

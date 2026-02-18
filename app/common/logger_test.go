@@ -34,7 +34,7 @@ func TestInitLogger_Custom(t *testing.T) {
 	DestroyLogger()
 
 	// Setup custom logger configuration
-	viper.Set("logger.custom", map[string]interface{}{
+	viper.Set("logger.custom", map[string]any{
 		"type":   "file",
 		"path":   "test.log",
 		"driver": "file",
@@ -58,7 +58,7 @@ func TestInitLogger_Console(t *testing.T) {
 	DestroyLogger()
 
 	// Setup custom logger configuration
-	viper.Set("logger.console", map[string]interface{}{
+	viper.Set("logger.console", map[string]any{
 		"driver": "console",
 		"level":  "info",
 	})

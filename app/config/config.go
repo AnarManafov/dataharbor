@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -158,13 +159,7 @@ func ValidateConfig(cfg *Config) error {
 
 	// Validate logging configuration
 	validLevels := []string{"debug", "info", "warn", "error"}
-	levelValid := false
-	for _, level := range validLevels {
-		if cfg.Logging.Level == level {
-			levelValid = true
-			break
-		}
-	}
+	levelValid := slices.Contains(validLevels, cfg.Logging.Level)
 	if !levelValid {
 		return fmt.Errorf("logging.level must be one of: %v", validLevels)
 	}

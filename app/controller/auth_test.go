@@ -293,7 +293,7 @@ func TestLoginInit(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -313,7 +313,7 @@ func TestLoginInit(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -332,7 +332,7 @@ func TestLoginInit(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -351,7 +351,7 @@ func TestLoginInit(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -377,7 +377,7 @@ func TestLogout(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -417,7 +417,7 @@ func TestLogout(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w2.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w2.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -669,7 +669,7 @@ func TestFetchOIDCDiscoveryDocument(t *testing.T) {
 		// Create a mock OIDC discovery server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/.well-known/openid-configuration" {
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":                 "https://test-issuer.com",
 					"authorization_endpoint": "https://test-issuer.com/auth",
 					"token_endpoint":         "https://test-issuer.com/token",
@@ -888,7 +888,7 @@ func TestConcurrentTokenOperations(t *testing.T) {
 	// Test concurrent token operations
 	done := make(chan bool, 10)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(idx int) {
 			tokenID := storeTokens(
 				"access-"+string(rune('0'+idx)),
@@ -903,7 +903,7 @@ func TestConcurrentTokenOperations(t *testing.T) {
 	}
 
 	// Wait for all goroutines
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		<-done
 	}
 
@@ -921,7 +921,7 @@ func TestLoginInitWithMockDiscovery(t *testing.T) {
 		// Create a mock OIDC discovery server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/.well-known/openid-configuration" {
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":                 "https://test-issuer.com",
 					"authorization_endpoint": "https://test-issuer.com/auth",
 					"token_endpoint":         "https://test-issuer.com/token",
@@ -969,7 +969,7 @@ func TestLoginInitWithMockDiscovery(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -985,7 +985,7 @@ func TestLoginInitWithMockDiscovery(t *testing.T) {
 		// Create a mock OIDC discovery server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/.well-known/openid-configuration" {
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":                 "https://test-issuer.com",
 					"authorization_endpoint": "https://test-issuer.com/auth",
 					"token_endpoint":         "https://test-issuer.com/token",
@@ -1028,7 +1028,7 @@ func TestLoginInitWithMockDiscovery(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
@@ -1041,7 +1041,7 @@ func TestLoginInitWithMockDiscovery(t *testing.T) {
 		// Create a mock OIDC discovery server without authorization_endpoint
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/.well-known/openid-configuration" {
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":         "https://test-issuer.com",
 					"token_endpoint": "https://test-issuer.com/token",
 				}
@@ -1095,7 +1095,7 @@ func TestAuthCallbackWithMockServer(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":                 "https://test-issuer.com",
 					"authorization_endpoint": "https://test-issuer.com/auth",
 					"token_endpoint":         r.Host + "/token",
@@ -1261,7 +1261,7 @@ func TestAuthCallbackWithMockServer(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":                 serverURL,
 					"authorization_endpoint": serverURL + "/auth",
 					"token_endpoint":         serverURL + "/token",
@@ -1329,7 +1329,7 @@ func TestAuthCallbackWithMockServer(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":                 serverURL,
 					"authorization_endpoint": serverURL + "/auth",
 					// No token_endpoint
@@ -1393,14 +1393,14 @@ func TestSessionAuthMiddlewareWithValidSession(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":            "https://test-issuer.com",
 					"userinfo_endpoint": r.Host + "/userinfo",
 				}
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(discoveryDoc)
 			case "/userinfo":
-				userInfo := map[string]interface{}{
+				userInfo := map[string]any{
 					"sub":   "test-user-id",
 					"email": "test@example.com",
 				}
@@ -1610,7 +1610,7 @@ func TestLogoutWithOIDCProvider(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":               "https://test-issuer.com",
 					"end_session_endpoint": "http://" + r.Host + "/logout",
 				}
@@ -1743,7 +1743,7 @@ func TestLogoutWithOIDCProvider(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":         "https://test-issuer.com",
 					"token_endpoint": "https://test-issuer.com/token",
 					// No end_session_endpoint
@@ -1926,7 +1926,7 @@ func TestRefreshToken(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":         "https://test-issuer.com",
 					"token_endpoint": "http://" + r.Host + "/token",
 				}
@@ -2004,7 +2004,7 @@ func TestRefreshToken(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/.well-known/openid-configuration":
-				discoveryDoc := map[string]interface{}{
+				discoveryDoc := map[string]any{
 					"issuer":         "https://test-issuer.com",
 					"token_endpoint": "http://" + r.Host + "/token",
 				}

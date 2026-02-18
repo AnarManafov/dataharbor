@@ -64,22 +64,22 @@ func concatTid(ctx *gin.Context, template string) string {
 }
 
 // Infof logs informational messages with request context for traceability
-func Infof(ctx *gin.Context, template string, arg ...interface{}) {
+func Infof(ctx *gin.Context, template string, arg ...any) {
 	Logger.Infof(concatTid(ctx, template), arg...)
 }
 
 // Errorf logs error messages with request context for traceability
-func Errorf(ctx *gin.Context, template string, arg ...interface{}) {
+func Errorf(ctx *gin.Context, template string, arg ...any) {
 	Logger.Errorf(concatTid(ctx, template), arg...)
 }
 
 // Debugf logs debug messages with request context for traceability
-func Debugf(ctx *gin.Context, template string, arg ...interface{}) {
+func Debugf(ctx *gin.Context, template string, arg ...any) {
 	Logger.Debugf(concatTid(ctx, template), arg...)
 }
 
 // Warnf logs warning messages with request context for traceability
-func Warnf(ctx *gin.Context, template string, arg ...interface{}) {
+func Warnf(ctx *gin.Context, template string, arg ...any) {
 	Logger.Warnf(concatTid(ctx, template), arg...)
 }
 

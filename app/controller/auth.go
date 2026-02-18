@@ -554,7 +554,7 @@ func Logout(c *gin.Context) {
 	}
 
 	// Remove all session data and expire the cookie
-	session.Values = make(map[interface{}]interface{})
+	session.Values = make(map[any]any)
 	session.Options.MaxAge = -1
 
 	if err := session.Save(c.Request, c.Writer); err != nil {
@@ -775,7 +775,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Fetch user claims to ensure we have the subject for rate limiting
-		userClaims := map[string]interface{}{
+		userClaims := map[string]any{
 			"authenticated": true,
 		}
 
@@ -802,7 +802,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 // Helper functions
 
 // fetchOIDCDiscoveryDocument retrieves IdP configuration to avoid hardcoding endpoints
-func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]interface{}, error) {
+func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]any, error) {
 	logger := common.GetLogger()
 
 	// Add protocol if missing to prevent connection errors
@@ -830,7 +830,7 @@ func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]interface{}, error
 		return nil, fmt.Errorf("discovery document returned status %d", resp.StatusCode)
 	}
 
-	var discoveryDoc map[string]interface{}
+	var discoveryDoc map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&discoveryDoc); err != nil {
 		return nil, fmt.Errorf("failed to parse discovery document: %w", err)
 	}

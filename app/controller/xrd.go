@@ -158,10 +158,11 @@ func DownloadFile(c *gin.Context) {
 func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, userToken string, startTime time.Time, fileSize int64, downloadID string) error {
 	// Use request context with longer timeout for large file downloads
 	// Calculate timeout based on file size: minimum 5 minutes, plus 1 minute per GB
-	timeoutMinutes := 5 + int(fileSize/(1024*1024*1024)) // 5 min base + 1 min per GB
-	if timeoutMinutes < 30 {
-		timeoutMinutes = 30 // At least 30 minutes for any download
-	}
+	timeoutMinutes := max(
+		// 5 min base + 1 min per GB
+		5+int(fileSize/(1024*1024*1024)),
+		// At least 30 minutes for any download
+		30)
 	ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
@@ -383,9 +384,9 @@ func ListDirectory(c *gin.Context) {
 	}
 
 	// Convert native entries to our API format
-	apiEntries := make([]map[string]interface{}, 0, len(entries))
+	apiEntries := make([]map[string]any, 0, len(entries))
 	for _, entry := range entries {
-		apiEntry := map[string]interface{}{
+		apiEntry := map[string]any{
 			"name":  entry.Name(),
 			"isDir": entry.IsDir(),
 			"size":  entry.Size(),
@@ -521,7 +522,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 		common.GetLogger().Info("Directory is empty, returning empty response", "path", dirPath)
 		emptyResponse := gin.H{
 			"code":               200,
-			"items":              []interface{}{}, // Empty array
+			"items":              []any{}, // Empty array
 			"totalItems":         0,
 			"pageSize":           req.PageSize,
 			"totalPages":         0,
@@ -604,10 +605,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 	common.GetLogger().Debug("Fetched items from directory", "count", len(files), "path", dirPath)
 
 	// Enforce minimum page size to prevent performance issues
-	pageSize := req.PageSize
-	if pageSize < minPageSize {
-		pageSize = minPageSize
-	}
+	pageSize := max(req.PageSize, minPageSize)
 
 	totalItems := uint32(len(files))
 	totalPages := (totalItems + pageSize - 1) / pageSize // Ceiling division ensures partial pages are counted
@@ -744,7 +742,7 @@ func GetDownloadSlotStatus(c *gin.Context) {
 	userKey := getUserKey(c)
 
 	// Build response with slot information
-	slotInfo := make(map[string]interface{})
+	slotInfo := make(map[string]any)
 	slotInfo["userKey"] = userKey
 	slotInfo["hasActiveSlot"] = userDownloadSlots[userKey]
 	slotInfo["totalActiveSlots"] = len(userDownloadSlots)
@@ -911,12 +909,4 @@ func sanitizeFilename(filename string) string {
 	}
 
 	return sanitized
-}
-
-// min returns the smaller of two uint32 values
-func min(a, b uint32) uint32 {
-	if a < b {
-		return a
-	}
-	return b
 }
