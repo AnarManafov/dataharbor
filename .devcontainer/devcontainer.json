@@ -82,12 +82,12 @@
   "features": {
     // Go development with tools (gopls, dlv, staticcheck, etc.)
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "latest",
+      "version": "1.26.1",
       "golangciLintVersion": "latest"
     },
     // Node.js for Vue.js frontend
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "latest",
+      "version": "25",
       "nodeGypDependencies": true
     },
     // Git with latest version
@@ -121,11 +121,7 @@
   "remoteEnv": {
     "GOPATH": "/home/vscode/go",
     "PATH": "${containerEnv:PATH}:/home/vscode/go/bin"
-  },
-  // Mount the workspace folder and additional volumes
-  "mounts": [
-    "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached"
-  ],
-  // Fix SSH key permissions after container starts
-  "postAttachCommand": "chmod 700 ~/.ssh 2>/dev/null || true; find ~/.ssh -type f -exec chmod 600 {} \\; 2>/dev/null || true"
+  }
+  // VS Code automatically forwards SSH_AUTH_SOCK from host to container
+  // No mounts or special configuration needed - just ensure ssh-agent is running on host
 }

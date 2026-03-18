@@ -21,21 +21,21 @@ gitGraph
     commit id: "Add OIDC support"
     commit id: "Add session management"
     commit id: "Add tests"
-    
+
     checkout master
     commit id: "Hotfix: security patch"
-    
+
     checkout feature/auth-improvement
     commit id: "Fix merge conflicts"
-    
+
     checkout master
     merge feature/auth-improvement
     commit id: "Merge auth improvements"
-    
+
     branch release-prep
     commit id: "Bump version to v1.2.0"
     commit id: "Update changelog"
-    
+
     checkout master
     merge release-prep
     commit id: "Release v1.2.0"
@@ -52,32 +52,32 @@ flowchart TD
         CodeChanges --> LocalTests[Run local tests]
         LocalTests --> PushBranch[Push to feature branch]
     end
-    
+
     subgraph "Continuous Integration"
         PushBranch --> TriggerCI[Trigger CI Pipeline]
         TriggerCI --> BackendCI[Backend CI<br/>Go tests, linting, coverage]
         TriggerCI --> FrontendCI[Frontend CI<br/>Build, security scan]
-        
+
         BackendCI --> CISuccess{CI Success?}
         FrontendCI --> CISuccess
-        
+
         CISuccess -->|Yes| ReadyForReview[Ready for review]
         CISuccess -->|No| FixIssues[Fix issues]
         FixIssues --> CodeChanges
     end
-    
+
     subgraph "Release Process"
         ReadyForReview --> CreatePR[Create Pull Request]
         CreatePR --> CodeReview[Code Review]
         CodeReview --> MergePR[Merge to master]
-        
+
         MergePR --> ReleaseDecision{Ready for release?}
         ReleaseDecision -->|Yes| CreateReleaseTag[Create release-vX.Y.Z tag]
         ReleaseDecision -->|No| ContinueDev[Continue development]
-        
+
         CreateReleaseTag --> AutomatedRelease[Automated Release Process]
     end
-    
+
     subgraph "Automated Release Process"
         AutomatedRelease --> UpdateVersions[Update package.json versions]
         UpdateVersions --> GenerateChangelog[Generate CHANGELOG.md]
@@ -85,14 +85,14 @@ flowchart TD
         CreateFinalTag --> BuildArtifacts[Build & package artifacts]
         BuildArtifacts --> PublishRelease[Publish GitHub release]
     end
-    
+
     ContinueDev --> DevStart
-    
+
     classDef dev fill:#e8f5e8
     classDef ci fill:#e3f2fd
     classDef release fill:#fff3e0
     classDef auto fill:#fce4ec
-    
+
     class DevStart,FeatureBranch,CodeChanges,LocalTests,PushBranch dev
     class TriggerCI,BackendCI,FrontendCI,CISuccess,ReadyForReview,FixIssues ci
     class CreatePR,CodeReview,MergePR,ReleaseDecision,CreateReleaseTag,ContinueDev release
@@ -107,11 +107,11 @@ sequenceDiagram
     participant GitHub as GitHub Repository
     participant CI as CI/CD Pipeline
     participant Registry as Package Registry
-    
+
     Note over Dev,Registry: Release Preparation
     Dev->>GitHub: Create release-v1.2.3 tag
     GitHub->>CI: Trigger version-tag-processor workflow
-    
+
     Note over CI: Automated Version Management
     CI->>CI: Update package.json versions
     CI->>CI: Generate CHANGELOG.md from commits
@@ -119,18 +119,18 @@ sequenceDiagram
     CI->>GitHub: Commit version changes to master
     CI->>GitHub: Create final v1.2.3 tag
     CI->>GitHub: Create component tags (app/v1.2.3, web/v1.2.3)
-    
+
     Note over CI,Registry: Build & Package
     CI->>CI: Build frontend (npm run build)
     CI->>CI: Build backend (go build)
     CI->>CI: Create RPM packages
     CI->>CI: Run final tests
-    
+
     Note over GitHub,Registry: Publish Release
     CI->>GitHub: Create GitHub release with artifacts
     CI->>GitHub: Upload built packages
     CI->>GitHub: Publish release notes
-    
+
     Note over Dev,Registry: Post-Release
     GitHub->>Dev: Notify release published
     Dev->>Dev: Verify release artifacts
@@ -151,7 +151,7 @@ sequenceDiagram
    ```bash
    # Install all dependencies (uses npm workspaces)
    npm install
-   
+
    # Or install individually
    cd web && npm install && cd ..
    cd app && go mod download && cd ..
@@ -162,7 +162,7 @@ sequenceDiagram
    ```bash
    # Start both frontend and backend with hot reload
    npm run dev
-   
+
    # Or start separately
    npm run dev:frontend  # https://localhost:5173
    npm run dev:backend   # http://localhost:8081
@@ -450,7 +450,7 @@ DataHarbor uses a **pre-release trigger** approach to ensure consistent reposito
    # Ensure all changes are committed and pushed
    git checkout master
    git pull origin master
-   
+
    # Run tests and build to verify everything works
    npm run test
    npm run build
@@ -463,21 +463,21 @@ DataHarbor uses a **pre-release trigger** approach to ensure consistent reposito
    ```bash
    # For regular releases
    git tag -a release-v1.2.3 -m "Prepare release v1.2.3
-   
+
    Features:
    - Added file streaming improvements
    - Enhanced authentication security
-   
+
    Bug Fixes:
    - Fixed directory navigation issue
    - Resolved authentication timeout"
-   
+
    # For hotfix releases
    git tag -a hotfix-v1.2.4 -m "Prepare hotfix v1.2.4"
-   
+
    # For pre-releases
    git tag -a prerelease-v1.3.0-beta.1 -m "Prepare pre-release v1.3.0-beta.1"
-   
+
    # Push trigger tag to start the automated release process
    git push origin release-v1.2.3
    ```
@@ -497,7 +497,7 @@ DataHarbor uses a **pre-release trigger** approach to ensure consistent reposito
 #### Release Tag Types
 
 - **`release-v1.2.3`** → Creates final release `v1.2.3`
-- **`hotfix-v1.2.4`** → Creates hotfix release `v1.2.4`  
+- **`hotfix-v1.2.4`** → Creates hotfix release `v1.2.4`
 - **`prerelease-v1.3.0-beta.1`** → Creates pre-release `v1.3.0-beta.1`
 
 #### Why Pre-Release Triggers?
@@ -568,7 +568,7 @@ publish-release.yml (triggered by vX.Y.Z tag)
    # Run all tests
    cd app && go test -v ./...
    cd web && npm test
-   
+
    # Check code coverage
    cd app && go test -cover ./...
    ```
