@@ -15,6 +15,9 @@
 #   docker build -f Dockerfile -t dataharbor-xrootd:dev ..
 # ============================================
 
+# Global build argument for XRootD version
+ARG XROOTD_VERSION=5.9.1
+
 # ---------------------------------------------
 # Build stage: Install XRootD and dependencies
 # ---------------------------------------------
@@ -29,10 +32,10 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf config-manager --set-enabled crb && \
     dnf clean all
 
-# Install XRootD 5.9.0 and plugins
+# Install XRootD and plugins
 # Pinned version for reproducible builds
 # Note: xrootd-multiuser comes from OSG repo, others from official XRootD repo
-ARG XROOTD_VERSION=5.9.0
+ARG XROOTD_VERSION
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
     xrootd-${XROOTD_VERSION} \
@@ -55,12 +58,15 @@ RUN mkdir -p /usr/lib64/xrootd /usr/share/xrootd
 # ---------------------------------------------
 FROM rockylinux:9
 
+# Re-declare ARG for use in this stage
+ARG XROOTD_VERSION
+
 # Labels for container identification
 LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Development)" \
     org.opencontainers.image.description="XRootD server with test users and self-signed certs for development" \
-    org.opencontainers.image.version="5.9.0" \
+    org.opencontainers.image.version="${XROOTD_VERSION}" \
     org.opencontainers.image.vendor="DataHarbor" \
-    xrootd.version="5.9.0" \
+    xrootd.version="${XROOTD_VERSION}" \
     xrootd.features="ztn,tls,scitokens,multiuser" \
     xrootd.mode="development"
 

@@ -7,7 +7,7 @@ ARG TARGETARCH
 ARG BUILDPLATFORM
 
 # Use the native build platform for faster compilation with cross-compilation
-FROM --platform=${BUILDPLATFORM} golang:1.26-alpine AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.26.1-alpine AS builder
 
 # Re-declare ARGs after FROM to make them available in this stage
 ARG TARGETOS
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o dataharbor-backend \
     .
 
-FROM alpine:3.22
+FROM alpine:3.23
 
 # Install only essential runtime dependencies
 # Note: xrootd-client is NOT needed - the Go backend uses native Go XRootD client library

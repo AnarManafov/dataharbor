@@ -20,6 +20,9 @@
 #   - /etc/grid-security/certificates/ : CA certificates (optional)
 # ============================================
 
+# Global build argument for XRootD version
+ARG XROOTD_VERSION=5.9.0
+
 # ---------------------------------------------
 # Build stage: Install XRootD and dependencies
 # ---------------------------------------------
@@ -34,9 +37,9 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf config-manager --set-enabled crb && \
     dnf clean all
 
-# Install XRootD 5.9.0 and required plugins
+# Install XRootD and required plugins
 # Pinned version for reproducible builds
-ARG XROOTD_VERSION=5.9.0
+ARG XROOTD_VERSION
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
     xrootd-${XROOTD_VERSION} \
@@ -61,12 +64,15 @@ RUN mkdir -p /usr/lib64/xrootd /usr/share/xrootd
 # ---------------------------------------------
 FROM rockylinux:9-minimal AS runtime
 
+# Re-declare ARG for use in this stage
+ARG XROOTD_VERSION
+
 # Labels for container identification
 LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Production)" \
     org.opencontainers.image.description="XRootD server optimized for production with external mounts" \
-    org.opencontainers.image.version="5.9.0" \
+    org.opencontainers.image.version="${XROOTD_VERSION}" \
     org.opencontainers.image.vendor="DataHarbor" \
-    xrootd.version="5.9.0" \
+    xrootd.version="${XROOTD_VERSION}" \
     xrootd.features="ztn,tls,scitokens,multiuser" \
     xrootd.mode="production"
 
