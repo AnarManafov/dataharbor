@@ -32,12 +32,12 @@ jobs:
       backend_version: ${{ steps.get_versions.outputs.backend_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Fetch all history and tags
 
       - name: Download version info from previous workflow
-        uses: dawidd6/action-download-artifact@v3
+        uses: dawidd6/action-download-artifact@v19
         with:
           workflow: version-tag-processor.yml
           name: version-info
@@ -64,21 +64,21 @@ jobs:
           echo "- Backend: app/v$BACKEND_VERSION"
 
       - name: Upload version info for subsequent workflows
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: version-info
           path: /tmp/version-info
           retention-days: 1
 
       - name: Download changelog from version-tag-processor workflow
-        uses: dawidd6/action-download-artifact@v3
+        uses: dawidd6/action-download-artifact@v19
         with:
           workflow: version-tag-processor.yml
           name: version-changelog
           path: /tmp/changelog
 
       - name: Upload changelog for this workflow
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: version-changelog
           path: /tmp/changelog
@@ -92,12 +92,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -111,7 +111,7 @@ jobs:
         timeout-minutes: 10
 
       - name: Upload frontend build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: web/dist
@@ -125,12 +125,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: "./app/go.sum"
@@ -141,7 +141,7 @@ jobs:
         timeout-minutes: 10
 
       - name: Upload backend build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-build
           path: app/dataharbor-backend
@@ -169,7 +169,7 @@ jobs:
       contents: write
     steps:
       - name: Download RPM packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: rpm-packages-both-amd64
           path: /tmp/rpms
@@ -180,7 +180,7 @@ jobs:
           find /tmp/rpms -name "*.rpm" -type f | sort
 
       - name: Download changelog
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: version-changelog
           path: /tmp/changelog
@@ -212,7 +212,7 @@ jobs:
           [ "$BACKEND_RPM" != "not-found" ] && echo "- Backend: $BACKEND_RPM"
 
       - name: Checkout repository for deploy bundle
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           sparse-checkout: |
             docker/docker-compose.deploy.yml
