@@ -26,7 +26,7 @@ DataHarbor empowers users who need to:
 ## Architecture Overview
 
 - **Backend**: Go REST API server with XROOTD client integration
-- **Frontend**: Vue 3 SPA with Element Plus UI components  
+- **Frontend**: Vue 3 SPA with Element Plus UI components
 - **Authentication**: OpenID Connect (OIDC) with Backend-For-Frontend (BFF) pattern
 - **Security**: HTTP-only cookies, server-side session management
 - **Storage**: XROOTD protocol for high-performance data access
@@ -63,7 +63,7 @@ For running services directly on your machine without containers:
 
 #### Prerequisites
 
-- **Go** 1.25+
+- **Go** 1.26+
 - **Node.js** 20+
 
 #### Setup
@@ -222,6 +222,6 @@ See [LICENSE](./LICENSE) file for details.
 ## Related Technologies
 
 - [XROOTD](https://xrootd.slac.stanford.edu) - High-performance data access system
-- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework  
+- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
 - [Gin](https://gin-gonic.com/) - Go web framework
 - [Element Plus](https://element-plus.org/) - Vue 3 component library

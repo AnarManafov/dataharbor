@@ -41,6 +41,42 @@ echo "========================================"
 echo ""
 
 # ==========================================
+# Render configuration templates
+# ==========================================
+log_info "Rendering configuration from environment variables..."
+
+# SciTokens config: substitute env vars (issuer/audience)
+SCITOKENS_ISSUER="${SCITOKENS_ISSUER:-}"
+SCITOKENS_AUDIENCE="${SCITOKENS_AUDIENCE:-$SCITOKENS_ISSUER}"
+export SCITOKENS_ISSUER SCITOKENS_AUDIENCE
+
+if [ -z "$SCITOKENS_ISSUER" ]; then
+    log_error "SCITOKENS_ISSUER environment variable is required"
+    log_error "Set it to your OIDC issuer URL (e.g., https://id.gsi.de/realms/wl)"
+    exit 1
+fi
+
+SCITOKENS_TEMPLATE="/etc/xrootd/scitokens_prod.cfg"
+SCITOKENS_RENDERED="/etc/xrootd/scitokens_rendered.cfg"
+envsubst '${SCITOKENS_ISSUER} ${SCITOKENS_AUDIENCE}' < "$SCITOKENS_TEMPLATE" > "$SCITOKENS_RENDERED"
+# Point the main config at the rendered file
+sed -i "s|config=/etc/xrootd/scitokens_prod.cfg|config=/etc/xrootd/scitokens_rendered.cfg|" /etc/xrootd/xrootd-prod.cfg
+chown xrootd:xrootd "$SCITOKENS_RENDERED"
+log_ok "SciTokens config rendered (issuer: $SCITOKENS_ISSUER)"
+
+# TLS CA verification: generate tlsca.cfg from env var
+XROOTD_TLS_CA_VERIFY="${XROOTD_TLS_CA_VERIFY:-true}"
+TLSCA_CFG="/etc/xrootd/tlsca.cfg"
+if [ "$XROOTD_TLS_CA_VERIFY" = "false" ] || [ "$XROOTD_TLS_CA_VERIFY" = "0" ]; then
+    echo "xrd.tlsca noverify" > "$TLSCA_CFG"
+    log_warn "TLS CA verification DISABLED (testing mode)"
+else
+    echo "xrd.tlsca certdir /etc/grid-security/certificates" > "$TLSCA_CFG"
+    log_ok "TLS CA verification enabled"
+fi
+chown xrootd:xrootd "$TLSCA_CFG"
+
+# ==========================================
 # Setup runtime directories
 # ==========================================
 log_info "Setting up runtime directories..."
@@ -120,7 +156,7 @@ if [ -n "$CERT_EXPIRY" ]; then
     CERT_EXPIRY_EPOCH=$(date -d "$CERT_EXPIRY" +%s 2>/dev/null || echo "0")
     NOW_EPOCH=$(date +%s)
     DAYS_LEFT=$(( (CERT_EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
-    
+
     if [ "$DAYS_LEFT" -lt 0 ]; then
         log_error "TLS certificate has EXPIRED!"
         log_error "Expiry: $CERT_EXPIRY"
@@ -166,10 +202,14 @@ if command -v python3 &>/dev/null; then
         log_error "Check syntax at: $MAPFILE"
         exit 1
     fi
-    
+
     # Count mappings
     MAPPING_COUNT=$(python3 -c "import json; print(len(json.load(open('$MAPFILE'))))" 2>/dev/null || echo "?")
-    log_ok "Mapfile valid with $MAPPING_COUNT user mappings"
+    if [ "$MAPPING_COUNT" = "0" ]; then
+        log_warn "Mapfile is empty (no user mappings) — mount a mapfile via XRD_MAPFILE_PATH for production use"
+    else
+        log_ok "Mapfile valid with $MAPPING_COUNT user mappings"
+    fi
 else
     log_warn "python3 not available, skipping mapfile JSON validation"
 fi
@@ -214,7 +254,7 @@ echo "    Usage: $FS_USE"
 # Lustre-specific checks
 if [ "$FS_TYPE" = "lustre" ]; then
     log_ok "Lustre filesystem detected"
-    
+
     # Check if we can read Lustre striping info
     if command -v lfs &>/dev/null; then
         STRIPE_INFO=$(lfs getstripe -d "$DATA_DIR" 2>/dev/null | head -3)

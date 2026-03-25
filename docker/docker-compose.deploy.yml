@@ -33,6 +33,8 @@ services:
       # Server
       DATAHARBOR_SERVER_ADDRESS: ":8080"
       DATAHARBOR_SERVER_DEBUG: "false"
+      DATAHARBOR_SERVER_CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-https://localhost}
+      DATAHARBOR_FRONTEND_URL: ${FRONTEND_URL:-https://localhost}
 
       # XRootD (local container service)
       DATAHARBOR_XRD_HOST: ${XRD_HOST:-xrootd}
@@ -53,7 +55,6 @@ services:
       DATAHARBOR_LOGGING_FORMAT: json
 
     volumes:
-      - ./config/application.yaml:/app/config/application.yaml:ro
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro
       - backend-logs:/app/log
 
@@ -68,7 +69,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:8080/health",
+          "http://127.0.0.1:8080/health",
         ]
       interval: 30s
       timeout: 3s
@@ -97,7 +98,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:80/",
+          "http://127.0.0.1:80/",
         ]
       interval: 30s
       timeout: 3s
@@ -131,7 +132,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:80/health",
+          "http://127.0.0.1:80/health",
         ]
       interval: 30s
       timeout: 3s
@@ -151,31 +152,17 @@ services:
     pull_policy: ${PULL_POLICY:-missing}
     container_name: dataharbor-xrootd-prod
     restart: unless-stopped
-    # Override entrypoint to bypass dev entrypoint in current GHCR image
-    # Once GHCR images are rebuilt with Dockerfile.prod, this can be removed
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        echo "Starting XRootD in production mode..."
-        mkdir -p /var/spool/xrootd /var/run/xrootd/certs /var/log/xrootd
-        chown -R xrootd:xrootd /var/spool/xrootd /var/run/xrootd /var/log/xrootd 2>/dev/null || true
-        # Copy user-provided certs and fix permissions (Docker Desktop doesn't preserve Unix perms)
-        cp /var/run/xrootd/certs-user/hostcert.pem /var/run/xrootd/certs/hostcert.pem
-        cp /var/run/xrootd/certs-user/hostkey.pem /var/run/xrootd/certs/hostkey.pem
-        chmod 644 /var/run/xrootd/certs/hostcert.pem
-        chmod 600 /var/run/xrootd/certs/hostkey.pem
-        chown xrootd:xrootd /var/run/xrootd/certs/*
-        exec runuser -u xrootd -- /usr/bin/xrootd -c /etc/xrootd/xrootd-prod.cfg -n xrootd
 
     environment:
       XROOTD_HOSTNAME: ${XRD_HOST:-xrootd}
       TZ: ${TZ:-UTC}
+      # SciTokens: OIDC issuer and audience for token validation
+      SCITOKENS_ISSUER: ${OIDC_ISSUER}
+      SCITOKENS_AUDIENCE: ${SCITOKENS_AUDIENCE:-${OIDC_ISSUER}}
+      # TLS CA verification (set to false for self-signed certs in staging/testing)
+      XROOTD_TLS_CA_VERIFY: ${XROOTD_TLS_CA_VERIFY:-true}
 
     volumes:
-      # XROOTD CONFIGURATION (override baked-in config with updated version)
-      - ./xrootd/configs/xrootd-prod.cfg:/etc/xrootd/xrootd-prod.cfg:ro
-      - ./xrootd/configs/scitokens_prod.cfg:/etc/xrootd/scitokens_prod.cfg:ro
-
       # DATA DIRECTORY - Host filesystem to serve
       - type: bind
         source: ${XROOTD_DATA_DIR}
@@ -194,10 +181,7 @@ services:
       - ${XROOTD_LOG_DIR:-./logs/xrootd}:/var/log/xrootd:rw
 
       # CA CERTIFICATES - Required for TLS verification in production
-      # For grid computing: /etc/grid-security/certificates
-      # For system CAs: /etc/ssl/certs or /etc/pki/tls/certs
-      #
-      # STAGING/TESTING: Comment out this line AND set 'xrd.tlsca noverify' in xrootd-prod.cfg
+      # Not needed when XROOTD_TLS_CA_VERIFY=false (testing/staging)
       - ${CA_CERTS_PATH:-/etc/ssl/certs}:/etc/grid-security/certificates:ro
 
     # Port 1094 is NOT exposed externally - only accessible by backend via internal network
@@ -220,7 +204,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "timeout 5 xrdfs localhost:1094 query config version || exit 1",
+          "timeout 5 xrdfs 127.0.0.1:1094 query config version || exit 1",
         ]
       interval: 30s
       timeout: 10s

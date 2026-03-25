@@ -211,6 +211,49 @@ jobs:
           [ "$FRONTEND_RPM" != "not-found" ] && echo "- Frontend: $FRONTEND_RPM"
           [ "$BACKEND_RPM" != "not-found" ] && echo "- Backend: $BACKEND_RPM"
 
+      - name: Checkout repository for deploy bundle
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docker/docker-compose.deploy.yml
+            docker/.env.production.example
+          sparse-checkout-cone-mode: false
+
+      - name: Create deployment bundle
+        id: deploy_bundle
+        run: |
+          VERSION=${{ needs.prepare-release.outputs.version }}
+          BUNDLE_DIR="/tmp/dataharbor-deploy-${VERSION}"
+          mkdir -p "${BUNDLE_DIR}"
+
+          cp docker/docker-compose.deploy.yml "${BUNDLE_DIR}/docker-compose.yml"
+          cp docker/.env.production.example "${BUNDLE_DIR}/.env.example"
+
+          # Create a README for the deployment bundle
+          cat > "${BUNDLE_DIR}/README.md" << 'DEPLOY_README'
+          # DataHarbor Deployment Bundle
+
+          ## Quick Start
+
+          1. Copy `.env.example` to `.env` and configure for your environment
+          2. Deploy:
+
+          ```bash
+          VERSION=<version> docker compose up -d
+          ```
+
+          All configuration is done via environment variables in the `.env` file.
+          Config files (backend, xrootd, scitokens) are baked into the Docker images.
+
+          See the project documentation for full deployment instructions.
+          DEPLOY_README
+
+          BUNDLE_FILE="/tmp/dataharbor-deploy-${VERSION}.tar.gz"
+          tar -czf "${BUNDLE_FILE}" -C /tmp "dataharbor-deploy-${VERSION}"
+
+          echo "bundle_file=${BUNDLE_FILE}" >> $GITHUB_OUTPUT
+          echo "Created deployment bundle: ${BUNDLE_FILE}"
+
       - name: Read changelog
         id: changelog
         run: |
@@ -218,7 +261,7 @@ jobs:
 
           # For GitHub Actions output, need to use a different delimiter format
           delimiter="CHANGELOG_EOF"
-          echo "content<<$delimiter" >> $GITHUB_OUTPUT 
+          echo "content<<$delimiter" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "$delimiter" >> $GITHUB_OUTPUT
 
@@ -238,15 +281,34 @@ jobs:
             ## What's Changed
             ${{ steps.changelog.outputs.content }}
 
+            ## Docker Compose Deployment
+
+            A deployment bundle is attached (`dataharbor-deploy-${{ needs.prepare-release.outputs.version }}.tar.gz`) containing:
+            - `docker-compose.yml` — Compose file for deploying pre-built images from GHCR
+            - `.env.example` — Environment variables template
+
+            All configuration (backend, XRootD, SciTokens) is baked into the Docker images
+            and controlled via environment variables in the `.env` file.
+
+            ```bash
+            tar xzf dataharbor-deploy-${{ needs.prepare-release.outputs.version }}.tar.gz
+            cd dataharbor-deploy-${{ needs.prepare-release.outputs.version }}
+            cp .env.example .env
+            # Edit .env with your configuration
+            VERSION=${{ needs.prepare-release.outputs.version }} docker compose up -d
+            ```
+
             ## RPM Packages
 
             The following RPM packages are available for installation:
             ${{ steps.rpm_names.outputs.frontend_rpm != 'not-found' && format('- **Frontend**: `{0}`', steps.rpm_names.outputs.frontend_rpm) || '' }}
             ${{ steps.rpm_names.outputs.backend_rpm != 'not-found' && format('- **Backend**: `{0}`', steps.rpm_names.outputs.backend_rpm) || '' }}
 
-            *RPM packages are attached to this release.*
+            *Release artifacts are attached below.*
 
             *This release was automatically created by GitHub Actions.*
-          files: /tmp/rpms/*.rpm
+          files: |
+            /tmp/rpms/*.rpm
+            ${{ steps.deploy_bundle.outputs.bundle_file }}
           fail_on_unmatched_files: false
           token: ${{ secrets.GITHUB_TOKEN }}

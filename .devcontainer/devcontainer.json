@@ -35,7 +35,9 @@
         "bierner.markdown-mermaid",
         // GitHub Copilot (optional - requires license)
         "github.copilot",
-        "github.copilot-chat"
+        "github.copilot-chat",
+        // Mermaid diagram support
+        "mermaidchart.vscode-mermaid-chart"
       ],
       // Workspace settings applied in container
       "settings": {
