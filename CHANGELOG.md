@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-03-25
+
+### Added
+
+- add cleanup option for unreferenced layers (build-docker) (6e60179)
+- use devcontainer features rather than Go base image (devcontainer) (00d4a71)
+- enhance feature descriptions and icons (HomeView) (70008d3)
+- update icon sizes for better visibility (HomeView) (9abc23a)
+- add workspace mount for git worktrees (devcontainer) (59902d9)
+- enhance deployment configuration and health checks (docker) (bdb00ea)
+
+### Changed
+
+- streamline image handling functions (build-docker) (9565800)
+
+### Documentation
+
+- add coverage report commands to backend guide (cc4b0af)
+
+### Maintenance
+
+- Updated coverage badge. (6 commits)
+- remove unused CMake and Go test files (a4cefb9)
+- remove sandbox-related scripts and configurations (077960f)
+- modernize Go idioms and update base image versions (e1a58cd)
+
+### Tests
+
+- add comprehensive tests for middleware and requests [GH-42] (6e7ecaa)
+
+### Build
+
+- update package versions (dependencies) (80e08cd)
+- update dependencies (dependencies) (cc740fd)
+- update package versions for stability (dependencies) (a1f8666)
+- update dependencies for improved stability (deps) (49fd62b)
+
+### CI
+
+- update GitHub Actions to use latest action versions (90d0fa8)
+
 ## [1.0.1] - 2025-12-08
 
 ### Fixed
