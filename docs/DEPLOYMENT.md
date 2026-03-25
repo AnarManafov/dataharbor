@@ -18,37 +18,37 @@ graph LR
         DevXRD[Dev XROOTD<br/>test-server:1094]
         DevOIDC[Dev Keycloak<br/>local instance]
     end
-    
+
     subgraph "Staging Environment"
         StageFE[Frontend<br/>staging.example.com<br/>HTTPS]
         StageBE[Backend<br/>staging-api.example.com<br/>HTTPS]
         StageXRD[Staging XROOTD<br/>staging-xrd.example.com:1094]
         StageOIDC[Staging Keycloak<br/>staging-auth.example.com]
     end
-    
+
     subgraph "Production Environment"
         ProdFE[Frontend<br/>dataharbor.example.com<br/>HTTPS]
         ProdBE[Backend<br/>api.dataharbor.example.com<br/>HTTPS]
         ProdXRD[Production XROOTD<br/>xrootd.example.com:1094]
         ProdOIDC[Production Keycloak<br/>auth.example.com]
     end
-    
+
     DevFE --> DevBE
     DevBE --> DevXRD
     DevBE --> DevOIDC
-    
+
     StageFE --> StageBE
     StageBE --> StageXRD
     StageBE --> StageOIDC
-    
+
     ProdFE --> ProdBE
     ProdBE --> ProdXRD
     ProdBE --> ProdOIDC
-    
+
     classDef dev fill:#e8f5e8
     classDef staging fill:#fff3e0
     classDef prod fill:#ffebee
-    
+
     class DevFE,DevBE,DevXRD,DevOIDC dev
     class StageFE,StageBE,StageXRD,StageOIDC staging
     class ProdFE,ProdBE,ProdXRD,ProdOIDC prod
@@ -59,6 +59,29 @@ graph LR
 The recommended way to deploy DataHarbor in production is using pre-built Docker images from GitHub Container Registry (GHCR).
 
 ### Quick Start
+
+**Option A: Using the deploy bundle from a GitHub release (recommended)**
+
+Each [GitHub release](https://github.com/AnarManafov/dataharbor/releases) includes a deployment bundle (`dataharbor-deploy-<version>.tar.gz`) containing the Compose file and an `.env` template. No need to clone the full repository.
+
+```bash
+# 1. Download and extract the deploy bundle
+VERSION=0.15.0  # Replace with the desired release version
+tar xzf dataharbor-deploy-${VERSION}.tar.gz
+cd dataharbor-deploy-${VERSION}
+
+# 2. Configure environment
+cp .env.example .env
+nano .env  # Edit with your settings
+
+# 3. Deploy (pulls images automatically)
+VERSION=${VERSION} docker compose up -d
+
+# 4. Verify
+docker compose ps
+```
+
+**Option B: Using the repository source**
 
 ```bash
 # 1. Get the deployment files
@@ -75,6 +98,8 @@ docker compose -f docker-compose.deploy.yml up -d
 # 4. Verify
 docker compose -f docker-compose.deploy.yml ps
 ```
+
+> **Note:** All configuration (backend `application.yaml`, XRootD `xrootd-prod.cfg`, SciTokens `scitokens_prod.cfg`) is baked into the Docker images. You only need to provide environment variables in the `.env` file.
 
 ### Available Images
 
@@ -127,7 +152,16 @@ OIDC_ISSUER=https://your-oidc-provider.com/realms/your-realm
 OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-client-secret
 OIDC_SESSION_SECRET=$(openssl rand -hex 32)
+
+# TLS CA verification (set to false for self-signed certs)
+XROOTD_TLS_CA_VERIFY=true
+
+# Public URL of the deployment (important for CORS and redirects)
+# CORS_ALLOW_ORIGINS=https://yourdomain.com
+# FRONTEND_URL=https://yourdomain.com
 ```
+
+> **Note:** Backend and XRootD configuration files are baked into the Docker images. All settings that vary between deployments (OIDC credentials, certificate paths, hostnames, etc.) are controlled exclusively through the `.env` file. See [`.env.production.example`](../docker/.env.production.example) for the full list of available variables.
 
 ### Updating Deployment
 
@@ -234,9 +268,9 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
    ```bash
    # Test health endpoint
    curl -k https://localhost:8081/health
-   
+
    # Expected: {"code":200,"data":"ok","message":"success"}
-   
+
    # Check logs
    sudo journalctl -u dataharbor-backend -n 50
    ```
@@ -414,7 +448,7 @@ Since the RPM package doesn't include a systemd service file, you need to create
    # Example if your log path is /var/log/dataharbor/dataharbor-backend.log:
    sudo mkdir -p /var/log/dataharbor
    sudo chmod 755 /var/log/dataharbor
-   
+
    # Or if using a custom path:
    # mkdir -p /opt/dataharbor/logs
    ```
@@ -424,13 +458,13 @@ Since the RPM package doesn't include a systemd service file, you need to create
    ```bash
    # Reload systemd to recognize the new service file
    sudo systemctl daemon-reload
-   
+
    # Enable the service to start on boot
    sudo systemctl enable dataharbor-backend
-   
+
    # Start the service
    sudo systemctl start dataharbor-backend
-   
+
    # Check service status
    sudo systemctl status dataharbor-backend
    ```
@@ -442,13 +476,13 @@ Since the RPM package doesn't include a systemd service file, you need to create
    curl -k https://localhost:8081/health
    # or
    curl -k https://localhost:8081/api/health
-   
+
    # Expected response:
    # {"code":200,"data":"ok","message":"success"}
-   
+
    # Check the logs
    sudo journalctl -u dataharbor-backend -f
-   
+
    # If file logging is enabled, check the log file
    # tail -f /var/log/dataharbor/dataharbor-backend.log
    ```
@@ -458,13 +492,13 @@ Since the RPM package doesn't include a systemd service file, you need to create
    ```bash
    # View recent logs
    sudo journalctl -u dataharbor-backend -n 50
-   
+
    # Check if the service is running
    sudo systemctl is-active dataharbor-backend
-   
+
    # Restart the service if needed
    sudo systemctl restart dataharbor-backend
-   
+
    # Check which config file is being used
    ps aux | grep dataharbor-backend
    ```
@@ -528,7 +562,7 @@ If you've installed the frontend RPM package, follow these steps:
    ```bash
    # Copy the template to nginx sites
    sudo cp /etc/dataharbor-frontend/nginx/nginx.conf /etc/nginx/conf.d/dataharbor.conf
-   
+
    # Edit to customize (optional - change server_name, add SSL, etc.)
    sudo nano /etc/nginx/conf.d/dataharbor.conf
    ```
@@ -593,16 +627,16 @@ If you've installed the frontend RPM package, follow these steps:
    ```bash
    # Test configuration syntax
    sudo nginx -t
-   
+
    # If test passes, reload nginx
    sudo systemctl reload nginx
-   
+
    # Or restart if needed
    sudo systemctl restart nginx
-   
+
    # Check nginx status
    sudo systemctl status nginx
-   
+
    # Enable nginx to start on boot
    sudo systemctl enable nginx
    ```
@@ -612,13 +646,13 @@ If you've installed the frontend RPM package, follow these steps:
    ```bash
    # Allow HTTP traffic
    sudo firewall-cmd --permanent --add-service=http
-   
+
    # Allow HTTPS traffic (if using SSL)
    sudo firewall-cmd --permanent --add-service=https
-   
+
    # Reload firewall
    sudo firewall-cmd --reload
-   
+
    # Or for iptables:
    # sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
    # sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
@@ -629,12 +663,12 @@ If you've installed the frontend RPM package, follow these steps:
    ```bash
    # Test frontend is accessible
    curl http://localhost/
-   
+
    # Should return HTML content
-   
+
    # Test from another machine (replace with your hostname)
    curl http://your-hostname/
-   
+
    # Open in browser
    # http://your-hostname/
    ```
@@ -643,7 +677,7 @@ If you've installed the frontend RPM package, follow these steps:
 
    Open your browser and navigate to:
    - `http://your-hostname/` (or your server's hostname/IP)
-   
+
    Then check:
    - [ ] Frontend loads successfully
    - [ ] No console errors in browser DevTools (F12)
@@ -656,10 +690,10 @@ If you've installed the frontend RPM package, follow these steps:
    ```bash
    # Nginx error logs
    sudo tail -f /var/log/nginx/dataharbor-frontend-error.log
-   
+
    # Nginx access logs
    sudo tail -f /var/log/nginx/dataharbor-frontend-access.log
-   
+
    # Backend logs (to see API requests)
    sudo journalctl -u dataharbor-backend -f
    ```
@@ -748,13 +782,13 @@ If you've installed the frontend RPM package, follow these steps:
    server {
        listen 443 ssl http2;
        server_name your-domain.com;
-       
+
        ssl_certificate /path/to/ssl/cert.pem;
        ssl_certificate_key /path/to/ssl/private.key;
-       
+
        root /var/www/html/dataharbor;
        index index.html;
-       
+
        # API proxy
        location /api/ {
            proxy_pass http://localhost:8081;
@@ -763,7 +797,7 @@ If you've installed the frontend RPM package, follow these steps:
            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
            proxy_set_header X-Forwarded-Proto $scheme;
        }
-       
+
        # SPA routing
        location / {
            try_files $uri $uri/ /index.html;
@@ -778,18 +812,18 @@ If you've installed the frontend RPM package, follow these steps:
    ```apache
    <VirtualHost *:443>
        ServerName your-domain.com
-       
+
        SSLEngine on
        SSLCertificateFile /path/to/ssl/cert.pem
        SSLCertificateKeyFile /path/to/ssl/private.key
-       
+
        DocumentRoot /var/www/html/dataharbor
-       
+
        <Directory /var/www/html/dataharbor>
            Options -Indexes +FollowSymLinks
            AllowOverride All
            Require all granted
-           
+
            # SPA routing - redirect all requests to index.html
            RewriteEngine On
            RewriteBase /
@@ -798,24 +832,24 @@ If you've installed the frontend RPM package, follow these steps:
            RewriteCond %{REQUEST_FILENAME} !-d
            RewriteRule . /index.html [L]
        </Directory>
-       
+
        # API proxy configuration
        ProxyPreserveHost On
        ProxyPass /api/ http://localhost:8081/api/
        ProxyPassReverse /api/ http://localhost:8081/api/
-       
+
        # Set headers for proxied requests
        RequestHeader set X-Forwarded-Proto "https"
        RequestHeader set X-Forwarded-Port "443"
-       
+
        # Enable HTTP/2
        Protocols h2 http/1.1
-       
+
        # Logging
        ErrorLog ${APACHE_LOG_DIR}/dataharbor-error.log
        CustomLog ${APACHE_LOG_DIR}/dataharbor-access.log combined
    </VirtualHost>
-   
+
    # Redirect HTTP to HTTPS
    <VirtualHost *:80>
        ServerName your-domain.com
@@ -830,7 +864,7 @@ If you've installed the frontend RPM package, follow these steps:
    sudo a2enmod ssl rewrite proxy proxy_http headers http2
    sudo a2ensite dataharbor
    sudo systemctl restart apache2
-   
+
    # On RHEL/CentOS/Fedora
    # Modules are typically enabled by default, just restart
    sudo systemctl restart httpd
@@ -852,10 +886,10 @@ server:
 
 security:
   cors:
-    allowed_origins: 
+    allowed_origins:
       - "https://your-domain.com"
     allowed_headers: ["Content-Type", "Authorization"]
-    
+
 auth:
   oidc:
     issuer: "https://your-oidc-provider.com/realms/your-realm"
@@ -970,10 +1004,10 @@ DataHarbor logs can be found in multiple locations depending on your configurati
    ```bash
    # View real-time logs
    sudo journalctl -u dataharbor-backend -f
-   
+
    # View last 100 lines
    sudo journalctl -u dataharbor-backend -n 100
-   
+
    # View logs since last hour
    sudo journalctl -u dataharbor-backend --since "1 hour ago"
    ```
@@ -984,7 +1018,7 @@ DataHarbor logs can be found in multiple locations depending on your configurati
    # - /var/log/dataharbor/dataharbor-backend.log
    # - /opt/dataharbor/logs/dataharbor-backend.log
    # - Custom path specified in your config file
-   
+
    # View file logs
    tail -f /var/log/dataharbor/dataharbor-backend.log
    ```

@@ -52,8 +52,9 @@ RUN addgroup -g 1000 dataharbor && \
 WORKDIR /app
 
 COPY --from=builder /build/dataharbor-backend /app/dataharbor-backend
+COPY docker/config/application.yaml /app/config/application.yaml
 
-RUN mkdir -p /app/config /app/log && \
+RUN mkdir -p /app/log && \
     chown -R dataharbor:dataharbor /app
 
 USER dataharbor

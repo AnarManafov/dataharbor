@@ -15,18 +15,18 @@ graph TB
         HostCerts[TLS Certificates<br/>/etc/grid-security/]
         HostMap[User Mapfile<br/>/opt/xrootd/mapfile]
     end
-    
+
     subgraph "Docker Network"
         Client[Browser] -->|HTTPS:443| NGX1[📦 Nginx Gateway]
         NGX1 -->|Internal :8080| BE1[📦 Backend API]
         NGX1 -->|Internal :80| FE1[📦 Frontend Static]
         BE1 -->|Internal :1094<br/>ZTN + TLS| XRD1[📦 XRootD Server]
-        
+
         HostFS -.->|bind mount<br/>rslave propagation| XRD1
         HostCerts -.->|read-only mount| XRD1
         HostMap -.->|read-only mount| XRD1
     end
-    
+
     style NGX1 fill:#90EE90
     style BE1 fill:#87CEEB
     style FE1 fill:#87CEEB
@@ -36,8 +36,9 @@ graph TB
     style HostMap fill:#FFF9C4
 ```
 
-**Containers:** Nginx Gateway • Backend (Go) • Frontend (Nginx) • XRootD Server  
-**Host Mounts:** Data directory (Lustre/GPFS/local) • TLS certificates • User mapfile  
+**Containers:** Nginx Gateway • Backend (Go) • Frontend (Nginx) • XRootD Server
+**Host Mounts:** Data directory (Lustre/GPFS/local) • TLS certificates • User mapfile
+**Configuration:** All config files baked into images; deployment settings via `.env` file
 **Security:** ZTN (Zero Trust Networking) + TLS encryption • User mapping • Resource limits
 
 ### Development Deployment
@@ -48,14 +49,14 @@ graph LR
     NGX2 -->|Internal :8080| BE2[📦 Backend Container]
     NGX2 -->|Internal :5173| FE2[📦 Frontend Container]
     BE2 -->|XRootD:1094<br/>ZTN + TLS| XRD2[📦 XRootD Container]
-    
+
     style NGX2 fill:#90EE90
     style BE2 fill:#87CEEB
     style FE2 fill:#87CEEB
     style XRD2 fill:#FFB6C1
 ```
 
-**Containers:** Nginx Gateway • Backend (Go dev server) • Frontend (Vite dev server) • XRootD Server  
+**Containers:** Nginx Gateway • Backend (Go dev server) • Frontend (Vite dev server) • XRootD Server
 **Security:** ZTN (Zero Trust Networking) + TLS encryption with self-signed certificates
 
 ## Table of Contents
@@ -148,7 +149,28 @@ open https://localhost
 
 ### Production (with containerized XRootD serving host filesystem)
 
-**Option A: Using pre-built images from GHCR (recommended)**
+**Option A: Using the deploy bundle from a GitHub release (recommended)**
+
+Each [GitHub release](https://github.com/AnarManafov/dataharbor/releases) includes a deployment bundle (`dataharbor-deploy-<version>.tar.gz`) containing the Compose file and an `.env` template. No need to clone the full repository.
+
+```bash
+# 1. Download and extract the deploy bundle from the release page
+VERSION=0.15.0  # Replace with the desired release version
+tar xzf dataharbor-deploy-${VERSION}.tar.gz
+cd dataharbor-deploy-${VERSION}
+
+# 2. Configure environment
+cp .env.example .env
+nano .env
+
+# 3. Deploy (pulls images from GHCR)
+VERSION=${VERSION} docker compose up -d
+
+# 4. Verify
+docker compose ps
+```
+
+**Option B: Using pre-built GHCR images with the full repository**
 
 ```bash
 cd docker
@@ -172,7 +194,7 @@ VERSION=0.14.6 docker compose -f docker-compose.deploy.yml up -d
 VERSION=dev docker compose -f docker-compose.deploy.yml up -d
 ```
 
-**Option B: Build images locally**
+**Option C: Build images locally**
 
 ```bash
 cd docker
@@ -324,25 +346,26 @@ docker/
 │   ├── nginx.conf              # Main configuration
 │   └── README.md
 ├── xrootd/                     # XRootD server
-│   ├── Dockerfile              # Multi-stage Dockerfile
+│   ├── Dockerfile              # Development multi-stage Dockerfile
+│   ├── Dockerfile.prod         # Production Dockerfile (SciTokens, multiuser)
 │   ├── README.md
-│   ├── configs/                # XRootD configuration files
+│   ├── configs/                # XRootD configuration files (baked into images)
 │   │   ├── xrootd-dev.cfg      # Development config
-│   │   ├── xrootd-prod.cfg     # Production config
+│   │   ├── xrootd-prod.cfg     # Production config (envsubst template)
 │   │   ├── scitokens.cfg       # SciTokens base config
 │   │   ├── scitokens_dev.cfg   # SciTokens dev config
-│   │   ├── scitokens_prod.cfg  # SciTokens prod config
-│   │   └── mapfile             # User mapping file
+│   │   ├── scitokens_prod.cfg  # SciTokens prod config (envsubst template)
+│   │   └── mapfile             # Default empty user mapping file
 │   └── scripts/                # Setup scripts
 │       ├── docker-entrypoint.sh      # Development entrypoint
-│       ├── docker-entrypoint-prod.sh # Production entrypoint
+│       ├── docker-entrypoint-prod.sh # Production entrypoint (envsubst rendering)
 │       └── setup-test-data.sh        # Test data generator
 ├── cert-init/                  # Certificate initialization
 │   ├── Dockerfile
 │   ├── generate-dev-certs.sh   # Self-signed cert generator
 │   └── README.md
 └── config/                     # Application configuration
-    └── application.yaml        # Backend config template
+    └── application.yaml        # Backend config (baked into image)
 ```
 
 ## Container Documentation
@@ -416,8 +439,16 @@ XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 # XRootD User Mapfile (REQUIRED)
 XRD_MAPFILE_PATH=/opt/xrootd/mapfile
 
+# XRootD TLS CA Verification
+# Set to false for self-signed certs in staging/testing
+XROOTD_TLS_CA_VERIFY=true
+
 # XRootD CA Certificates (optional - for TLS verification)
 CA_CERTS_PATH=/etc/grid-security/certificates
+
+# SciTokens audience (defaults to OIDC_ISSUER if not set)
+# Only set if your token audience differs from the issuer URL
+# SCITOKENS_AUDIENCE=https://id.gsi.de/realms/wl
 
 # XRootD Client Certificates (optional - for backend ZTN auth)
 XRD_CLIENT_CERT_PATH=./certs/client
@@ -436,6 +467,11 @@ OIDC_CLIENT_ID=your-client-id
 OIDC_CLIENT_SECRET=your-client-secret
 OIDC_DISCOVERY_URL=https://id.gsi.de/realms/wl/.well-known/openid-configuration
 OIDC_SESSION_SECRET=$(openssl rand -hex 32)
+
+# Frontend / CORS
+# Public URL of the deployment (used for CORS and frontend URL)
+# CORS_ALLOW_ORIGINS=https://yourdomain.com
+# FRONTEND_URL=https://yourdomain.com
 
 # Logging and Timezone
 LOG_LEVEL=info                      # debug, info, warn, error
@@ -471,41 +507,19 @@ XRD_INITIAL_DIR=/                    # Initial directory path
 
 **Production Notes:**
 
-- XRootD runs as a container with **production certificates**
+- XRootD runs as a container with **production certificates** mounted from the host
+- XRootD configuration (`xrootd-prod.cfg`, `scitokens_prod.cfg`) is **baked into the Docker image**
+- Environment-specific values (SciTokens issuer/audience, TLS CA settings) are rendered at container startup via `envsubst`
 - Configure **`XRD_HOST`** to point to your XRootD service
 - Ensure **`XRD_ENABLE_ZTN`** matches the server configuration
 
-### Application Configuration Files
+### Application Configuration
 
-Backend uses `config/application.yaml` as a template. Environment variables override these values at runtime:
+Backend uses `config/application.yaml` which is **baked into the Docker image** at build time. All values are overridable at runtime via `DATAHARBOR_*` environment variables (Viper's `AutomaticEnv`), which are set from the `.env` file through the Compose environment section.
 
-```yaml
-env: production
+The XRootD configuration (`xrootd-prod.cfg`, `scitokens_prod.cfg`) is also baked into the image. The production entrypoint uses `envsubst` to render environment-specific values (like `SCITOKENS_ISSUER`, `SCITOKENS_AUDIENCE`) and generates the TLS CA config based on the `XROOTD_TLS_CA_VERIFY` setting.
 
-server:
-  address: ":8080"
-  debug: false
-  shutdown_timeout: 30s
-
-logging:
-  level: info
-  format: json
-
-xrd:
-  host: "${DATAHARBOR_XRD_HOST}"
-  port: ${DATAHARBOR_XRD_PORT}
-  initial_dir: "/"
-  enable_ztn: true
-
-auth:
-  enabled: true
-  oidc:
-    issuer: "${DATAHARBOR_AUTH_OIDC_ISSUER}"
-    client_id: "${DATAHARBOR_AUTH_OIDC_CLIENT_ID}"
-    client_secret: "${DATAHARBOR_AUTH_OIDC_CLIENT_SECRET}"
-    discovery_url: "${DATAHARBOR_AUTH_OIDC_DISCOVERY_URL}"
-    session_secret: "${DATAHARBOR_AUTH_OIDC_SESSION_SECRET}"
-```
+**You do not need to mount or manage configuration files.** All deployment-specific settings are controlled via the `.env` file.
 
 ### Certificate Management
 
@@ -549,7 +563,7 @@ Edit `.env` and set the **required** `HOST_PROJECT_ROOT` variable:
 
 ```bash
 # HOST_PROJECT_ROOT - Path to the project root as seen by Docker daemon
-# 
+#
 # macOS/Linux (native Docker):
 HOST_PROJECT_ROOT=/Users/yourname/projects/dataharbor
 
@@ -665,6 +679,8 @@ Production deployment uses pre-built images and containerized XRootD server serv
    - **User mapfile**: JSON file mapping token usernames to Unix users
    - **CA certificates**: For TLS verification (optional for testing)
 
+   > **Note:** Application configuration files (backend `application.yaml`, XRootD `xrootd-prod.cfg`, SciTokens `scitokens_prod.cfg`) are baked into the Docker images. You do not need to create or manage them on the host.
+
 3. **User Mapping Requirements**:
    - Unix users in mapfile **must exist on host system**
    - UIDs must match between host and filesystem (critical for Lustre/NFS)
@@ -709,6 +725,20 @@ OIDC_SESSION_SECRET=$(openssl rand -hex 32)
 XRD_HOST=xrootd                        # Service name (default)
 XRD_PORT=1094                          # XRootD port (default)
 XROOTD_LOG_DIR=./logs/xrootd          # Host directory for logs
+
+# === TLS CA VERIFICATION (OPTIONAL) ===
+# Set to false for self-signed certs (staging/testing)
+XROOTD_TLS_CA_VERIFY=true
+
+# === SCITOKENS (OPTIONAL) ===
+# Audience claim — defaults to OIDC_ISSUER if not set
+# SCITOKENS_AUDIENCE=https://id.gsi.de/realms/wl
+
+# === FRONTEND / CORS (OPTIONAL) ===
+# Public URL of the deployment (used for CORS and redirects)
+# Defaults to https://localhost if not set
+# CORS_ALLOW_ORIGINS=https://yourdomain.com
+# FRONTEND_URL=https://yourdomain.com
 ```
 
 ### User Mapfile Setup
@@ -831,12 +861,14 @@ sudo useradd -u 1002 bob
 #### 2. Configure Environment
 
 ```bash
+# Option A: From deploy bundle (downloaded from GitHub release)
+cd dataharbor-deploy-<version>
+cp .env.example .env
+nano .env
+
+# Option B: From repository source
 cd docker
-
-# Copy environment template
 cp .env.production.example .env
-
-# Edit with your configuration
 nano .env
 ```
 
@@ -846,18 +878,23 @@ Set these required variables:
 - `XRD_MAPFILE_PATH`
 - `SSL_CERT_PATH`, `SSL_KEY_PATH`
 - `OIDC_*` variables
+- `CORS_ALLOW_ORIGINS`, `FRONTEND_URL` (if not using localhost)
 
 #### 3. Deploy Services
 
 ```bash
-# Build images
-docker compose -f docker-compose.prod.yml build
+# Using deploy bundle (pulls pre-built images from GHCR)
+VERSION=<version> docker compose up -d
 
-# Start services
+# OR using repository with pre-built images
+docker compose -f docker-compose.deploy.yml up -d
+
+# OR build images locally from source
+docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml up -d
 
 # Check status
-docker compose -f docker-compose.prod.yml ps
+docker compose ps
 ```
 
 #### 4. Verify Deployment
@@ -933,19 +970,16 @@ XRD_KEY_PATH=./certs/server.key
 
 #### 3. Disable TLS CA Verification in XRootD
 
-Edit `docker/xrootd/configs/xrootd-prod.cfg` and ensure this line is uncommented:
+For self-signed certificates, set the following in your `.env` file:
 
-```properties
+```bash
 # For self-signed certificates - disable CA verification
-xrd.tlsca noverify
+XROOTD_TLS_CA_VERIFY=false
 ```
 
-**⚠️ Security Warning:** Only use `noverify` for staging/testing. For production with real CA certificates, use:
+The production entrypoint will generate the appropriate XRootD TLS configuration at startup based on this setting.
 
-```properties
-# For production with CA certificates
-xrd.tlsca certdir /etc/grid-security/certificates
-```
+**⚠️ Security Warning:** Only set `XROOTD_TLS_CA_VERIFY=false` for staging/testing. For production with real CA certificates, keep the default (`true`) and set `CA_CERTS_PATH` to your CA certificate directory.
 
 #### 4. Deploy and Test
 
@@ -1150,25 +1184,30 @@ docker exec dataharbor-xrootd-prod getfattr -d /data
 
 ### Updating Images
 
+**Using pre-built images (deploy bundle or GHCR):**
 ```bash
-# Pull latest code
-git pull
+# Update to a new version
+VERSION=0.16.0 docker compose pull
+VERSION=0.16.0 docker compose up -d
 
-# Rebuild images
-docker compose build --no-cache
-
-# Restart services
-docker compose down
+# Or pull latest
+docker compose pull
 docker compose up -d
+```
+
+**Building locally from source:**
+```bash
+git pull
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
 ```
 
 ### Backup and Restore
 
 ```bash
-# Backup configuration
+# Backup configuration (only .env and certificates needed — configs are baked into images)
 tar -czf dataharbor-config-$(date +%Y%m%d).tar.gz \
-  docker/.env \
-  config/ \
+  .env \
   certs/
 
 # Backup logs
@@ -1263,7 +1302,7 @@ healthcheck:
 6. **Use network isolation** - Keep services on internal Docker network
 7. **Enable firewall** - Only expose port 443 (HTTPS)
 8. **Use HTTPS only** - Port 80 is NOT exposed externally
-9. **TLS verification** - Always use CA verification in production (`xrd.tlsca certdir:...`)
+9. **TLS verification** - Always use CA verification in production (`XROOTD_TLS_CA_VERIFY=true`)
 10. **User mapping audit** - Only authorized users in mapfile
 11. **Resource limits** - Enable CPU/memory limits to prevent DoS
 12. **Lustre quotas** - User quotas on Lustre are enforced by XRootD

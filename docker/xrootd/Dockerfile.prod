@@ -83,6 +83,7 @@ RUN microdnf install -y \
     ca-certificates \
     shadow-utils \
     procps-ng \
+    gettext \
     && microdnf clean all
 
 # Copy XRootD binaries and libraries from builder
@@ -91,6 +92,9 @@ COPY --from=builder /usr/bin/xrdfs /usr/bin/xrdfs
 COPY --from=builder /usr/lib64/libXrd*.so* /usr/lib64/
 COPY --from=builder /usr/lib64/libSciTokens.so.* /usr/lib64/
 COPY --from=builder /usr/lib64/xrootd /usr/lib64/xrootd/
+# Required by xrdfs CLI (used in healthcheck)
+COPY --from=builder /usr/lib64/libisal.so* /usr/lib64/
+COPY --from=builder /usr/lib64/libtinyxml.so* /usr/lib64/
 COPY --from=builder /usr/share/xrootd /usr/share/xrootd/
 
 # Create unversioned symlink for plugin loading
@@ -126,9 +130,9 @@ RUN mkdir -p \
 COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
 COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
 
-# Create empty mapfile placeholder for mount point
+# Create default mapfile with empty array (overridden by host mount at deploy time)
 # This ensures Docker mounts a file (not directory) when host mapfile is mounted
-RUN touch /etc/xrootd/mapfile
+RUN echo '[]' > /etc/xrootd/mapfile
 
 # Set proper permissions on configs
 RUN chown -R xrootd:xrootd /etc/xrootd && \

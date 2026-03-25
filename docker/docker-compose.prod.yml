@@ -6,7 +6,7 @@ services:
   backend:
     # Multi-arch build supported (Go cross-compiles natively)
     build:
-      context: .
+      context: ..
       dockerfile: docker/backend/Dockerfile
     image: dataharbor-backend:latest
     container_name: dataharbor-backend
@@ -18,6 +18,8 @@ services:
       # Server
       DATAHARBOR_SERVER_ADDRESS: ":8080"
       DATAHARBOR_SERVER_DEBUG: "false"
+      DATAHARBOR_SERVER_CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS:-https://localhost}
+      DATAHARBOR_FRONTEND_URL: ${FRONTEND_URL:-https://localhost}
 
       # XRootD (local container service)
       DATAHARBOR_XRD_HOST: ${XRD_HOST:-xrootd}
@@ -38,7 +40,6 @@ services:
       DATAHARBOR_LOGGING_FORMAT: json
 
     volumes:
-      - ./config/application.yaml:/app/config/application.yaml:ro
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro # For XRootD ZTN TLS client auth
       - backend-logs:/app/log
 
@@ -53,7 +54,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:8080/health",
+          "http://127.0.0.1:8080/health",
         ]
       interval: 30s
       timeout: 3s
@@ -67,7 +68,7 @@ services:
   frontend:
     # Multi-arch build supported (Node.js + nginx both have arm64 images)
     build:
-      context: .
+      context: ..
       dockerfile: docker/frontend/Dockerfile
     image: dataharbor-frontend:latest
     container_name: dataharbor-frontend
@@ -84,7 +85,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:80/",
+          "http://127.0.0.1:80/",
         ]
       interval: 30s
       timeout: 3s
@@ -95,7 +96,7 @@ services:
     # Multi-arch build supported (nginx has arm64 images)
     # Prod config baked in: proxies to static frontend on port 80
     build:
-      context: .
+      context: ..
       dockerfile: docker/nginx/Dockerfile
       target: prod # Self-contained with prod config baked in
     image: dataharbor-nginx:latest
@@ -121,7 +122,7 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:80/health",
+          "http://127.0.0.1:80/health",
         ]
       interval: 30s
       timeout: 3s
@@ -138,7 +139,7 @@ services:
   xrootd:
     platform: linux/amd64 # Required - XRootD packages not available for ARM64
     build:
-      context: .
+      context: ..
       dockerfile: docker/xrootd/Dockerfile.prod # Production-optimized Dockerfile
     image: dataharbor-xrootd:latest
     container_name: dataharbor-xrootd-prod
@@ -150,8 +151,11 @@ services:
     environment:
       XROOTD_HOSTNAME: ${XRD_HOST:-xrootd}
       TZ: ${TZ:-UTC}
-      # Optional: Resource limits for production
-      # XROOTD_MAX_FDS: ${XRD_MAX_FDS:-65535}
+      # SciTokens: OIDC issuer and audience for token validation
+      SCITOKENS_ISSUER: ${OIDC_ISSUER}
+      SCITOKENS_AUDIENCE: ${SCITOKENS_AUDIENCE:-${OIDC_ISSUER}}
+      # TLS CA verification (set to false for self-signed certs in staging/testing)
+      XROOTD_TLS_CA_VERIFY: ${XROOTD_TLS_CA_VERIFY:-true}
 
     volumes:
       # ==========================================
@@ -176,11 +180,7 @@ services:
 
       # ==========================================
       # CA CERTIFICATES - Required for TLS verification
-      # ==========================================
-      # For grid computing: /etc/grid-security/certificates
-      # For system CAs: /etc/ssl/certs or /etc/pki/tls/certs
-      #
-      # STAGING/TESTING: Comment out this line AND set 'xrd.tlsca noverify' in xrootd-prod.cfg
+      # Not needed when XROOTD_TLS_CA_VERIFY=false (testing/staging)
       - ${CA_CERTS_PATH:-/etc/ssl/certs}:/etc/grid-security/certificates:ro
 
       # ==========================================
@@ -241,7 +241,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "timeout 5 xrdfs localhost:1094 query config version || exit 1",
+          "timeout 5 xrdfs 127.0.0.1:1094 query config version || exit 1",
         ]
       interval: 30s
       timeout: 10s
