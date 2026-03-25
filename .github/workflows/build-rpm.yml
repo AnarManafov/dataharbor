@@ -37,7 +37,7 @@ jobs:
       rpm_dir: /tmp/all-rpms
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Fetch all history for proper changelog creation
 
@@ -142,7 +142,7 @@ jobs:
           echo "Generated artifact name: $ARTIFACT_NAME"
 
       - name: Upload RPM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifact_name.outputs.artifact_name }}
           path: /tmp/all-rpms/*

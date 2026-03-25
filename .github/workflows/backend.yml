@@ -32,7 +32,7 @@ jobs:
         working-directory: ./app
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -68,7 +68,7 @@ jobs:
           fi
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dataharbor-backend-${{ matrix.goarch }}
           path: ./app/dataharbor-backend
@@ -82,10 +82,10 @@ jobs:
         working-directory: ./app
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Use latest v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5 # Use latest v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: ${{ env.GO_SUM_FILE }}
@@ -101,7 +101,7 @@ jobs:
           go tool cover -func=coverage.out -o=coverage.out
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4 # Use latest v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: "./app/coverage.out"
@@ -110,14 +110,14 @@ jobs:
       - name: Generate Coverage Badge
         # Only update badge on direct push to master (not on PRs or tags)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: tj-actions/coverage-badge-go@v2 # Use latest v2
+        uses: tj-actions/coverage-badge-go@v3
         with:
           filename: "./app/coverage.out"
 
       - name: Verify Changed files
         # Only check for changes on direct push to master (not on PRs or tags)
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: tj-actions/verify-changed-files@v20 # Use latest v20
+        uses: tj-actions/verify-changed-files@v20
         id: verify-changed-files
         with:
           files: README.md
@@ -145,17 +145,17 @@ jobs:
         working-directory: ./app
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 # Use latest v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5 # Use latest v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: ${{ env.GO_SUM_FILE }}
           cache: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8 # Use latest v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           working-directory: "./app/"
@@ -170,10 +170,10 @@ jobs:
         working-directory: ./app
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: ${{ env.GO_SUM_FILE }}
@@ -190,7 +190,7 @@ jobs:
           cd test && go test -bench=. -benchtime=200ms -timeout=2m | tee benchmark_results.txt
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: "./app/test/benchmark_results.txt"
@@ -204,7 +204,7 @@ jobs:
           go tool cover -func=integration_coverage.out | tail -1
 
       - name: Upload integration test coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: integration-coverage-report
           path: "./app/test/integration_coverage.out"

@@ -30,7 +30,7 @@ jobs:
       backend_version: ${{ steps.versions.outputs.backend_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0 # Fetch all history for versioning
 
@@ -83,7 +83,7 @@ jobs:
           echo "$BACKEND_VERSION" > /tmp/version-info/backend_version.txt
 
       - name: Upload version info
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: version-info
           path: /tmp/version-info
@@ -104,13 +104,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: master # Explicitly checkout the master branch
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -127,7 +127,7 @@ jobs:
 
       # Save the changes for later commit
       - name: Upload updated package files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: updated-package-files
           path: |
@@ -144,13 +144,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: master # Explicitly checkout the master branch
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -176,7 +176,7 @@ jobs:
 
       # Save the changes for later commit
       - name: Upload updated changelog
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: updated-changelog
           path: CHANGELOG.md
@@ -190,12 +190,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -227,7 +227,7 @@ jobs:
           echo "Release notes generated successfully."
 
       - name: Upload release notes content
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: version-changelog
           path: /tmp/changelog
@@ -241,13 +241,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: master # Explicitly checkout the master branch
 
       - name: Download changelog content
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: version-changelog
           path: /tmp/changelog
@@ -271,7 +271,7 @@ jobs:
 
       # Save the changes for later commit
       - name: Upload updated release notes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: updated-release-notes
           path: RELEASE_NOTES.md
@@ -293,26 +293,26 @@ jobs:
       contents: write # For committing changes and creating tags
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: master # Explicitly checkout the master branch
 
       # Download all the prepared changes
       - name: Download package file changes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: updated-package-files
           path: .
 
       - name: Download changelog changes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: updated-changelog
           path: .
 
       - name: Download release notes changes
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: updated-release-notes
           path: .
@@ -339,20 +339,20 @@ jobs:
           else
             # Create a single commit with all changes
             git commit -m "chore: Prepare release ${{ needs.determine-versions.outputs.target_tag }} [skip ci]"
-            
+
             # Create the actual release tag on this commit
             git tag ${{ needs.determine-versions.outputs.target_tag }}
-            
+
             # Create component tags for frontend and backend
             git tag web/v${{ needs.determine-versions.outputs.frontend_version }}
             git tag app/v${{ needs.determine-versions.outputs.backend_version }}
-            
+
             # Push both the commit and all new tags
             git push origin HEAD:master
             git push origin ${{ needs.determine-versions.outputs.target_tag }}
             git push origin web/v${{ needs.determine-versions.outputs.frontend_version }}
             git push origin app/v${{ needs.determine-versions.outputs.backend_version }}
-            
+
             echo "Successfully created release preparation commit and tags:"
             echo "- Commit: Prepare release ${{ needs.determine-versions.outputs.target_tag }}"
             echo "- Release tag: ${{ needs.determine-versions.outputs.target_tag }}"
