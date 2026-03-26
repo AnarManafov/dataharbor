@@ -56,7 +56,7 @@ services:
 
     volumes:
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro
-      - ${BACKEND_LOG_DIR:-./logs/backend}:/app/log:rw
+      - ${BACKEND_LOG_DIR:-/var/log/dataharbor/backend}:/app/log:rw
 
     networks:
       - dataharbor-network
@@ -119,7 +119,7 @@ services:
     volumes:
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/server.key:ro
-      - ${NGINX_LOG_DIR:-./logs/nginx}:/var/log/nginx:rw
+      - ${NGINX_LOG_DIR:-/var/log/dataharbor/nginx}:/var/log/nginx:rw
 
     networks:
       - dataharbor-network
@@ -185,7 +185,7 @@ services:
           create_host_path: false
 
       # LOGS
-      - ${XROOTD_LOG_DIR:-./logs/xrootd}:/var/log/xrootd:rw
+      - ${XROOTD_LOG_DIR:-/var/log/dataharbor/xrootd}:/var/log/xrootd:rw
 
       # CA CERTIFICATES - Required for TLS verification in production
       # Not needed when XROOTD_TLS_CA_VERIFY=false (testing/staging)

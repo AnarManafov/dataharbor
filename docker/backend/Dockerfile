@@ -39,13 +39,15 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM alpine:3.23
 
 # Install only essential runtime dependencies
-# Note: xrootd-client is NOT needed - the Go backend uses native Go XRootD client library
+# Note: xrootd-client is NOT needed - the Go backend uses native Go XRD client library
+# su-exec is used by the entrypoint to drop from root to dataharbor user
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
+    su-exec \
     && rm -rf /var/cache/apk/*
 
-# Run as non-root user for security
+# Create non-root user for runtime
 RUN addgroup -g 1000 dataharbor && \
     adduser -D -u 1000 -G dataharbor dataharbor
 
@@ -53,16 +55,17 @@ WORKDIR /app
 
 COPY --from=builder /build/dataharbor-backend /app/dataharbor-backend
 COPY docker/config/application.yaml /app/config/application.yaml
+COPY docker/backend/entrypoint.sh /app/entrypoint.sh
 
-RUN mkdir -p /app/log && \
+RUN chmod +x /app/entrypoint.sh && \
+    mkdir -p /app/log && \
     chown -R dataharbor:dataharbor /app
 
-USER dataharbor
-
+# Start as root so entrypoint can fix bind-mount ownership, then drop to dataharbor
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-ENTRYPOINT ["/app/dataharbor-backend"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["-config", "/app/config/application.yaml"]
