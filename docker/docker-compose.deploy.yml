@@ -56,7 +56,7 @@ services:
 
     volumes:
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro
-      - backend-logs:/app/log
+      - ${BACKEND_LOG_DIR:-./logs/backend}:/app/log:rw
 
     networks:
       - dataharbor-network
@@ -119,7 +119,7 @@ services:
     volumes:
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/server.key:ro
-      - nginx-logs:/var/log/nginx
+      - ${NGINX_LOG_DIR:-./logs/nginx}:/var/log/nginx:rw
 
     networks:
       - dataharbor-network
@@ -175,7 +175,14 @@ services:
       - ${XRD_KEY_PATH}:/var/run/xrootd/certs-user/hostkey.pem:ro
 
       # USER MAPFILE
-      - ${XRD_MAPFILE_PATH}:/etc/xrootd/mapfile:ro
+      # Long-form bind ensures Docker fails (instead of creating a directory)
+      # if the host file is missing
+      - type: bind
+        source: ${XRD_MAPFILE_PATH}
+        target: /etc/xrootd/mapfile
+        read_only: true
+        bind:
+          create_host_path: false
 
       # LOGS
       - ${XROOTD_LOG_DIR:-./logs/xrootd}:/var/log/xrootd:rw
@@ -218,6 +225,4 @@ networks:
       config:
         - subnet: 172.20.0.0/16
 
-volumes:
-  backend-logs:
-  nginx-logs:
+volumes: {}
