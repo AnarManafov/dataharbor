@@ -41,7 +41,7 @@ services:
 
     volumes:
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro # For XRootD ZTN TLS client auth
-      - backend-logs:/app/log
+      - ${BACKEND_LOG_DIR:-/var/log/dataharbor/backend}:/app/log:rw
 
     networks:
       - dataharbor-network
@@ -109,7 +109,7 @@ services:
     volumes:
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/server.key:ro
-      - nginx-logs:/var/log/nginx
+      - ${NGINX_LOG_DIR:-/var/log/dataharbor/nginx}:/var/log/nginx
 
     networks:
       - dataharbor-network
@@ -201,7 +201,7 @@ services:
       # ==========================================
       # LOGS - Persistent on host for monitoring
       # ==========================================
-      - ${XROOTD_LOG_DIR:-./logs/xrootd}:/var/log/xrootd:rw
+      - ${XROOTD_LOG_DIR:-/var/log/dataharbor/xrootd}:/var/log/xrootd:rw
 
     # Port 1094 is NOT exposed externally - only accessible by backend via internal network
     # If external XRootD access is needed, uncomment:
@@ -261,7 +261,3 @@ networks:
     ipam:
       config:
         - subnet: 172.20.0.0/16
-
-volumes:
-  backend-logs:
-  nginx-logs:
