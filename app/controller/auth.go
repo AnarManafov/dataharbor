@@ -57,6 +57,7 @@ var tokenStore = make(map[string]TokenInfo)
 func generateTokenID() string {
 	return uuid.New().String()
 }
+
 func storeTokens(accessToken, refreshToken, idToken string, expiresAt int64) string {
 	tokenID := generateTokenID()
 	tokenStore[tokenID] = TokenInfo{
@@ -72,6 +73,7 @@ func getTokens(tokenID string) (TokenInfo, bool) {
 	tokens, ok := tokenStore[tokenID]
 	return tokens, ok
 }
+
 func updateTokens(tokenID string, accessToken, refreshToken, idToken string, expiresAt int64) bool {
 	if _, exists := tokenStore[tokenID]; !exists {
 		return false
@@ -260,9 +262,14 @@ func LoginInit(c *gin.Context) {
 	// Log the cookie header that was set
 	logger.Infof("Set-Cookie header: %v", c.Writer.Header().Get("Set-Cookie"))
 
-	// IMPORTANT FIX: Always use absolute URLs for redirect_uri
-	// This is critical for OAuth/OIDC providers which require exact match of redirect URIs
-	redirectURI := fmt.Sprintf("%s://%s/api/auth/callback", schemeFromRequest(c), c.Request.Host)
+	// Build redirect_uri: prefer configured FRONTEND_URL for stable behavior behind
+	// reverse proxies, SSH tunnels, and load balancers. Fall back to request Host.
+	var redirectURI string
+	if cfg.Frontend.URL != "" {
+		redirectURI = cfg.Frontend.URL + "/api/auth/callback"
+	} else {
+		redirectURI = fmt.Sprintf("%s://%s/api/auth/callback", schemeFromRequest(c), c.Request.Host)
+	}
 
 	// Log the redirect URI being used
 	logger.Infof("Using redirect URI: %s", redirectURI)
@@ -370,7 +377,12 @@ func AuthCallback(c *gin.Context) {
 	}
 
 	// The redirect_uri must exactly match what was used in the initial request
-	redirectURI := fmt.Sprintf("%s://%s/api/auth/callback", schemeFromRequest(c), c.Request.Host)
+	var redirectURI string
+	if cfg.Frontend.URL != "" {
+		redirectURI = cfg.Frontend.URL + "/api/auth/callback"
+	} else {
+		redirectURI = fmt.Sprintf("%s://%s/api/auth/callback", schemeFromRequest(c), c.Request.Host)
+	}
 
 	// Try to load discovery document to get token endpoint
 	issuerURL := cfg.Auth.OIDC.Issuer

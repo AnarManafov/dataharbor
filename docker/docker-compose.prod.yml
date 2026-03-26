@@ -189,7 +189,14 @@ services:
       # CRITICAL: UIDs in mapfile MUST match filesystem UIDs (especially for Lustre/NFS)
       # Example: {"sub": "username", "result": "unixuser"}
       # The "result" user must exist on host and have proper permissions on XROOTD_DATA_DIR
-      - ${XRD_MAPFILE_PATH}:/etc/xrootd/mapfile:ro
+      # Long-form bind ensures Docker fails (instead of creating a directory)
+      # if the host file is missing
+      - type: bind
+        source: ${XRD_MAPFILE_PATH}
+        target: /etc/xrootd/mapfile
+        read_only: true
+        bind:
+          create_host_path: false
 
       # ==========================================
       # LOGS - Persistent on host for monitoring
