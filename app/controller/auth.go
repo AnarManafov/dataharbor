@@ -115,26 +115,21 @@ func InitAuth() {
 
 	// Initialize the session store with the secret
 	SessionStore = sessions.NewCookieStore([]byte(sessionSecret))
-	// Balance security with environment-specific needs
-	sameSiteMode := http.SameSiteStrictMode
+	// SameSite=Lax is required for OIDC flows where the IdP redirects back to
+	// our callback URL. Strict would block the session cookie on that cross-site
+	// redirect, breaking authentication. Lax still protects against CSRF for
+	// POST/PUT/DELETE while allowing top-level GET navigations (the callback).
 	secureCookies := true
-	// Use relaxed settings in development unless SSL is enabled
 	if cfg.Env == "development" && !cfg.Server.SSL.Enabled {
-		sameSiteMode = http.SameSiteLaxMode
 		secureCookies = false
 		logger.Info("Running in development mode without SSL: using relaxed cookie settings")
-	} else if cfg.Env == "development" && cfg.Server.SSL.Enabled {
-		sameSiteMode = http.SameSiteLaxMode
-		secureCookies = true
-		logger.Info("Running in development mode with SSL: using secure cookies")
 	}
-	// Apply security settings appropriate for the environment
 	SessionStore.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,          // Mitigate XSS risks
-		Secure:   secureCookies, // Require HTTPS when SSL is enabled
-		SameSite: sameSiteMode,  // Balance cross-origin needs vs CSRF protection
+		Secure:   secureCookies, // Require HTTPS (true in prod, even behind proxy)
+		SameSite: http.SameSiteLaxMode,
 	}
 }
 
@@ -233,21 +228,19 @@ func LoginInit(c *gin.Context) {
 	session.Values["oidc_state"] = state
 	logger.Infof("Setting state in session: %s", state)
 
-	// Set session options directly to ensure proper cross-origin behavior
-	secureCookies := cfg.Server.SSL.Enabled
-	sameSiteMode := http.SameSiteNoneMode
-
-	// In development with SSL, use Lax mode for easier testing
-	if cfg.Env == "development" && cfg.Server.SSL.Enabled {
-		sameSiteMode = http.SameSiteLaxMode
-	}
+	// Set session options for the OIDC login flow.
+	// SameSite=Lax is required because the OIDC callback is a cross-site redirect
+	// from the IdP (e.g., Keycloak). Strict would block the cookie on that redirect,
+	// and None requires Secure which may not be set when SSL terminates at a proxy.
+	// Lax allows cookies on top-level GET navigations, which is exactly the callback.
+	secureCookies := cfg.Server.SSL.Enabled || schemeFromRequest(c) == "https"
 
 	session.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   sessionMaxAge,
 		HttpOnly: true,
-		SameSite: sameSiteMode,
-		Secure:   secureCookies, // Use secure cookies when SSL is enabled
+		SameSite: http.SameSiteLaxMode,
+		Secure:   secureCookies,
 	}
 
 	// Save the session
