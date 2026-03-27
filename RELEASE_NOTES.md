@@ -1,8 +1,8 @@
 # Release Notes
 
-## v1.0.4 (2026-03-26)
+## v1.0.5 (2026-03-27)
 
 Changelog:
-### Added
-- update backend Dockerfile and entrypoint script (docker) (fbe2f09)
+### Fixed
+- adjust SameSite cookie settings for OIDC flows (auth) (a23cc7d)
 
