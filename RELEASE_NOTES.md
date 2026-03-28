@@ -1,8 +1,8 @@
 # Release Notes
 
-## v1.0.6 (2026-03-27)
+## v1.0.7 (2026-03-28)
 
 Changelog:
-### Changed
-- reorganize TLS and security settings (xrootd-prod.cfg) (5c72e24)
+### Added
+- add XRootD virtual filesystem statistics (backend,frontend) (f7f6343)
 
