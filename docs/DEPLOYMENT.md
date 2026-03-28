@@ -213,6 +213,8 @@ For complete Docker deployment instructions including Lustre/GPFS setup, see **[
 
 ## RPM Package Deployment
 
+> **Note:** RPM-based deployment is currently not in active use. The project uses **Docker Compose** as the primary deployment method (see [Docker Production Deployment](#docker-production-deployment) above). RPM packaging infrastructure is preserved for future use and will be re-enabled when needed.
+
 ### Building RPM Packages
 
 DataHarbor includes RPM spec files for creating system packages:
