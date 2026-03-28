@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/AnarManafov/dataharbor/app/config"
 	"go-hep.org/x/hep/xrootd"
 	"go-hep.org/x/hep/xrootd/xrdfs"
+	"go-hep.org/x/hep/xrootd/xrdproto/auth/ztn"
 	"go.uber.org/zap"
 )
 
@@ -94,13 +94,12 @@ func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xroot
 		}
 		opts = append(opts, xrootd.WithTLS(tlsConfig))
 
-		// Set bearer token in environment for ZTN token discovery
+		// Pass bearer token directly via WithAuth to avoid process-global os.Setenv race.
+		// Each client gets its own Auth struct so concurrent requests use the correct token.
 		if authToken == "" {
 			return nil, fmt.Errorf("ZTN protocol enabled (enable_ztn=true) but no authentication token provided")
 		}
-		if err := os.Setenv("BEARER_TOKEN", authToken); err != nil {
-			return nil, fmt.Errorf("failed to set BEARER_TOKEN environment variable: %w", err)
-		}
+		opts = append(opts, xrootd.WithAuth(ztn.WithToken(authToken)))
 		xc.logger.Debug("Creating XRootD client with ZTN (TLS + token)", "address", xc.address)
 	} else {
 		// Plain XRootD protocol: No TLS, no authentication

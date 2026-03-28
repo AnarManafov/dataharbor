@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -454,4 +455,181 @@ func TestGetCurrentUser_WithValidTokens(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "test-user-123", userInfo["sub"])
 	assert.Equal(t, true, userInfo["authenticated"])
+}
+
+// ============================================
+// UserInfo Cache Tests
+// ============================================
+
+// clearUserInfoCache clears the userinfo cache between tests.
+func clearUserInfoCache() {
+	userInfoCacheMu.Lock()
+	for k := range userInfoCache {
+		delete(userInfoCache, k)
+	}
+	userInfoCacheMu.Unlock()
+}
+
+// newMockUserInfoServer creates a test HTTP server that serves both the OIDC
+// discovery document and a userinfo endpoint. It returns the server and a
+// pointer to an int that counts how many requests hit the userinfo endpoint.
+func newMockUserInfoServer(userInfo map[string]any) (*httptest.Server, *int) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			// Return discovery doc pointing userinfo to ourselves
+			scheme := "http"
+			doc := map[string]any{
+				"issuer":            scheme + "://" + r.Host,
+				"userinfo_endpoint": scheme + "://" + r.Host + "/userinfo",
+			}
+			_ = json.NewEncoder(w).Encode(doc)
+		case "/userinfo":
+			callCount++
+			_ = json.NewEncoder(w).Encode(userInfo)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	return server, &callCount
+}
+
+func TestFetchUserInfoCache_HitAndMiss(t *testing.T) {
+	clearUserInfoCache()
+	clearDiscoveryDocCache()
+
+	server, callCount := newMockUserInfoServer(map[string]any{
+		"sub":  "user-1",
+		"name": "Test User",
+	})
+	defer server.Close()
+
+	cfg := &config.Config{
+		Auth: config.AuthConfig{
+			OIDC: config.OIDCConfig{
+				Issuer:               server.URL,
+				UserInfoCacheTTL:     3600,
+				DiscoveryDocCacheTTL: 3600,
+			},
+		},
+	}
+	config.SetConfig(cfg)
+
+	// First call — cache miss, should reach the server
+	info1, err := fetchUserInfo("token-abc", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, "user-1", info1["sub"])
+	assert.Equal(t, true, info1["authenticated"])
+	assert.Equal(t, 1, *callCount)
+
+	// Second call — cache hit
+	info2, err := fetchUserInfo("token-abc", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, "user-1", info2["sub"])
+	assert.Equal(t, 1, *callCount) // still 1
+}
+
+func TestFetchUserInfoCache_TTLExpiry(t *testing.T) {
+	clearUserInfoCache()
+	clearDiscoveryDocCache()
+
+	server, callCount := newMockUserInfoServer(map[string]any{
+		"sub": "user-2",
+	})
+	defer server.Close()
+
+	cfg := &config.Config{
+		Auth: config.AuthConfig{
+			OIDC: config.OIDCConfig{
+				Issuer:               server.URL,
+				UserInfoCacheTTL:     1, // 1 second TTL
+				DiscoveryDocCacheTTL: 3600,
+			},
+		},
+	}
+	config.SetConfig(cfg)
+
+	// First call
+	_, err := fetchUserInfo("token-xyz", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, *callCount)
+
+	// Cached
+	_, err = fetchUserInfo("token-xyz", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, *callCount)
+
+	// Wait for TTL to expire
+	time.Sleep(1100 * time.Millisecond)
+
+	// Should fetch again
+	_, err = fetchUserInfo("token-xyz", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, *callCount)
+}
+
+func TestInvalidateUserInfoCache(t *testing.T) {
+	clearUserInfoCache()
+	clearDiscoveryDocCache()
+
+	server, callCount := newMockUserInfoServer(map[string]any{
+		"sub": "user-3",
+	})
+	defer server.Close()
+
+	cfg := &config.Config{
+		Auth: config.AuthConfig{
+			OIDC: config.OIDCConfig{
+				Issuer:               server.URL,
+				UserInfoCacheTTL:     3600,
+				DiscoveryDocCacheTTL: 3600,
+			},
+		},
+	}
+	config.SetConfig(cfg)
+
+	// Populate cache
+	_, err := fetchUserInfo("token-inv", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, *callCount)
+
+	// Invalidate
+	invalidateUserInfoCache("token-inv", server.URL)
+
+	// Next call should be a cache miss
+	_, err = fetchUserInfo("token-inv", cfg)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, *callCount)
+}
+
+func TestStartUserInfoCacheCleanup(t *testing.T) {
+	clearUserInfoCache()
+
+	// Manually insert an already-expired entry
+	h := make([]byte, 32)
+	cacheKey := hex.EncodeToString(h)
+	userInfoCacheMu.Lock()
+	userInfoCache[cacheKey] = userInfoCacheEntry{
+		data:      map[string]any{"sub": "stale"},
+		expiresAt: time.Now().Add(-1 * time.Minute), // already expired
+	}
+	userInfoCacheMu.Unlock()
+
+	// Verify it's there
+	userInfoCacheMu.RLock()
+	assert.Equal(t, 1, len(userInfoCache))
+	userInfoCacheMu.RUnlock()
+
+	// Start cleanup with a very short interval
+	startUserInfoCacheCleanup(200 * time.Millisecond)
+
+	// Wait for at least one sweep
+	time.Sleep(500 * time.Millisecond)
+
+	// The expired entry should have been removed
+	userInfoCacheMu.RLock()
+	assert.Equal(t, 0, len(userInfoCache))
+	userInfoCacheMu.RUnlock()
 }

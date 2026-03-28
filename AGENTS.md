@@ -285,6 +285,7 @@ Full development environment via `.devcontainer/` with Go, Node.js, Docker CLI, 
 - **Benchmarks**: `app/test/config_benchmark_test.go` — run with `go test -bench . -benchmem`
 - **Coverage target**: 80% overall, 90% for critical paths (auth, file operations)
 - **Race detection**: Use `go test -race ./...` before submitting
+- **Mandatory tests**: All code changes (new features, bug fixes, refactors) must include corresponding unit tests. Do not submit changes without test coverage for new or modified logic.
 
 ### Frontend Tests
 

@@ -222,7 +222,7 @@ const fetchXrdLatency = (): void => {
 /**
  * This function is called when the component is mounted.
  * It performs the following tasks:
- * 1. Sends a health check to the backend service every 30 seconds.
+ * 1. Sends a health check to the backend service periodically.
  * 2. Makes an immediate call to fetch the backend service status.
  * 3. Retrieves the initial directory path and sets it as the current directory if there is no value in the storage.
  * 4. Sets the initial path value to the home directory.
@@ -284,11 +284,11 @@ onMounted(() => {
             }
         })
 
-    // Send a health check every 30 seconds
+    // Send a health check periodically
     interval = window.setInterval(() => {
         fetchBackendServiceStatus();
         fetchXrdLatency();
-    }, 30000);
+    }, 60000);
     // Make the first call immediately
     fetchBackendServiceStatus()
     fetchXrdLatency()
