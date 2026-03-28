@@ -273,3 +273,44 @@ func (xc *XRDClient) GetFileSystemLegacy() (xrdfs.FileSystem, func(), error) {
 func (xc *XRDClient) ListDirectoryLegacy(ctx context.Context, dirPath string) ([]xrdfs.EntryStat, error) {
 	return xc.ListDirectory(ctx, dirPath, "")
 }
+
+// VirtualStat returns virtual filesystem statistics for the given path
+func (xc *XRDClient) VirtualStat(ctx context.Context, path string, authToken string) (xrdfs.VirtualFSStat, error) {
+	xc.logger.Info("Fetching virtual filesystem stats", "path", path, "server", xc.address)
+	start := time.Now()
+
+	client, err := xc.createClient(ctx, authToken)
+	if err != nil {
+		return xrdfs.VirtualFSStat{}, fmt.Errorf("failed to create client: %w", err)
+	}
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			xc.logger.Warn("Error closing client", "error", closeErr)
+		}
+	}()
+
+	fs := client.FS()
+	if fs == nil {
+		return xrdfs.VirtualFSStat{}, fmt.Errorf("failed to get filesystem interface")
+	}
+
+	stat, err := fs.VirtualStat(ctx, path)
+	if err != nil {
+		duration := time.Since(start)
+		xc.logger.Error("VirtualStat failed", "path", path, "duration", duration, "error", err)
+
+		if isAuthorizationError(err) {
+			return xrdfs.VirtualFSStat{}, &XRootDAuthError{
+				message: "Access denied - user is not authorized to access filesystem stats",
+				cause:   err,
+			}
+		}
+
+		return xrdfs.VirtualFSStat{}, fmt.Errorf("failed to get virtual filesystem stats for %s: %w", path, err)
+	}
+
+	duration := time.Since(start)
+	xc.logger.Info("Successfully retrieved virtual filesystem stats", "path", path, "duration", duration)
+
+	return stat, nil
+}

@@ -43,7 +43,13 @@
             </el-card>
 
             <div class="login-footer">
-                <p>&copy; 2025 DataHarbor. All rights reserved.</p>
+                <p>&copy; 2026 GSI Helmholtzzentrum f&uuml;r Schwerionenforschung GmbH</p>
+                <p class="footer-links">
+                    <a href="https://www.gsi.de/impressum" target="_blank" rel="noopener noreferrer">Impressum</a>
+                    <span>&middot;</span>
+                    <a href="https://www.gsi.de/en/data-privacy-protection" target="_blank"
+                        rel="noopener noreferrer">Data privacy protection</a>
+                </p>
             </div>
         </div>
     </div>
@@ -250,9 +256,31 @@ export default {
     margin-top: 2rem;
 
     p {
-        color: rgba(255, 255, 255, 0.7);
-        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.8rem;
         margin: 0;
+    }
+
+    .footer-links {
+        margin-top: 0.4rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.4rem;
+
+        a {
+            color: rgba(255, 255, 255, 0.6);
+            text-decoration: none;
+
+            &:hover {
+                color: white;
+                text-decoration: underline;
+            }
+        }
+
+        span {
+            color: rgba(255, 255, 255, 0.4);
+        }
     }
 }
 

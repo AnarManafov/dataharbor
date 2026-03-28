@@ -25,11 +25,25 @@
                 </div>
             </el-col>
             <el-col :span='5' class='toolbar-right-content'>
-                <div style='font-size: 10px;'>
-                    Data Server Host: <span style='font-weight: bold;'>{{ xrdHostName }}</span>
+                <div class='storage-stats' v-if='vfsStat'>
+                    <el-tooltip effect='dark' placement='bottom'
+                        :content='`${vfsStat.nodesRW} R/W node(s), ${vfsStat.nodesStaging} staging node(s)`'>
+                        <span class='stat-item'>
+                            <span class='stat-label'>Free:</span>
+                            <span class='stat-value'>{{ formatFreeSpace(vfsStat.freeSpaceMB) }}</span>
+                        </span>
+                    </el-tooltip>
+                    <span class='stat-separator'>|</span>
+                    <span class='stat-item'>
+                        <span class='stat-label'>Used:</span>
+                        <span class='stat-value' :class='utilizationClass(vfsStat.utilizationPercent)'>{{
+                            vfsStat.utilizationPercent
+                            }}%</span>
+                    </span>
                 </div>
-                <div style='font-size: 10px;'>
-                    Initial Path: <span style='font-weight: bold;'>{{ initialPath }}</span>
+                <div style='font-size: 10px; color: var(--el-text-color-secondary); margin-top: 2px;'
+                    :title='currentDirectory'>
+                    {{ currentDirectory }}
                 </div>
             </el-col>
         </el-row>
@@ -62,7 +76,6 @@ import { HomeFilled } from '@element-plus/icons-vue';
 const props = defineProps({
     serviceStatusTooltip: String,
     serviceStatusColor: String,
-    xrdHostName: String,
     currentDirectory: String,
     initialPath: String,
     folderCount: Number,
@@ -70,7 +83,8 @@ const props = defineProps({
     totalOnPageFileSize: String,
     totalFolderCount: Number,
     totalFileCount: Number,
-    totalFileSize: String
+    totalFileSize: String,
+    vfsStat: Object
 });
 
 const emit = defineEmits(['changeDirToInitialPath', 'changeDir']);
@@ -81,6 +95,21 @@ const changeDirToInitialPath = () => {
 
 const changeDir = (index: number) => {
     emit('changeDir', index);
+};
+
+const formatFreeSpace = (mb: number): string => {
+    if (mb >= 1024 * 1024) {
+        return `${(mb / (1024 * 1024)).toFixed(1)} TB`;
+    } else if (mb >= 1024) {
+        return `${(mb / 1024).toFixed(1)} GB`;
+    }
+    return `${mb} MB`;
+};
+
+const utilizationClass = (percent: number): string => {
+    if (percent >= 90) return 'utilization-critical';
+    if (percent >= 70) return 'utilization-warning';
+    return 'utilization-ok';
 };
 </script>
 
@@ -142,5 +171,45 @@ const changeDir = (index: number) => {
 .column-layout {
     flex-direction: column;
     align-items: flex-start;
+}
+
+/* Storage stats styling */
+.storage-stats {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.stat-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.stat-label {
+    color: var(--el-text-color-secondary);
+}
+
+.stat-value {
+    font-weight: bold;
+    color: var(--el-text-color-primary);
+}
+
+.stat-separator {
+    color: var(--el-border-color);
+}
+
+.utilization-ok {
+    color: var(--el-color-success);
+}
+
+.utilization-warning {
+    color: var(--el-color-warning);
+}
+
+.utilization-critical {
+    color: var(--el-color-danger);
 }
 </style>

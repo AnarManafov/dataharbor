@@ -3,110 +3,141 @@
         <div class="page-header">
             <div class="container">
                 <h1 class="page-title">About DataHarbor</h1>
-                <p class="page-subtitle">Learn more about our mission and capabilities</p>
+                <p class="page-subtitle">Secure web access to GSI Lustre cluster data</p>
             </div>
         </div>
 
         <div class="content-section">
             <div class="container">
-                <el-row :gutter="32">
-                    <el-col :span="24" :md="12">
-                        <el-card class="info-card" shadow="never">
+                <el-card class="mission-card" shadow="never">
+                    <div class="mission-content">
+                        <div class="mission-section">
                             <h2>Our Mission</h2>
                             <p>
-                                DataHarbor provides a seamless interface for browsing and managing GSI Lustre file
-                                systems.
-                                We aim to make file system navigation intuitive and efficient for researchers and
-                                scientists.
+                                DataHarbor bridges the gap between high-performance computing storage and
+                                the web browser. By integrating directly with the GSI Lustre cluster via
+                                the XRootD protocol, it gives researchers fast, secure access to their data
+                                from anywhere — without specialized client software.
                             </p>
-                        </el-card>
-                    </el-col>
-
-                    <el-col :span="24" :md="12">
-                        <el-card class="info-card" shadow="never">
+                        </div>
+                        <div class="divider" />
+                        <div class="features-section">
                             <h2>Key Features</h2>
                             <ul class="feature-list">
-                                <li><el-icon>
+                                <li>
+                                    <el-icon>
                                         <Check />
-                                    </el-icon> Secure file browsing</li>
-                                <li><el-icon>
+                                    </el-icon>
+                                    <span><strong>OIDC / SSO login</strong> — authenticate with your institutional
+                                        identity provider</span>
+                                </li>
+                                <li>
+                                    <el-icon>
                                         <Check />
-                                    </el-icon> User authentication</li>
-                                <li><el-icon>
+                                    </el-icon>
+                                    <span><strong>XRootD file access</strong> — direct, high-performance access to
+                                        Lustre cluster storage</span>
+                                </li>
+                                <li>
+                                    <el-icon>
                                         <Check />
-                                    </el-icon> Real-time monitoring</li>
-                                <li><el-icon>
+                                    </el-icon>
+                                    <span><strong>Streaming downloads</strong> — transfer large files without browser
+                                        memory limits</span>
+                                </li>
+                                <li>
+                                    <el-icon>
                                         <Check />
-                                    </el-icon> Efficient downloads</li>
+                                    </el-icon>
+                                    <span><strong>Paginated directory listing</strong> — navigate deep file hierarchies
+                                        with ease</span>
+                                </li>
+                                <li>
+                                    <el-icon>
+                                        <Check />
+                                    </el-icon>
+                                    <span><strong>Zero client software</strong> — access your data from any modern web
+                                        browser</span>
+                                </li>
+                                <li>
+                                    <el-icon>
+                                        <Check />
+                                    </el-icon>
+                                    <span><strong>Container-ready</strong> — production-grade Docker Compose deployment
+                                        included</span>
+                                </li>
                             </ul>
-                        </el-card>
-                    </el-col>
-                </el-row>
+                        </div>
+                    </div>
+                </el-card>
 
-                <el-row :gutter="32" class="tech-section">
-                    <el-col :span="24">
-                        <el-card class="tech-card" shadow="hover">
-                            <h2>Technology Stack</h2>
-                            <div class="tech-grid">
-                                <div class="tech-item">
-                                    <div class="tech-icon">
-                                        <el-icon size="24">
-                                            <Platform />
-                                        </el-icon>
-                                    </div>
-                                    <h3>Vue.js 3</h3>
-                                    <p>Modern reactive frontend framework</p>
-                                </div>
-                                <div class="tech-item">
-                                    <div class="tech-icon">
-                                        <el-icon size="24">
-                                            <Monitor />
-                                        </el-icon>
-                                    </div>
-                                    <h3>Element Plus</h3>
-                                    <p>Enterprise-class UI components</p>
-                                </div>
-                                <div class="tech-item">
-                                    <div class="tech-icon">
-                                        <el-icon size="24">
-                                            <Connection />
-                                        </el-icon>
-                                    </div>
-                                    <h3>RESTful API</h3>
-                                    <p>Secure backend integration</p>
+                <el-card class="tech-card" shadow="never">
+                    <div class="tech-card-header">
+                        <h2>Technology Stack</h2>
+                        <p>Powering DataHarbor from storage layer to browser</p>
+                    </div>
+                    <div class="tech-groups">
+                        <div v-for="(items, layer) in techStack" :key="layer" class="tech-group">
+                            <h3 class="group-label">{{ layerLabels[layer] }}</h3>
+                            <div class="tech-col">
+                                <div v-for="item in items" :key="item.name" class="tech-item"
+                                    :style="{ '--accent-color': item.color }">
+                                    <div class="tech-item-name">{{ item.name }}</div>
+                                    <div class="tech-item-desc">{{ item.desc }}</div>
                                 </div>
                             </div>
-                        </el-card>
-                    </el-col>
-                </el-row>
+                        </div>
+                    </div>
+                </el-card>
             </div>
         </div>
     </div>
 </template>
 
 <script>
-import { Check, Platform, Monitor, Connection } from '@element-plus/icons-vue';
+import { Check } from '@element-plus/icons-vue';
 
 export default {
     name: 'AboutView',
-    components: {
-        Check,
-        Platform,
-        Monitor,
-        Connection
-    }
+    components: { Check },
+    data() {
+        return {
+            layerLabels: {
+                backend: 'Backend',
+                frontend: 'Frontend',
+                infrastructure: 'Infrastructure & Security',
+            },
+            techStack: {
+                backend: [
+                    { name: 'Go', desc: 'Language & runtime', color: '#00ADD8' },
+                    { name: 'Gin', desc: 'HTTP web framework', color: '#4DB7E5' },
+                    { name: 'XRootD', desc: 'High-performance data access', color: '#E85D04' },
+                ],
+                frontend: [
+                    { name: 'Vue.js', desc: 'Reactive UI framework', color: '#4FC08D' },
+                    { name: 'Vite', desc: 'Build tool & dev server', color: '#646CFF' },
+                    { name: 'Element Plus', desc: 'UI component library', color: '#409EFF' },
+                ],
+                infrastructure: [
+                    { name: 'Docker', desc: 'Containerization & orchestration', color: '#2496ED' },
+                    { name: 'Nginx', desc: 'Reverse proxy & TLS termination', color: '#009900' },
+                    { name: 'OIDC', desc: 'Federated identity & SSO', color: '#EB5424' },
+                ],
+            },
+        };
+    },
 };
 </script>
 <style lang="scss" scoped>
 .about {
-    min-height: 100vh;
+    min-height: 100%;
     background: #f8f9fa;
 }
 
 .page-header {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 4rem 0;
+    padding: 3rem 0;
     text-align: center;
 
     .container {
@@ -119,112 +150,181 @@ export default {
 .page-title {
     font-size: 3rem;
     font-weight: 700;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .page-subtitle {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 300;
-    opacity: 0.9;
+    opacity: 0.85;
 }
 
 .content-section {
-    padding: 4rem 0;
+    padding: 2.5rem 0 3rem;
 
     .container {
         max-width: 1200px;
         margin: 0 auto;
         padding: 0 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
     }
 }
 
-.info-card {
-    height: 100%;
+/* ── Mission + Features combined card ─────────────────────── */
+.mission-card {
     border-radius: 12px;
     border: none;
+}
 
+.mission-content {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0 2.5rem;
+    align-items: start;
+}
+
+.mission-section,
+.features-section {
     h2 {
         color: var(--el-text-color-primary);
-        font-size: 1.5rem;
+        font-size: 1.35rem;
         font-weight: 600;
-        margin-bottom: 1.5rem;
+        margin: 0 0 1rem 0;
     }
 
     p {
         color: var(--el-text-color-regular);
-        line-height: 1.6;
-        font-size: 1rem;
+        line-height: 1.7;
+        font-size: 0.975rem;
+        margin: 0;
     }
+}
+
+.divider {
+    width: 1px;
+    align-self: stretch;
+    background: var(--el-border-color-lighter);
 }
 
 .feature-list {
     list-style: none;
     padding: 0;
+    margin: 0;
 
     li {
         display: flex;
-        align-items: center;
-        margin-bottom: 0.75rem;
+        align-items: baseline;
+        gap: 0.6rem;
+        padding: 0.35rem 0;
         color: var(--el-text-color-regular);
+        font-size: 0.925rem;
+        line-height: 1.5;
 
         .el-icon {
+            flex-shrink: 0;
             color: var(--el-color-success);
-            margin-right: 0.75rem;
+            position: relative;
+            top: 1px;
+        }
+
+        strong {
+            color: var(--el-text-color-primary);
         }
     }
 }
 
-.tech-section {
-    margin-top: 3rem;
-}
-
+/* ── Technology Stack card ─────────────────────────────────── */
 .tech-card {
     border-radius: 12px;
     border: none;
-    transition: all 0.3s ease;
+}
+
+.tech-card-header {
+    text-align: center;
+    margin-bottom: 2rem;
 
     h2 {
         color: var(--el-text-color-primary);
-        font-size: 1.75rem;
+        font-size: 1.5rem;
         font-weight: 600;
-        margin-bottom: 2rem;
-        text-align: center;
-    }
-}
-
-.tech-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 2rem;
-}
-
-.tech-item {
-    text-align: center;
-    padding: 1.5rem;
-
-    .tech-icon {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: var(--el-color-primary-light-9);
-        margin: 0 auto 1rem;
-        color: var(--el-color-primary);
-    }
-
-    h3 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: var(--el-text-color-primary);
+        margin-bottom: 0.35rem;
     }
 
     p {
-        color: var(--el-text-color-regular);
-        font-size: 0.9rem;
+        color: var(--el-text-color-secondary);
+        font-size: 0.95rem;
+        margin: 0;
+    }
+}
+
+.tech-groups {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0 2rem;
+}
+
+.group-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--el-text-color-secondary);
+    margin: 0 0 0.875rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.tech-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.tech-item {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--el-border-color-light);
+    border-left: 3px solid var(--accent-color, var(--el-color-primary));
+    background: var(--el-bg-color);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+    &:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+        transform: translateX(2px);
+    }
+}
+
+.tech-item-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    margin-bottom: 0.2rem;
+}
+
+.tech-item-desc {
+    font-size: 0.775rem;
+    color: var(--el-text-color-secondary);
+    line-height: 1.4;
+}
+
+@media (max-width: 900px) {
+    .mission-content {
+        grid-template-columns: 1fr;
+        gap: 1.5rem 0;
+    }
+
+    .divider {
+        width: 100%;
+        height: 1px;
+        align-self: auto;
+    }
+
+    .tech-groups {
+        grid-template-columns: 1fr;
+        gap: 1.5rem 0;
     }
 }
 
@@ -239,11 +339,6 @@ export default {
 
     .content-section {
         padding: 2rem 0;
-    }
-
-    .tech-grid {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
     }
 }
 </style>

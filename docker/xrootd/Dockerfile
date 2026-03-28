@@ -48,6 +48,11 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     libcap \
     && dnf clean all
 
+# xrootd RPM now uses systemd-sysusers instead of RPM scriptlets to create
+# the xrootd user/group. Run it explicitly so the user exists in /etc/passwd
+# before the runtime stage copies these files from the builder.
+RUN systemd-sysusers
+
 # Grant capabilities for multiuser plugin to change filesystem UIDs/GIDs
 RUN setcap 'cap_setuid,cap_setgid=+ep' /usr/bin/xrootd
 

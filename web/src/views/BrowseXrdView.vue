@@ -5,11 +5,11 @@
             <div class="sticky-header-section">
                 <div class="toolbar-header">
                     <Toolbar :serviceStatusTooltip="serviceStatusTooltip" :serviceStatusColor="serviceStatusColor"
-                        :xrdHostName="xrdHostName" :currentDirectory="currentDirectory" :initialPath="initialPath"
-                        :folderCount="folderCount" :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
+                        :currentDirectory="currentDirectory" :initialPath="initialPath" :folderCount="folderCount"
+                        :fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize"
                         :totalFolderCount="totalFolderCount" :totalFileCount="totalFileCount"
-                        :totalFileSize="cumulativeFileSize" @changeDirToInitialPath="changeDirToInitialPath"
-                        @changeDir="changeDir" />
+                        :totalFileSize="cumulativeFileSize" :vfsStat="vfsStat"
+                        @changeDirToInitialPath="changeDirToInitialPath" @changeDir="changeDir" />
                 </div>
                 <div class="pagination-header">
                     <el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
@@ -37,7 +37,7 @@
 </template>
 
 <script lang="ts" setup>
-import { getHostName, getInitialDirPath, getItemsInDir, getStreamingDownloadUrl, getBackendHealth, getPagedItemsInDir } from '@/api/api';
+import { getInitialDirPath, getItemsInDir, getStreamingDownloadUrl, getBackendHealth, getPagedItemsInDir, getVirtualFSStat } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -64,8 +64,8 @@ const app_colors = appContext.config.globalProperties.$app_colors;
 const filters = appContext.config.globalProperties.$filters;
 
 const initialPath = ref("");
-const xrdHostName = ref("")
 const isBackendOnline = ref(false);
+const vfsStat = ref(null);
 
 const PAGE_SIZE = 500;
 
@@ -157,7 +157,7 @@ const cumulativeFileSize = ref("");
 let interval: number | undefined;
 /**
  * Watcher to check the backend service status.
- * 
+ *
  * @param {boolean} newValue - The new value of the backend service status.
  * @returns {void}
  */
@@ -182,7 +182,7 @@ watch(isBackendOnline, async (newValue) => {
 
 /**
  * Function to fetch the backend service status.
- * 
+ *
  * @returns {void}
  */
 const fetchBackendServiceStatus = (): void => {
@@ -246,7 +246,7 @@ onMounted(() => {
                 currentDirectory.value = targetPath;
             }
             initialPath.value = homeDir
-            getXrdHostName()
+            fetchVFSStat(homeDir)
 
             // Load the initial directory after setting the current directory
             // This ensures the file list is populated immediately after login
@@ -268,7 +268,7 @@ onMounted(() => {
 
 /**
  * Function to change the current directory to the initial path.
- * 
+ *
  * @returns {void}
  */
 const changeDirToInitialPath = async () => {
@@ -280,7 +280,7 @@ const changeDirToInitialPath = async () => {
 
 /**
  * Function to change the directory based on the breadcrumb.
- * 
+ *
  * @param {number} index - The index of the breadcrumb item.
  * @returns {void}
  */
@@ -304,7 +304,7 @@ const changeDir = async (index: number) => {
 
 /**
  * Function to select a directory or download a file.
- * 
+ *
  * @param {Object} row - The row object that contains the file or directory information.
  * @returns {void}
  */
@@ -465,20 +465,18 @@ const handleDownloadFile = async (row: { name: string; size?: number; downloadin
 }
 
 /**
- * Function to get the XRootD hostname.
- * 
- * @async
- * @function getXrdHostName
- * @returns {Promise<void>} - A promise that resolves when the XRootD hostname is fetched successfully.
+ * Function to get the virtual filesystem statistics.
+ *
+ * @param {string} path - The path to get stats for.
+ * @returns {void}
  */
-const getXrdHostName = () => {
-    getHostName()
-        .then(resp => { xrdHostName.value = resp.data.data })
+const fetchVFSStat = (path: string = '/') => {
+    getVirtualFSStat(path)
+        .then(resp => { vfsStat.value = resp.data.data })
         .catch((error) => {
             if (error) {
-                displayErrorMessage(new Error(`Error: ${error.message}<br>Please check the backend service status.`))
-                // Force check the backend health
-                fetchBackendServiceStatus()
+                console.warn('Failed to fetch VFS stats:', error.message);
+                vfsStat.value = null;
             }
         })
 }
@@ -512,7 +510,7 @@ onBeforeRouteUpdate((to, from, next) => {
 
 /**
  * Loads a directory and updates the current directory value.
- * 
+ *
  * @param {string} path - The path of the directory to load. If not provided, the initial path value will be used.
  * @returns {Promise<void>} - A promise that resolves when the directory is loaded successfully.
  */
@@ -538,7 +536,7 @@ const loadDirectory = async (path) => {
 
 /**
  * Function to navigate to a new path using the router.
- * 
+ *
  * @param {string | string[]} _path - The new path to navigate to.
  * @returns {void}
  */
@@ -557,7 +555,7 @@ const routerPushNewPath = (_path) => {
 /**
  * Function to list the directory and update the table data.
  * It modifies the tableData ref property and also CurrentDirectory ref property.
- * 
+ *
  * @async
  * @function listDir
  * @throws {Error} Error received from the backend while listing: {currentDirectory value}<br>{error message}
@@ -612,7 +610,7 @@ const listDir = async () => {
 
 /**
  * Function to handle page change event.
- * 
+ *
  * @param {number} page - The new page number.
  * @returns {void}
  */

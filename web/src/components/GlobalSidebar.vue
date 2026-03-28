@@ -68,11 +68,19 @@
                         </el-menu>
                     </div>
                 </div>
+
+                <!-- Version label at bottom -->
+                <div class="sidebar-footer" v-if="!isCollapsed">
+                    <span class="version-label">v{{ appVersion }}</span>
+                </div>
             </el-aside>
 
             <!-- Main Content Area -->
             <el-main class="main-content">
-                <slot />
+                <div class="main-content-inner">
+                    <slot />
+                </div>
+                <GlobalFooter />
             </el-main>
         </div>
     </div>
@@ -82,6 +90,8 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import TopBar from './TopBar.vue';
+import GlobalFooter from './GlobalFooter.vue';
+import { getAppVersion } from '@/utils/version';
 import {
     House,
     FolderOpened,
@@ -97,6 +107,7 @@ const route = useRoute();
 
 // Sidebar state
 const isCollapsed = ref(false);
+const appVersion = getAppVersion();
 
 // Active menu computation
 const activeMenu = computed(() => {
@@ -145,13 +156,18 @@ watch(isCollapsed, (newValue) => {
     transition: width 0.3s ease;
     position: relative;
     z-index: 999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .sidebar-content {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    flex: 1;
+    min-height: 0;
     padding: 0;
+    overflow: hidden;
 }
 
 .navigation-section {
@@ -199,11 +215,29 @@ watch(isCollapsed, (newValue) => {
     cursor: not-allowed;
 }
 
+.sidebar-footer {
+    padding: 8px 12px;
+    text-align: center;
+    border-top: 1px solid var(--el-border-color-lighter);
+    flex-shrink: 0;
+}
+
+.version-label {
+    font-size: 10px;
+    color: var(--el-text-color-placeholder);
+}
+
 .main-content {
     flex: 1;
     padding: 0;
     overflow: auto;
     background: var(--el-bg-color-page);
+    display: flex;
+    flex-direction: column;
+}
+
+.main-content-inner {
+    flex: 1 0 auto;
 }
 
 /* Responsive adjustments */

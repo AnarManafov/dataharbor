@@ -795,6 +795,46 @@ type xrdDirEntry struct {
 	isDir bool
 }
 
+// FetchVirtualFSStat returns virtual filesystem statistics for the current path
+func FetchVirtualFSStat(c *gin.Context) {
+	path := c.Query("path")
+	if path == "" {
+		path = "/"
+	}
+
+	simpleClient := common.GetXRDClient()
+
+	var authToken string
+	if token, exists := middleware.GetUserToken(c); exists {
+		authToken = token
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stat, err := simpleClient.VirtualStat(ctx, path, authToken)
+	if err != nil {
+		common.GetLogger().Error("Failed to get virtual filesystem stats", "error", err, "path", path)
+
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access filesystem statistics.")
+			return
+		}
+
+		response.Error(c, http.StatusInternalServerError, "Failed to retrieve filesystem statistics")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"nodesRW":            stat.NumberRW,
+		"freeSpaceMB":        stat.FreeRW,
+		"utilizationPercent": stat.UtilizationRW,
+		"nodesStaging":       stat.NumberStaging,
+		"freeSpaceStagingMB": stat.FreeStaging,
+		"utilizationStaging": stat.UtilizationStaging,
+	})
+}
+
 // validateFilePath prevents path traversal attacks and ensures safe file access
 // Strict validation is critical since paths are passed directly to XRootD
 func validateFilePath(filePath string) error {
