@@ -234,12 +234,12 @@ log_info "Validating user database for multiuser plugin..."
 # Ensure xrootd system user exists (must be present in the mounted /etc/passwd)
 if ! getent passwd xrootd >/dev/null 2>&1; then
     log_error "xrootd system user not found in /etc/passwd"
-    log_error "Add xrootd user on the host: useradd -r -u 998 -s /sbin/nologin xrootd"
+    log_error "Add xrootd user on the host: useradd -r -s /sbin/nologin xrootd"
     exit 1
 fi
 if ! getent group xrootd >/dev/null 2>&1; then
     log_error "xrootd group not found in /etc/group"
-    log_error "Add xrootd group on the host: groupadd -r -g 998 xrootd"
+    log_error "Add xrootd group on the host: groupadd -r xrootd"
     exit 1
 fi
 

@@ -302,9 +302,10 @@ jobs:
             # Check if xrootd user exists
             getent passwd xrootd
 
-            # If not, create it (UID 998 matches the XRootD RPM default)
-            sudo groupadd -r -g 998 xrootd
-            sudo useradd -r -u 998 -g 998 -s /sbin/nologin -d /var/spool/xrootd xrootd
+            # If not, install the xrootd RPM (creates the user automatically)
+            # or create it manually:
+            sudo groupadd -r xrootd
+            sudo useradd -r -g xrootd -s /sbin/nologin -d /var/spool/xrootd xrootd
             ```
 
             All users listed as `"result"` in the mapfile must also exist in the host's `/etc/passwd`.

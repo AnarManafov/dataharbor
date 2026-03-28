@@ -110,6 +110,16 @@ RUN ln -sf /usr/lib64/libXrdAccSciTokens-5.so /usr/lib64/libXrdAccSciTokens.so
 # The entrypoint ensures the xrootd system user exists at startup.
 # /etc/shadow is not needed — xrootd runs via runuser, not login.
 
+# Build-time UID/GID for the xrootd user.
+# These are ONLY used for initial file ownership in the image layers.
+# At runtime, the entrypoint re-chowns all directories using the xrootd
+# username (resolved via the bind-mounted host /etc/passwd), so the actual
+# host UID/GID always takes effect regardless of these build-time values.
+# Override at build time to match your host:
+#   docker build --build-arg XROOTD_UID=994 --build-arg XROOTD_GID=993 ...
+ARG XROOTD_UID=994
+ARG XROOTD_GID=993
+
 # Create required directories with proper permissions
 # Note: /data is expected to be a bind mount from host
 RUN mkdir -p \
@@ -119,7 +129,7 @@ RUN mkdir -p \
     /var/spool/xrootd \
     /var/run/xrootd/certs \
     /data \
-    && chown -R xrootd:xrootd \
+    && chown -R ${XROOTD_UID}:${XROOTD_GID} \
     /var/log/xrootd \
     /var/spool/xrootd \
     /var/run/xrootd \
@@ -140,7 +150,7 @@ COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
 RUN echo '[]' > /etc/xrootd/mapfile
 
 # Set proper permissions on configs
-RUN chown -R xrootd:xrootd /etc/xrootd && \
+RUN chown -R ${XROOTD_UID}:${XROOTD_GID} /etc/xrootd && \
     chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
 
 # Copy production entrypoint
