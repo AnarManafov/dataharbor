@@ -1,8 +1,9 @@
 # Release Notes
 
-## v1.0.8 (2026-03-28)
+## v1.0.9 (2026-03-28)
 
 Changelog:
 ### Added
-- add XRD ping endpoint and network stats tracking (backend,frontend) (8a5c998)
+- centralize session cookie options for security (auth) (80e3637)
+- enhance token and user info caching mechanisms (auth) (be78164)
 
