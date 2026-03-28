@@ -105,10 +105,10 @@ COPY --from=builder /usr/share/xrootd /usr/share/xrootd/
 # Create unversioned symlink for plugin loading
 RUN ln -sf /usr/lib64/libXrdAccSciTokens-5.so /usr/lib64/libXrdAccSciTokens.so
 
-# Copy xrootd user/group from builder (created by package install)
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
-COPY --from=builder /etc/shadow /etc/shadow
+# NOTE: /etc/passwd and /etc/group are NOT baked into the image.
+# In production, the host's user database is bind-mounted directly.
+# The entrypoint ensures the xrootd system user exists at startup.
+# /etc/shadow is not needed — xrootd runs via runuser, not login.
 
 # Create required directories with proper permissions
 # Note: /data is expected to be a bind mount from host

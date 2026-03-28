@@ -292,6 +292,23 @@ jobs:
             ## What's Changed
             ${{ steps.changelog.outputs.content }}
 
+            ## Important: Host Requirements for XRootD
+
+            The XRootD container now mounts the host's `/etc/passwd` and `/etc/group` directly
+            so the multiuser plugin can resolve mapped usernames to filesystem UIDs.
+
+            **Before deploying**, ensure the `xrootd` system user exists on the host:
+            ```bash
+            # Check if xrootd user exists
+            getent passwd xrootd
+
+            # If not, create it (UID 998 matches the XRootD RPM default)
+            sudo groupadd -r -g 998 xrootd
+            sudo useradd -r -u 998 -g 998 -s /sbin/nologin -d /var/spool/xrootd xrootd
+            ```
+
+            All users listed as `"result"` in the mapfile must also exist in the host's `/etc/passwd`.
+
             ## Docker Compose Deployment
 
             A deployment bundle is attached (`dataharbor-deploy-${{ needs.prepare-release.outputs.version }}.tar.gz`) containing:
