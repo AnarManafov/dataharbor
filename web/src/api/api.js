@@ -121,6 +121,15 @@ export function getVirtualFSStat(path = '/') {
 }
 
 /**
+ * Ping XRD server to measure round-trip latency
+ * Returns latencyMs, status, and server hostname
+ */
+export function pingXrd() {
+  return apiClient.get('/v1/xrd/ping')
+    .catch(handleApiError);
+}
+
+/**
  * Verify backend service availability
  * Used for status indicators and service monitoring
  */

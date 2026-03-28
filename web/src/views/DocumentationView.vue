@@ -65,6 +65,12 @@
                             <strong>Page stats</strong> — a second row shows the number of folders, files,
                             and total size for both the current page and the full directory.
                         </li>
+                        <li>
+                            <strong>Network performance</strong> — a third row displays live connection
+                            metrics: XRD server latency, average download speed (based on recent
+                            transfers), and the last directory query time. These update automatically
+                            every 30 seconds.
+                        </li>
                     </ul>
 
                     <h3>File Table</h3>
@@ -98,7 +104,9 @@
                     <ul class="feature-list">
                         <li>
                             <strong>Starting a download</strong> — click the download icon in the
-                            <em>Actions</em> column, then confirm in the dialog that appears.
+                            <em>Actions</em> column, then confirm in the dialog that appears. If previous
+                            downloads have been completed, the button tooltip shows an estimated download
+                            time and speed for that file.
                         </li>
                         <li>
                             <strong>Download Manager</strong> — open the drawer from the top bar to see

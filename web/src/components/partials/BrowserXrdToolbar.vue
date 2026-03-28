@@ -38,7 +38,7 @@
                         <span class='stat-label'>Used:</span>
                         <span class='stat-value' :class='utilizationClass(vfsStat.utilizationPercent)'>{{
                             vfsStat.utilizationPercent
-                            }}%</span>
+                        }}%</span>
                     </span>
                 </div>
                 <div style='font-size: 10px; color: var(--el-text-color-secondary); margin-top: 2px;'
@@ -49,29 +49,74 @@
         </el-row>
         <!-- Second Row -->
         <el-row class='full-size-row second-row'>
-            <el-col :span='24' class='toolbar-left-content column-layout'>
-                <div class="current-page-stats">
-                    Current page: <span style='font-weight: bold'>{{ folderCount + fileCount }}</span> (<span
-                        style='font-weight: bold; color: var(--el-color-primary)'>{{ folderCount }} folders</span>,
-                    <span style='font-weight: bold; color: var(--el-color-success)'>{{ fileCount }} files</span>),
-                    cumulative
-                    file size:
-                    <span style='font-weight: bold;'>{{ totalOnPageFileSize }}</span>
-                </div>
-                <div class="total-stats">
-                    Total: <span style='font-weight: bold'>{{ totalFileCount + totalFolderCount }}</span> (<span
-                        style='font-weight: bold; color: var(--el-color-primary)'>{{ totalFolderCount }} folders</span>,
-                    <span style='font-weight: bold; color: var(--el-color-success)'>{{ totalFileCount }} files</span>),
-                    cumulative file
-                    size: <span style='font-weight: bold;'>{{ totalFileSize }}</span>
-                </div>
+            <el-col :span='24' class='page-stats-bar'>
+                <span class='net-stat-item'>
+                    <span class='net-stat-label'>Showing:</span>
+                    <span class='net-stat-value' style='color: var(--el-color-primary)'>{{ folderCount
+                        }}&nbsp;folders</span>
+                    <span class='net-stat-dot'>&middot;</span>
+                    <span class='net-stat-value' style='color: var(--el-color-success)'>{{ fileCount
+                        }}&nbsp;files</span>
+                    <span class='net-stat-dot'>&middot;</span>
+                    <span class='net-stat-value'>{{ totalOnPageFileSize }}</span>
+                </span>
+                <span class='net-stat-separator'>|</span>
+                <span class='net-stat-item'>
+                    <span class='net-stat-label'>Total:</span>
+                    <span class='net-stat-value' style='color: var(--el-color-primary)'>{{ totalFolderCount
+                        }}&nbsp;folders</span>
+                    <span class='net-stat-dot'>&middot;</span>
+                    <span class='net-stat-value' style='color: var(--el-color-success)'>{{ totalFileCount
+                        }}&nbsp;files</span>
+                    <span class='net-stat-dot'>&middot;</span>
+                    <span class='net-stat-value'>{{ totalFileSize }}</span>
+                </span>
+            </el-col>
+        </el-row>
+        <!-- Third Row: Network Performance Stats -->
+        <el-row class='full-size-row third-row' v-if='hasNetworkData'>
+            <el-col :span='24' class='network-stats-bar'>
+                <el-tooltip effect='dark' placement='bottom' :content='latencyTooltip'>
+                    <span class='net-stat-item'>
+                        <span class='net-stat-icon' :style='{ color: latencyColor }'>&#9679;</span>
+                        <span class='net-stat-label'>Latency:</span>
+                        <span class='net-stat-value'>{{ latencyDisplay }}</span>
+                    </span>
+                </el-tooltip>
+                <span class='net-stat-separator'>|</span>
+                <el-tooltip effect='dark' placement='bottom' content='Average download speed based on recent transfers'>
+                    <span class='net-stat-item'>
+                        <span class='net-stat-label'>Avg Speed:</span>
+                        <span class='net-stat-value'>{{ avgSpeedDisplay }}</span>
+                    </span>
+                </el-tooltip>
+                <span class='net-stat-separator'>|</span>
+                <el-tooltip effect='dark' placement='bottom'
+                    content='Time the XRD server took to respond to the last directory listing'>
+                    <span class='net-stat-item'>
+                        <span class='net-stat-label'>Query:</span>
+                        <span class='net-stat-value'>{{ queryTimeDisplay }}</span>
+                    </span>
+                </el-tooltip>
+                <span class='net-stat-separator' v-if='downloadCount > 0'>|</span>
+                <el-tooltip effect='dark' placement='bottom'
+                    content='Number of completed downloads used for speed estimation' v-if='downloadCount > 0'>
+                    <span class='net-stat-item'>
+                        <span class='net-stat-label'>Samples:</span>
+                        <span class='net-stat-value'>{{ downloadCount }}</span>
+                    </span>
+                </el-tooltip>
             </el-col>
         </el-row>
     </div>
 </template>
 
 <script lang="ts" setup>
+import { computed } from 'vue';
 import { HomeFilled } from '@element-plus/icons-vue';
+import { useNetworkStats } from '@/composables/useNetworkStats';
+
+const { latencyMs, connectMs, latencyQuality, avgSpeedFormatted, queryTimeMs, downloadSpeeds } = useNetworkStats();
 
 const props = defineProps({
     serviceStatusTooltip: String,
@@ -111,6 +156,31 @@ const utilizationClass = (percent: number): string => {
     if (percent >= 70) return 'utilization-warning';
     return 'utilization-ok';
 };
+
+// Network stats computed properties
+const hasNetworkData = computed(() => latencyMs.value !== null || queryTimeMs.value !== null || downloadSpeeds.value.length > 0);
+
+const latencyDisplay = computed(() => {
+    if (latencyMs.value === null) return 'Measuring...';
+    return `${latencyMs.value} ms`;
+});
+
+const latencyColor = computed(() => latencyQuality.value.color);
+
+const latencyTooltip = computed(() => {
+    if (latencyMs.value === null) return 'Measuring XRD server latency...';
+    const conn = connectMs.value !== null ? ` | Connect: ${connectMs.value} ms` : '';
+    return `XRD server round-trip: ${latencyMs.value} ms (${latencyQuality.value.label})${conn}`;
+});
+
+const avgSpeedDisplay = computed(() => avgSpeedFormatted.value || 'No data');
+
+const queryTimeDisplay = computed(() => {
+    if (queryTimeMs.value === null) return 'N/A';
+    return `${queryTimeMs.value} ms`;
+});
+
+const downloadCount = computed(() => downloadSpeeds.value.length);
 </script>
 
 <style scoped>
@@ -155,17 +225,21 @@ const utilizationClass = (percent: number): string => {
 }
 
 .second-row {
-    font-size: 12px;
-    /* Adjust this value to move the second row up or down */
     margin-top: 10px;
 }
 
-.second-row .toolbar-left-content>div {
-    font-size: 12px;
-    /* Adjust this value to control the spacing between folder and file counts */
-    margin-bottom: 5px;
-    /* Add space between folder and file counters */
-    margin-right: 10px;
+.page-stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--el-text-color-secondary);
+}
+
+.net-stat-dot {
+    color: var(--el-border-color);
+    margin: 0 1px;
 }
 
 .column-layout {
@@ -211,5 +285,49 @@ const utilizationClass = (percent: number): string => {
 
 .utilization-critical {
     color: var(--el-color-danger);
+}
+
+/* Network stats row styling */
+.third-row {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--el-border-color-lighter);
+}
+
+.network-stats-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    color: var(--el-text-color-secondary);
+}
+
+.net-stat-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    cursor: default;
+    white-space: nowrap;
+}
+
+.net-stat-icon {
+    font-size: 8px;
+    margin-right: 2px;
+}
+
+.net-stat-label {
+    color: var(--el-text-color-secondary);
+    margin-right: 1px;
+}
+
+.net-stat-value {
+    font-weight: bold;
+    color: var(--el-text-color-primary);
+    font-family: var(--dh-font-family-mono, monospace);
+}
+
+.net-stat-separator {
+    color: var(--el-border-color);
 }
 </style>

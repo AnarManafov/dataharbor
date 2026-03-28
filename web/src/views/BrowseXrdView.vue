@@ -37,7 +37,7 @@
 </template>
 
 <script lang="ts" setup>
-import { getInitialDirPath, getItemsInDir, getStreamingDownloadUrl, getBackendHealth, getPagedItemsInDir, getVirtualFSStat } from '@/api/api';
+import { getInitialDirPath, getItemsInDir, getStreamingDownloadUrl, getBackendHealth, getPagedItemsInDir, getVirtualFSStat, pingXrd } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -48,6 +48,7 @@ import { displayErrorMessage, joinPaths } from '@/utils/utils';
 import Toolbar from '../components/partials/BrowserXrdToolbar.vue';
 import FileTable from '../components/partials/BrowserXrdFileTable.vue';
 import { DownloadService } from '@/services/downloadService';
+import { useNetworkStats } from '@/composables/useNetworkStats';
 
 // Define props
 const props = defineProps({
@@ -66,6 +67,8 @@ const filters = appContext.config.globalProperties.$filters;
 const initialPath = ref("");
 const isBackendOnline = ref(false);
 const vfsStat = ref(null);
+
+const { recordDownloadSpeed, updateLatency, updateQueryTime, _isPinging } = useNetworkStats();
 
 const PAGE_SIZE = 500;
 
@@ -196,6 +199,27 @@ const fetchBackendServiceStatus = (): void => {
 };
 
 /**
+ * Ping the XRD server to measure latency.
+ * Runs periodically alongside health checks.
+ */
+const fetchXrdLatency = (): void => {
+    if (_isPinging.value) return;
+    _isPinging.value = true;
+    pingXrd()
+        .then(resp => {
+            if (resp.data?.data?.latencyMs != null) {
+                updateLatency(resp.data.data.latencyMs, resp.data.data.connectMs);
+            }
+        })
+        .catch(() => {
+            // Silently fail — latency will show as N/A
+        })
+        .finally(() => {
+            _isPinging.value = false;
+        });
+};
+
+/**
  * This function is called when the component is mounted.
  * It performs the following tasks:
  * 1. Sends a health check to the backend service every 30 seconds.
@@ -261,9 +285,13 @@ onMounted(() => {
         })
 
     // Send a health check every 30 seconds
-    interval = window.setInterval(fetchBackendServiceStatus, 30000);
+    interval = window.setInterval(() => {
+        fetchBackendServiceStatus();
+        fetchXrdLatency();
+    }, 30000);
     // Make the first call immediately
     fetchBackendServiceStatus()
+    fetchXrdLatency()
 })
 
 /**
@@ -358,6 +386,7 @@ const selectDir = async (row: { type: string; name: string; }) => {
                     totalFileCount.value = resp.data.totalFileCount;
                     totalFolderCount.value = resp.data.totalFolderCount;
                     cumulativeFileSize.value = filters.prettyBytes(resp.data.cumulativeFileSize);
+                    if (resp.data.queryTimeMs != null) updateQueryTime(resp.data.queryTimeMs);
                 } else {
                     tableData.value = [];
                 }
@@ -430,9 +459,11 @@ const handleDownloadFile = async (row: { name: string; size?: number; downloadin
         if (result.success) {
             let message = `Download completed: ${row.name}`;
             if (result.speed) {
-                const { mbps, duration } = result.speed;
+                const { mbps, duration, bytesPerSec } = result.speed;
                 const sizeMB = ((row.size || 0) / (1024 * 1024)).toFixed(1);
                 message += ` (${sizeMB} MB in ${duration}s at ${mbps} MB/s)`;
+                // Record speed for estimation
+                recordDownloadSpeed(bytesPerSec);
             }
 
             ElMessage({
@@ -581,6 +612,7 @@ const listDir = async () => {
             totalFileCount.value = resp.data.totalFileCount; // Update totalFileCount
             totalFolderCount.value = resp.data.totalFolderCount; // Update totalFolderCount
             cumulativeFileSize.value = filters.prettyBytes(resp.data.cumulativeFileSize); // Update cumulativeFileSize
+            if (resp.data.queryTimeMs != null) updateQueryTime(resp.data.queryTimeMs);
             console.log("pageSize: %d, totalPages: %d, totalItems: %d, totalFileCount: %d, totalFolderCount: %d, cumulativeFileSize: %d", pageSize.value, totalPages.value, totalItems.value, totalFileCount.value, totalFolderCount.value, cumulativeFileSize.value);
         } else {
             // Handle empty directory gracefully - this is normal and not an error

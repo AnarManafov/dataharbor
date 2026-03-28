@@ -12,44 +12,44 @@ This document provides comprehensive documentation for DataHarbor's REST API end
 flowchart TD
     Client[HTTP Client] --> Router[Gin Router]
     Router --> Middleware[Middleware Stack]
-    
+
     Middleware --> Recovery[Recovery Middleware]
     Recovery --> Logger[Logger Middleware]
     Logger --> CORS[CORS Middleware]
     CORS --> AuthCheck{Requires Auth?}
-    
+
     AuthCheck -->|No| PublicEndpoint[Public Endpoint]
     AuthCheck -->|Yes| AuthMiddleware[Auth Middleware]
-    
+
     AuthMiddleware --> ValidateSession{Valid Session?}
     ValidateSession -->|Yes| AuthorizedEndpoint[Authorized Endpoint]
     ValidateSession -->|No| Return401[Return 401 Unauthorized]
-    
+
     PublicEndpoint --> ProcessRequest[Process Request]
     AuthorizedEndpoint --> ProcessRequest
-    
+
     ProcessRequest --> XRDOperation{XROOTD Operation?}
     XRDOperation -->|Yes| XRDClient[XROOTD Client]
     XRDOperation -->|No| LocalOperation[Local Operation]
-    
+
     XRDClient --> XRDResult{Success?}
     XRDResult -->|Yes| FormatResponse[Format Response]
     XRDResult -->|No| ErrorHandling[Error Handling]
-    
+
     LocalOperation --> FormatResponse
     ErrorHandling --> ErrorResponse[Error Response]
     FormatResponse --> JSONResponse[JSON Response]
     ErrorResponse --> JSONResponse
-    
+
     JSONResponse --> Client
     Return401 --> Client
-    
+
     classDef client fill:#e3f2fd
     classDef middleware fill:#fff3e0
     classDef auth fill:#f1f8e9
     classDef processing fill:#fce4ec
     classDef response fill:#f3e5f5
-    
+
     class Client client
     class Router,Middleware,Recovery,Logger,CORS middleware
     class AuthCheck,AuthMiddleware,ValidateSession,Return401 auth
@@ -64,7 +64,7 @@ sequenceDiagram
     participant Client as HTTP Client
     participant API as DataHarbor API
     participant OIDC as OIDC Provider
-    
+
     Note over Client,OIDC: Login Flow
     Client->>API: GET /api/v1/auth/login
     API->>API: Generate state parameter
@@ -77,12 +77,12 @@ sequenceDiagram
     OIDC->>API: Return access_token, id_token, refresh_token
     API->>API: Store tokens in HTTP-only session cookies
     API->>Client: 302 Redirect to original destination
-    
+
     Note over Client,API: Protected Resource Access
     Client->>API: GET /api/v1/protected-endpoint
     API->>API: Validate session & access token
     API->>Client: Protected resource data
-    
+
     Note over Client,OIDC: Token Refresh (Automatic)
     Client->>API: GET /api/v1/protected-endpoint
     API->>API: Token expired, attempt refresh
@@ -90,7 +90,7 @@ sequenceDiagram
     OIDC->>API: New access_token
     API->>API: Update session with new token
     API->>Client: Protected resource data
-    
+
     Note over Client,API: Logout Flow
     Client->>API: POST /api/v1/auth/logout
     API->>API: Clear session & cookies
@@ -104,29 +104,29 @@ sequenceDiagram
     participant Frontend as Vue Frontend
     participant API as DataHarbor API
     participant XRD as XROOTD Server
-    
+
     Note over Frontend,XRD: Directory Listing
     Frontend->>API: POST /api/v1/dir<br/>{path: "/data", pageSize: 50}
     API->>API: Validate auth & request
     API->>XRD: xrdfs dirlist /data
     XRD-->>API: Directory entries
     API->>API: Parse & paginate results
-    API-->>Frontend: {items: [...], totalItems: 150, totalPages: 3}
-    
+    API-->>Frontend: {items: [...], totalItems: 150, totalPages: 3, queryTimeMs: 45}
+
     Note over Frontend,XRD: File Download (Streaming)
     Frontend->>API: GET /api/v1/download?path=/data/large-file.dat
     API->>API: Acquire download slot (rate limiting)
     API->>XRD: Open file stream (xrdfs cat)
     XRD-->>API: Begin file stream
     API->>Frontend: HTTP headers + stream chunks
-    
+
     loop Stream 512KB chunks
         XRD->>API: File data chunk
         API->>Frontend: Forward chunk immediately
     end
-    
+
     API->>API: Log completion & release slot
-    
+
     Note over Frontend,API: File Information
     Frontend->>API: GET /api/v1/file-info?path=/data/file.txt
     API->>API: Validate auth & path
@@ -300,7 +300,8 @@ Retrieves files and folders from a directory, returning the first page if pagina
     "totalPages": 3,
     "totalFileCount": 120,
     "totalFolderCount": 30,
-    "cumulativeFileSize": 1048576
+    "cumulativeFileSize": 1048576,
+    "queryTimeMs": 45
   }
 }
 ```
@@ -392,6 +393,42 @@ curl -X GET "http://localhost:8081/api/v1/download?path=/tmp/example.txt" --outp
 - One concurrent download per user session to prevent resource exhaustion
 - Supports large binary files with chunked transfer encoding
 - Proper MIME type detection and Content-Disposition headers for browser downloads
+- Server-measured speed metrics returned via response headers:
+  - `X-Download-Duration-Ms`: Total download duration in milliseconds
+  - `X-Download-Speed-Mbps`: Download speed in MB/s
+  - `X-Download-Bytes-Total`: Total bytes transferred
+
+### Ping XRD Server
+
+Measures the round-trip latency to the XRootD storage server by performing a lightweight stat operation.
+
+**Endpoint**: `GET /api/v1/xrd/ping`
+
+**Response**:
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "latencyMs": 12.5,
+    "status": "ok",
+    "server": "xrootd-server.example.com"
+  }
+}
+```
+
+**Notes**:
+
+- Returns `503 Service Unavailable` if the XRD server is unreachable
+- Latency is measured in milliseconds with sub-millisecond precision
+- The frontend calls this endpoint periodically to display connection quality in the toolbar
+
+**Example**:
+
+```shell
+curl "http://localhost:8081/api/v1/xrd/ping"
+```
 
 ## Server Information Endpoints
 
@@ -553,7 +590,8 @@ All error responses follow this structure:
   "currentPage": 1,
   "totalFileCount": 120,
   "totalFolderCount": 30,
-  "cumulativeFileSize": 1048576
+  "cumulativeFileSize": 1048576,
+  "queryTimeMs": 45
 }
 ```
 
@@ -570,6 +608,10 @@ All error responses follow this structure:
 - `totalFolderCount`: Number of subdirectories
 - `cumulativeFileSize`: Total size of all files in bytes
 
+**Performance Fields**:
+
+- `queryTimeMs`: Time in milliseconds the XRD server took to respond to the directory listing request
+
 ## Authentication Flow
 
 ### OIDC Authentication Sequence
@@ -579,7 +621,7 @@ sequenceDiagram
     participant C as Client
     participant B as Backend
     participant O as OIDC Provider
-    
+
     C->>B: GET /api/v1/protected-resource
     B->>C: 401 Unauthorized
     C->>B: GET /api/v1/auth/login
@@ -671,7 +713,7 @@ const downloadFileStreaming = async (filePath) => {
   try {
     // Construct download URL with file path as query parameter
     const downloadUrl = `/api/v1/download?path=${encodeURIComponent(filePath)}`
-    
+
     // Create download link and trigger download
     const link = document.createElement('a')
     link.href = downloadUrl
@@ -697,7 +739,7 @@ func (c *APIClient) ListDirectory(path string, pageSize int) (*DirectoryResponse
         "path":     path,
         "pageSize": pageSize,
     }
-    
+
     jsonBody, _ := json.Marshal(reqBody)
     resp, err := c.httpClient.Post(
         c.baseURL+"/api/v1/dir",
@@ -708,16 +750,16 @@ func (c *APIClient) ListDirectory(path string, pageSize int) (*DirectoryResponse
         return nil, err
     }
     defer resp.Body.Close()
-    
+
     var response struct {
         Code int                `json:"code"`
         Data *DirectoryResponse `json:"data"`
     }
-    
+
     if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
         return nil, err
     }
-    
+
     return response.Data, nil
 }
 ```
