@@ -1,8 +1,8 @@
 # Release Notes
 
-## v1.0.12 (2026-03-28)
+## v1.0.13 (2026-03-28)
 
 Changelog:
-### Maintenance
-- disable RPM packaging in workflows and update docs (1531c2b)
+### Fixed
+- update XRootD version and TLS configuration (docker) (fe4fd9d)
 
