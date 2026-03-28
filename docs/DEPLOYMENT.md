@@ -132,7 +132,7 @@ VERSION=pr-41 docker compose -f docker-compose.deploy.yml up -d
 
 Before deploying, ensure the following are set up on the **host machine**:
 
-1. **`xrootd` system user and group** — The XRootD container mounts the host's `/etc/passwd` and `/etc/group` directly (so the multiuser plugin can resolve mapped usernames to UIDs). The `xrootd` system user must exist on the host:
+1. **`xrootd` system user and group** — The `xrootd` system user must exist on the host:
 
    ```bash
    # Check if xrootd user exists
@@ -144,9 +144,23 @@ Before deploying, ensure the following are set up on the **host machine**:
    sudo useradd -r -g xrootd -s /sbin/nologin -d /var/spool/xrootd xrootd
    ```
 
-2. **Mapped users must exist on the host** — Every username listed as `"result"` in the mapfile must be a valid user in the host's `/etc/passwd` with the correct UID matching the data filesystem (Lustre/GPFS/NFS).
+2. **Mapped users must be resolvable on the host** — Every username listed as `"result"` in the mapfile must be resolvable via `getent passwd <username>` on the host, with the correct UID matching the data filesystem (Lustre/GPFS/NFS). On HPC/enterprise hosts, these users typically come from LDAP/AD via SSSD.
 
-3. **Docker and Docker Compose** installed.
+3. **SSSD must be running** — The XRootD multiuser plugin calls `getpwnam()` to resolve mapped usernames to UIDs. On hosts where users come from LDAP/AD (i.e., most HPC environments), the container needs access to the host's SSSD daemon. The container mounts the SSSD socket and `nsswitch.conf` from the host:
+
+   ```bash
+   # Verify SSSD is running
+   systemctl status sssd
+
+   # Verify the SSSD NSS socket exists
+   ls -la /var/lib/sss/pipes/nss
+
+   # Verify nsswitch.conf includes 'sss'
+   grep passwd /etc/nsswitch.conf
+   # Expected: passwd: sss files  (or similar with 'sss')
+   ```
+
+4. **Docker and Docker Compose** installed.
 
 ### Required Configuration
 
@@ -163,10 +177,13 @@ XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 # User mapping file
 XRD_MAPFILE_PATH=/opt/xrootd/mapfile
 
-# Host user database (for XRootD multiuser plugin)
+# Host user database and SSSD (for XRootD multiuser plugin)
 # The xrootd user must exist on the host (see Host Prerequisites above)
+# SSSD socket is required for resolving LDAP/AD users inside the container
 HOST_PASSWD_PATH=/etc/passwd
 HOST_GROUP_PATH=/etc/group
+HOST_NSSWITCH_PATH=/etc/nsswitch.conf
+HOST_SSSD_PIPES=/var/lib/sss/pipes
 
 # Nginx SSL certificates
 SSL_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem

@@ -294,21 +294,29 @@ jobs:
 
             ## Important: Host Requirements for XRootD
 
-            The XRootD container now mounts the host's `/etc/passwd` and `/etc/group` directly
-            so the multiuser plugin can resolve mapped usernames to filesystem UIDs.
+            The XRootD container requires access to the host's user database so the
+            multiuser plugin can resolve mapped usernames to filesystem UIDs. On HPC/enterprise
+            hosts where users come from LDAP/AD via SSSD, mounting `/etc/passwd` alone is
+            **not enough** — the SSSD socket must also be mounted.
 
-            **Before deploying**, ensure the `xrootd` system user exists on the host:
+            **Before deploying**, verify:
             ```bash
-            # Check if xrootd user exists
+            # 1. xrootd system user must exist on the host
             getent passwd xrootd
 
-            # If not, install the xrootd RPM (creates the user automatically)
-            # or create it manually:
+            # If not, create it:
             sudo groupadd -r xrootd
             sudo useradd -r -g xrootd -s /sbin/nologin -d /var/spool/xrootd xrootd
+
+            # 2. SSSD must be running (for LDAP/AD user resolution)
+            systemctl status sssd
+            ls -la /var/lib/sss/pipes/nss
+
+            # 3. nsswitch.conf must include 'sss'
+            grep passwd /etc/nsswitch.conf
             ```
 
-            All users listed as `"result"` in the mapfile must also exist in the host's `/etc/passwd`.
+            All users listed as `"result"` in the mapfile must be resolvable via `getent passwd` on the host.
 
             ## Docker Compose Deployment
 

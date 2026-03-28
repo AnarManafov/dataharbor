@@ -190,11 +190,17 @@ services:
       # HOST USER DATABASE - Required for multiuser plugin
       # ==========================================
       # The multiuser plugin calls getpwnam() to resolve mapped usernames to UIDs.
-      # Users in the mapfile must exist in /etc/passwd inside the container.
+      # On most HPC/enterprise hosts, users come from LDAP/AD via SSSD — not
+      # from /etc/passwd. We mount:
+      #   1. /etc/passwd, /etc/group   — local system users (e.g. xrootd)
+      #   2. /etc/nsswitch.conf        — tells NSS to use sss for user lookups
+      #   3. /var/lib/sss/pipes        — SSSD Unix socket for NSS queries
+      # The sssd-client package in the image provides libnss_sss.so.
       # Direct mount reflects host user changes without container restart.
-      # The entrypoint ensures the xrootd system user exists after mount.
       - ${HOST_PASSWD_PATH:-/etc/passwd}:/etc/passwd:ro
       - ${HOST_GROUP_PATH:-/etc/group}:/etc/group:ro
+      - ${HOST_NSSWITCH_PATH:-/etc/nsswitch.conf}:/etc/nsswitch.conf:ro
+      - ${HOST_SSSD_PIPES:-/var/lib/sss/pipes}:/var/lib/sss/pipes:ro
 
       # ==========================================
       # USER MAPFILE - Token-to-Unix-user mapping

@@ -83,12 +83,15 @@ LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Production)" \
 
 # Install minimal runtime dependencies
 # Using microdnf for smaller footprint in -minimal image
+# sssd-client provides libnss_sss.so — required for resolving LDAP/SSSD users
+# via the host's SSSD daemon (socket bind-mounted at runtime)
 RUN microdnf install -y \
     openssl \
     ca-certificates \
     shadow-utils \
     procps-ng \
     gettext \
+    sssd-client \
     && microdnf clean all
 
 # Copy XRootD binaries and libraries from builder

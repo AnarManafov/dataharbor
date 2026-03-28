@@ -176,10 +176,12 @@ services:
 
       # HOST USER DATABASE - Required for multiuser plugin
       # Multiuser plugin calls getpwnam() to resolve mapped usernames to UIDs.
+      # LDAP/AD users are resolved via host SSSD daemon (socket mount).
       # Direct mount reflects host user changes without container restart.
-      # Entrypoint ensures xrootd system user exists after mount.
       - ${HOST_PASSWD_PATH:-/etc/passwd}:/etc/passwd:ro
       - ${HOST_GROUP_PATH:-/etc/group}:/etc/group:ro
+      - ${HOST_NSSWITCH_PATH:-/etc/nsswitch.conf}:/etc/nsswitch.conf:ro
+      - ${HOST_SSSD_PIPES:-/var/lib/sss/pipes}:/var/lib/sss/pipes:ro
 
       # USER MAPFILE
       # Long-form bind ensures Docker fails (instead of creating a directory)
