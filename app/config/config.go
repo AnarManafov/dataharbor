@@ -18,6 +18,7 @@ var ConfigFile string
 var (
 	config     *Config
 	configOnce sync.Once
+	configMu   sync.RWMutex
 )
 
 // Config represents the application configuration
@@ -130,6 +131,8 @@ type OIDCConfig struct {
 	AllowedRoles          []string `mapstructure:"allowed_roles" yaml:"allowed_roles"`
 	SessionSecret         string   `mapstructure:"session_secret" yaml:"session_secret"`
 	TokenRefreshBufferSec int64    `mapstructure:"token_refresh_buffer_sec" yaml:"token_refresh_buffer_sec"`
+	DiscoveryDocCacheTTL  int      `mapstructure:"discovery_doc_cache_ttl" yaml:"discovery_doc_cache_ttl"` // seconds, default 3600 (1 hour)
+	UserInfoCacheTTL      int      `mapstructure:"userinfo_cache_ttl" yaml:"userinfo_cache_ttl"`           // seconds, default 60
 }
 
 // ValidateConfig validates critical configuration fields
@@ -206,7 +209,7 @@ func LoadConfig(configFile string) (*Config, error) {
 	// Create config directory if it doesn't exist
 	configDir := filepath.Dir(configFile)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(configDir, 0755); err != nil {
+		if err := os.MkdirAll(configDir, 0o755); err != nil {
 			return nil, fmt.Errorf("failed to create config directory: %w", err)
 		}
 	}
@@ -250,6 +253,8 @@ func LoadConfig(configFile string) (*Config, error) {
 // GetConfig returns the current configuration
 func GetConfig() *Config {
 	configOnce.Do(func() {
+		configMu.Lock()
+		defer configMu.Unlock()
 		if config == nil {
 			config = &Config{
 				Env: "development",
@@ -291,7 +296,9 @@ func GetConfig() *Config {
 						"/health",
 					},
 					OIDC: OIDCConfig{
-						TokenRefreshBufferSec: 60, // Default: refresh tokens 1 minute before expiration
+						TokenRefreshBufferSec: 60,   // Default: refresh tokens 1 minute before expiration
+						DiscoveryDocCacheTTL:  3600, // Default: cache discovery document for 1 hour
+						UserInfoCacheTTL:      60,   // Default: cache user info for 60 seconds
 					},
 				},
 				Frontend: FrontendConfig{
@@ -302,11 +309,15 @@ func GetConfig() *Config {
 			}
 		}
 	})
+	configMu.RLock()
+	defer configMu.RUnlock()
 	return config
 }
 
 // SetConfig sets the current configuration
 func SetConfig(cfg *Config) {
+	configMu.Lock()
+	defer configMu.Unlock()
 	config = cfg
 }
 
@@ -361,6 +372,8 @@ func setDefaults(v *viper.Viper) {
 	// Auth defaults
 	v.SetDefault("auth.enabled", false)
 	v.SetDefault("auth.skip_auth_paths", []string{"/health"})
+	v.SetDefault("auth.oidc.discovery_doc_cache_ttl", 3600) // 1 hour
+	v.SetDefault("auth.oidc.userinfo_cache_ttl", 60)        // 60 seconds
 
 	// Frontend defaults
 	v.SetDefault("frontend.url", "http://localhost:5173")
@@ -448,7 +461,7 @@ func createDefaultConfig(configFile string) error {
 		return fmt.Errorf("failed to marshal default config: %w", err)
 	}
 
-	err = os.WriteFile(configFile, data, 0644)
+	err = os.WriteFile(configFile, data, 0o644)
 	if err != nil {
 		return fmt.Errorf("failed to write default config file: %w", err)
 	}

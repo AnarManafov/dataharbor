@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -52,7 +53,10 @@ type TokenInfo struct {
 	ExpiresAt    int64
 }
 
-var tokenStore = make(map[string]TokenInfo)
+var (
+	tokenStore   = make(map[string]TokenInfo)
+	tokenStoreMu sync.RWMutex
+)
 
 func generateTokenID() string {
 	return uuid.New().String()
@@ -60,21 +64,27 @@ func generateTokenID() string {
 
 func storeTokens(accessToken, refreshToken, idToken string, expiresAt int64) string {
 	tokenID := generateTokenID()
+	tokenStoreMu.Lock()
 	tokenStore[tokenID] = TokenInfo{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		IDToken:      idToken,
 		ExpiresAt:    expiresAt,
 	}
+	tokenStoreMu.Unlock()
 	return tokenID
 }
 
 func getTokens(tokenID string) (TokenInfo, bool) {
+	tokenStoreMu.RLock()
 	tokens, ok := tokenStore[tokenID]
+	tokenStoreMu.RUnlock()
 	return tokens, ok
 }
 
 func updateTokens(tokenID string, accessToken, refreshToken, idToken string, expiresAt int64) bool {
+	tokenStoreMu.Lock()
+	defer tokenStoreMu.Unlock()
 	if _, exists := tokenStore[tokenID]; !exists {
 		return false
 	}
@@ -89,7 +99,9 @@ func updateTokens(tokenID string, accessToken, refreshToken, idToken string, exp
 }
 
 func deleteTokens(tokenID string) {
+	tokenStoreMu.Lock()
 	delete(tokenStore, tokenID)
+	tokenStoreMu.Unlock()
 }
 
 // sessionCookieOptions returns the session cookie options for the current environment.
@@ -151,6 +163,14 @@ func InitAuth() {
 	if cfg.Env == "development" && !opts.Secure {
 		logger.Info("Running in development mode without SSL: using relaxed cookie settings")
 	}
+
+	// Start background cleanup of expired userinfo cache entries.
+	// Sweep interval = 2× the cache TTL so entries don't linger much past expiration.
+	userInfoTTL := cfg.Auth.OIDC.UserInfoCacheTTL
+	if userInfoTTL <= 0 {
+		userInfoTTL = 60
+	}
+	startUserInfoCacheCleanup(time.Duration(userInfoTTL*2) * time.Second)
 }
 
 // TokenResponse represents the token response from the OIDC provider
@@ -562,6 +582,10 @@ func Logout(c *gin.Context) {
 					logger.Warnf("Failed to fetch OIDC discovery document for logout: %v", err)
 				}
 			}
+			// Invalidate cached userinfo for this token before deleting
+			if tokens.AccessToken != "" {
+				invalidateUserInfoCache(tokens.AccessToken, cfg.Auth.OIDC.Issuer)
+			}
 			// Delete tokens from the store for security
 			deleteTokens(tokenID)
 			logger.Info("Removed tokens from store during logout")
@@ -816,9 +840,31 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 
 // Helper functions
 
-// fetchOIDCDiscoveryDocument retrieves IdP configuration to avoid hardcoding endpoints
+// discoveryDocCache caches the OIDC discovery document to avoid repeated HTTP calls.
+// The document rarely changes (endpoints are stable), so a long TTL is safe.
+type discoveryDocCacheEntry struct {
+	doc       map[string]any
+	expiresAt time.Time
+}
+
+var (
+	discoveryDocCache   = make(map[string]discoveryDocCacheEntry)
+	discoveryDocCacheMu sync.RWMutex
+)
+
+// fetchOIDCDiscoveryDocument retrieves IdP configuration to avoid hardcoding endpoints.
+// Results are cached per issuer URL with a configurable TTL (default 1 hour) to avoid redundant
+// HTTP calls on every authenticated request.
 func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]any, error) {
 	logger := common.GetLogger()
+
+	// Check cache first (keyed by issuerURL)
+	discoveryDocCacheMu.RLock()
+	if entry, ok := discoveryDocCache[issuerURL]; ok && time.Now().Before(entry.expiresAt) {
+		discoveryDocCacheMu.RUnlock()
+		return entry.doc, nil
+	}
+	discoveryDocCacheMu.RUnlock()
 
 	// Add protocol if missing to prevent connection errors
 	if !strings.HasPrefix(issuerURL, "http://") && !strings.HasPrefix(issuerURL, "https://") {
@@ -849,6 +895,19 @@ func fetchOIDCDiscoveryDocument(issuerURL string) (map[string]any, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&discoveryDoc); err != nil {
 		return nil, fmt.Errorf("failed to parse discovery document: %w", err)
 	}
+
+	// Cache the result keyed by the original issuerURL
+	cfg := config.GetConfig()
+	ttl := cfg.Auth.OIDC.DiscoveryDocCacheTTL
+	if ttl <= 0 {
+		ttl = 3600
+	}
+	discoveryDocCacheMu.Lock()
+	discoveryDocCache[issuerURL] = discoveryDocCacheEntry{
+		doc:       discoveryDoc,
+		expiresAt: time.Now().Add(time.Duration(ttl) * time.Second),
+	}
+	discoveryDocCacheMu.Unlock()
 
 	return discoveryDoc, nil
 }

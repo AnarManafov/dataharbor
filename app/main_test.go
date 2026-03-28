@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"sync"
 	"testing"
 
 	"github.com/AnarManafov/dataharbor/app/common"
@@ -46,13 +47,19 @@ func TestStartServer_DebugMode(t *testing.T) {
 	stop := make(chan struct{})
 
 	// Call the startServer function
-	go startServer(stop)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startServer(stop)
+	}()
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.TestMode, gin.Mode())
 
-	// Send stop signal to stop the server
+	// Send stop signal and wait for the goroutine to finish
 	close(stop)
+	wg.Wait()
 }
 
 func TestStartServer_ReleaseMode(t *testing.T) {
@@ -72,13 +79,19 @@ func TestStartServer_ReleaseMode(t *testing.T) {
 	stop := make(chan struct{})
 
 	// Call the startServer function
-	go startServer(stop)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startServer(stop)
+	}()
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.ReleaseMode, gin.Mode())
 
-	// Send stop signal to stop the server
+	// Send stop signal and wait for the goroutine to finish
 	close(stop)
+	wg.Wait()
 }
 
 func TestStartServer_SSLEnabled(t *testing.T) {
@@ -102,7 +115,10 @@ func TestStartServer_SSLEnabled(t *testing.T) {
 	stop := make(chan struct{})
 
 	// This will fail to start due to missing cert files, but it exercises the SSL path
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		defer func() {
 			// Recover from any panic
 			_ = recover()
@@ -110,9 +126,9 @@ func TestStartServer_SSLEnabled(t *testing.T) {
 		startServer(stop)
 	}()
 
-	// Give it a moment to attempt to start
-	// Then signal stop
+	// Signal stop and wait for the goroutine to finish
 	close(stop)
+	wg.Wait()
 }
 
 func TestStartServer_DefaultAddress(t *testing.T) {
@@ -131,11 +147,16 @@ func TestStartServer_DefaultAddress(t *testing.T) {
 	stop := make(chan struct{})
 
 	// Start server in goroutine
-	go startServer(stop)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		startServer(stop)
+	}()
 
-	// Give it a moment to start
-	// Then signal stop
+	// Signal stop and wait for the goroutine to finish
 	close(stop)
+	wg.Wait()
 }
 
 func TestInitialize_WithAuthEnabled(t *testing.T) {

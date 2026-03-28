@@ -69,7 +69,7 @@
                             <strong>Network performance</strong> — a third row displays live connection
                             metrics: XRD server latency, average download speed (based on recent
                             transfers), and the last directory query time. These update automatically
-                            every 30 seconds.
+                            at regular intervals.
                         </li>
                     </ul>
 

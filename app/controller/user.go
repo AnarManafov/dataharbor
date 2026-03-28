@@ -1,9 +1,12 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +15,47 @@ import (
 	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/AnarManafov/dataharbor/app/response"
 )
+
+// userInfoCacheEntry stores cached user info with an expiration time.
+type userInfoCacheEntry struct {
+	data      map[string]any
+	expiresAt time.Time
+}
+
+var (
+	userInfoCache   = make(map[string]userInfoCacheEntry)
+	userInfoCacheMu sync.RWMutex
+)
+
+// invalidateUserInfoCache removes the cached userinfo for a specific access token.
+// Called on logout so stale data is not served if the same token somehow reappears.
+func invalidateUserInfoCache(accessToken, issuer string) {
+	h := sha256.Sum256([]byte(accessToken + "|" + issuer))
+	cacheKey := hex.EncodeToString(h[:])
+	userInfoCacheMu.Lock()
+	delete(userInfoCache, cacheKey)
+	userInfoCacheMu.Unlock()
+}
+
+// startUserInfoCacheCleanup launches a background goroutine that periodically removes
+// expired entries from the userinfo cache. Without this, entries from refreshed/expired
+// tokens accumulate indefinitely while the service runs 24/7.
+func startUserInfoCacheCleanup(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for range ticker.C {
+			now := time.Now()
+			userInfoCacheMu.Lock()
+			for key, entry := range userInfoCache {
+				if now.After(entry.expiresAt) {
+					delete(userInfoCache, key)
+				}
+			}
+			userInfoCacheMu.Unlock()
+		}
+	}()
+}
 
 // GetCurrentUser returns information about the currently authenticated user.
 // Used by the frontend to determine if a user is logged in and get their profile.
@@ -130,9 +174,23 @@ func GetCurrentUser(c *gin.Context) {
 	c.JSON(http.StatusOK, userInfo)
 }
 
-// fetchUserInfo gets the user profile from Keycloak's userinfo endpoint
+// fetchUserInfo gets the user profile from Keycloak's userinfo endpoint.
+// Results are cached per access token with a configurable TTL (default 60s)
+// to avoid redundant HTTP calls on every authenticated request.
 func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]any, error) {
 	logger := common.GetLogger()
+
+	// Cache key: SHA-256 hash of the access token + issuer to differentiate per-IdP
+	h := sha256.Sum256([]byte(accessToken + "|" + cfg.Auth.OIDC.Issuer))
+	cacheKey := hex.EncodeToString(h[:])
+
+	// Check cache
+	userInfoCacheMu.RLock()
+	if entry, ok := userInfoCache[cacheKey]; ok && time.Now().Before(entry.expiresAt) {
+		userInfoCacheMu.RUnlock()
+		return entry.data, nil
+	}
+	userInfoCacheMu.RUnlock()
 
 	// Get discovery document using centralized helper function
 	discoveryDoc, err := fetchOIDCDiscoveryDocument(cfg.Auth.OIDC.Issuer)
@@ -177,6 +235,18 @@ func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]any, erro
 
 	// Debug information to help troubleshoot authentication issues
 	logger.Infof("User info fetched successfully: %+v", userInfo)
+
+	// Cache the result
+	ttl := cfg.Auth.OIDC.UserInfoCacheTTL
+	if ttl <= 0 {
+		ttl = 60
+	}
+	userInfoCacheMu.Lock()
+	userInfoCache[cacheKey] = userInfoCacheEntry{
+		data:      userInfo,
+		expiresAt: time.Now().Add(time.Duration(ttl) * time.Second),
+	}
+	userInfoCacheMu.Unlock()
 
 	return userInfo, nil
 }

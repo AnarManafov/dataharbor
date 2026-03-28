@@ -402,6 +402,11 @@ curl -X GET "http://localhost:8081/api/v1/download?path=/tmp/example.txt" --outp
 
 Measures the round-trip latency to the XRootD storage server by performing a lightweight stat operation.
 
+> **Note**: Each ping establishes a full XRootD connection chain (TCP → TLS handshake → Login → ZTN Auth → Stat → Close).
+> This is by design — it measures real end-to-end latency as experienced by actual file operations,
+> rather than an artificially low keepalive-style ping. Connection reuse is not possible here because
+> the XRootD go-hep client creates per-request connections and there is no persistent connection pool.
+
 **Endpoint**: `GET /api/v1/xrd/ping`
 
 **Response**:

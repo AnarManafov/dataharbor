@@ -65,9 +65,11 @@ func setupTestConfig(authEnabled bool, issuer, clientID, clientSecret string) {
 
 // Helper to clear the token store between tests
 func clearTokenStore() {
+	tokenStoreMu.Lock()
 	for k := range tokenStore {
 		delete(tokenStore, k)
 	}
+	tokenStoreMu.Unlock()
 }
 
 // ============================================
@@ -104,7 +106,7 @@ func TestStoreTokens(t *testing.T) {
 	assert.NotEmpty(t, tokenID)
 
 	// Verify tokens were stored correctly
-	tokens, ok := tokenStore[tokenID]
+	tokens, ok := getTokens(tokenID)
 	assert.True(t, ok)
 	assert.Equal(t, accessToken, tokens.AccessToken)
 	assert.Equal(t, refreshToken, tokens.RefreshToken)
@@ -1222,9 +1224,9 @@ func TestConcurrentTokenOperations(t *testing.T) {
 		<-done
 	}
 
-	// Note: This test may have race conditions in the current implementation
-	// The in-memory token store doesn't have mutex protection
-	// This is documented as a limitation in the auth.go file
+	// Token store is protected by sync.RWMutex — this test validates
+	// that concurrent store/get/delete operations do not panic or race.
+	// Run with: go test -race ./controller
 }
 
 // ============================================
@@ -2390,4 +2392,131 @@ func TestRefreshToken(t *testing.T) {
 		assert.Equal(t, "old-refresh-token", tokens.RefreshToken) // Preserved
 		assert.Equal(t, "old-id-token", tokens.IDToken)           // Preserved
 	})
+}
+
+// ============================================
+// Discovery Document Cache Tests
+// ============================================
+
+// clearDiscoveryDocCache clears the discovery document cache between tests.
+func clearDiscoveryDocCache() {
+	discoveryDocCacheMu.Lock()
+	for k := range discoveryDocCache {
+		delete(discoveryDocCache, k)
+	}
+	discoveryDocCacheMu.Unlock()
+}
+
+func TestDiscoveryDocCache_HitAndMiss(t *testing.T) {
+	clearDiscoveryDocCache()
+
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		discoveryDoc := map[string]any{
+			"issuer":            "https://test-issuer.com",
+			"userinfo_endpoint": "https://test-issuer.com/userinfo",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(discoveryDoc)
+	}))
+	defer server.Close()
+
+	testConfig := &config.Config{
+		Auth: config.AuthConfig{
+			OIDC: config.OIDCConfig{
+				DiscoveryDocCacheTTL: 3600,
+			},
+		},
+	}
+	config.SetConfig(testConfig)
+
+	// First call — cache miss, should reach the server
+	doc1, err := fetchOIDCDiscoveryDocument(server.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, "https://test-issuer.com", doc1["issuer"])
+	assert.Equal(t, 1, callCount)
+
+	// Second call — cache hit, should NOT reach the server
+	doc2, err := fetchOIDCDiscoveryDocument(server.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, "https://test-issuer.com", doc2["issuer"])
+	assert.Equal(t, 1, callCount) // still 1
+}
+
+func TestDiscoveryDocCache_PerIssuerIsolation(t *testing.T) {
+	clearDiscoveryDocCache()
+
+	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		doc := map[string]any{"issuer": "issuer-1"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(doc)
+	}))
+	defer server1.Close()
+
+	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		doc := map[string]any{"issuer": "issuer-2"}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(doc)
+	}))
+	defer server2.Close()
+
+	testConfig := &config.Config{
+		Auth: config.AuthConfig{
+			OIDC: config.OIDCConfig{DiscoveryDocCacheTTL: 3600},
+		},
+	}
+	config.SetConfig(testConfig)
+
+	doc1, err := fetchOIDCDiscoveryDocument(server1.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, "issuer-1", doc1["issuer"])
+
+	doc2, err := fetchOIDCDiscoveryDocument(server2.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, "issuer-2", doc2["issuer"])
+
+	// server1's cache should still return issuer-1, not issuer-2
+	doc1Again, err := fetchOIDCDiscoveryDocument(server1.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, "issuer-1", doc1Again["issuer"])
+}
+
+func TestDiscoveryDocCache_TTLExpiry(t *testing.T) {
+	clearDiscoveryDocCache()
+
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		doc := map[string]any{"issuer": "test", "call": callCount}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(doc)
+	}))
+	defer server.Close()
+
+	testConfig := &config.Config{
+		Auth: config.AuthConfig{
+			OIDC: config.OIDCConfig{DiscoveryDocCacheTTL: 1}, // 1 second TTL
+		},
+	}
+	config.SetConfig(testConfig)
+
+	// First call
+	_, err := fetchOIDCDiscoveryDocument(server.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, callCount)
+
+	// Second call — cached
+	_, err = fetchOIDCDiscoveryDocument(server.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, callCount)
+
+	// Wait for TTL to expire
+	time.Sleep(1100 * time.Millisecond)
+
+	// Third call — cache expired, should reach server again
+	doc, err := fetchOIDCDiscoveryDocument(server.URL)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, callCount)
+	assert.Equal(t, float64(2), doc["call"])
 }
