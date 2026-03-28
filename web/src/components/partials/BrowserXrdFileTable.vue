@@ -37,10 +37,13 @@
         <el-table-column label='Actions' width='100' fixed="right" class-name="actions-column">
             <template #default='scope'>
                 <div class="actions-wrapper">
-                    <el-button v-if='scope.row.type === "file" && scope.row.name !== ".."'
-                        @click='downloadFile(scope.row)' size='small' type='primary' :icon='Download'
-                        :loading='scope.row.downloading' :disabled='scope.row.downloading' circle>
-                    </el-button>
+                    <el-tooltip v-if='scope.row.type === "file" && scope.row.name !== ".."'
+                        :content='getDownloadEstimate(scope.row)' :disabled='!hasEstimate(scope.row)' placement='left'
+                        effect='dark'>
+                        <el-button @click='downloadFile(scope.row)' size='small' type='primary' :icon='Download'
+                            :loading='scope.row.downloading' :disabled='scope.row.downloading' circle>
+                        </el-button>
+                    </el-tooltip>
                 </div>
             </template>
         </el-table-column>
@@ -50,6 +53,9 @@
 <script lang="ts" setup>
 import { ref, computed } from 'vue';
 import { Folder, Document, Download } from '@element-plus/icons-vue';
+import { useNetworkStats } from '@/composables/useNetworkStats';
+
+const { estimateDownloadTime } = useNetworkStats();
 
 const props = defineProps({
     filteredData: {
@@ -140,6 +146,17 @@ const handleSortChange = ({ prop, order }: { prop: string; order: string }) => {
 
 const selectDir = (row: { type: string; name: string }) => {
     emit('selectDir', row);
+};
+
+// Download time estimation for file tooltips
+const hasEstimate = (row: any): boolean => {
+    return row.size > 0 && estimateDownloadTime(row.size) !== null;
+};
+
+const getDownloadEstimate = (row: any): string => {
+    const est = estimateDownloadTime(row.size);
+    if (!est) return 'Download';
+    return `Est. ${est.formatted} at ${est.speedFormatted}`;
 };
 </script>
 

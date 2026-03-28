@@ -344,6 +344,11 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 		"speedMBps", fmt.Sprintf("%.2f", downloadSpeedMBPerSec),
 		"speedBytesPerSec", fmt.Sprintf("%.0f", downloadSpeedBytesPerSec))
 
+	// Expose server-measured download metrics via trailing headers
+	c.Header("X-Download-Duration-Ms", fmt.Sprintf("%d", downloadDuration.Milliseconds()))
+	c.Header("X-Download-Speed-Mbps", fmt.Sprintf("%.2f", downloadSpeedMBPerSec))
+	c.Header("X-Download-Bytes-Total", fmt.Sprintf("%d", totalRead))
+
 	return nil
 }
 
@@ -502,7 +507,9 @@ func FetchDirItemsByPage(c *gin.Context) {
 
 	common.GetLogger().Debug("Starting directory listing: ", dirPath)
 
+	queryStart := time.Now()
 	entries, err := simpleClient.ListDirectory(ctx, dirPath, authToken)
+	queryTimeMs := time.Since(queryStart).Milliseconds()
 	if err != nil {
 		common.GetLogger().Error("Failed to list directory", "error", err, "path", dirPath)
 
@@ -529,6 +536,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 			"totalFileCount":     0,
 			"totalFolderCount":   0,
 			"cumulativeFileSize": 0,
+			"queryTimeMs":        queryTimeMs,
 		}
 		c.JSON(http.StatusOK, emptyResponse)
 		return
@@ -695,6 +703,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 		"totalFileCount":     totalFileCount,
 		"totalFolderCount":   totalFolderCount,
 		"cumulativeFileSize": cumulativeFileSize,
+		"queryTimeMs":        queryTimeMs,
 	}
 
 	common.GetLogger().Debug("Sending JSON response", "responseKeys", len(response))
@@ -832,6 +841,60 @@ func FetchVirtualFSStat(c *gin.Context) {
 		"nodesStaging":       stat.NumberStaging,
 		"freeSpaceStagingMB": stat.FreeStaging,
 		"utilizationStaging": stat.UtilizationStaging,
+	})
+}
+
+// PingXRD measures the round-trip latency to the XRootD server
+// by performing a lightweight stat operation on the configured initial directory
+func PingXRD(c *gin.Context) {
+	simpleClient := common.GetXRDClient()
+	cfg := config.GetConfig()
+
+	var authToken string
+	if token, exists := middleware.GetUserToken(c); exists {
+		authToken = token
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Use the configured initial directory as the probe path — it is guaranteed
+	// to be accessible since all other XRD operations use the same base path.
+	// Probing "/" may fail on servers where root is not user-accessible.
+	probePath := cfg.XRD.InitialDir
+	if probePath == "" {
+		probePath = "/"
+	}
+
+	connStart := time.Now()
+	fs, cleanup, err := simpleClient.GetFileSystem(ctx, authToken)
+	if err != nil {
+		common.GetLogger().Error("Ping failed: could not connect to XRD", "error", err)
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "Not authorized to access storage")
+			return
+		}
+		response.Error(c, http.StatusServiceUnavailable, "XRD server unavailable")
+		return
+	}
+	defer cleanup()
+	connectMs := float64(time.Since(connStart).Microseconds()) / 1000.0
+
+	statStart := time.Now()
+	_, err = fs.Stat(ctx, probePath)
+	latencyMs := float64(time.Since(statStart).Microseconds()) / 1000.0
+
+	if err != nil {
+		common.GetLogger().Warn("Ping stat failed", "error", err, "latencyMs", latencyMs, "path", probePath)
+		response.Error(c, http.StatusServiceUnavailable, "XRD server not responding")
+		return
+	}
+
+	response.Success(c, response.PingResponse{
+		LatencyMs: latencyMs,
+		ConnectMs: connectMs,
+		Status:    "ok",
+		Server:    cfg.XRD.Host,
 	})
 }
 

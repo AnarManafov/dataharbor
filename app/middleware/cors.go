@@ -53,7 +53,7 @@ func CORS() gin.HandlerFunc {
 		setCORSOriginHeader(c, requestOrigin, allowOrigins)
 
 		// Set Access-Control-Expose-Headers for client access
-		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization")
+		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type, Authorization, X-Download-Duration-Ms, X-Download-Speed-Mbps, X-Download-Bytes-Total")
 
 		// Handle OPTIONS preflight requests
 		if c.Request.Method == "OPTIONS" {
