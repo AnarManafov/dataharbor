@@ -1,8 +1,8 @@
 # Release Notes
 
-## v1.0.11 (2026-03-28)
+## v1.0.12 (2026-03-28)
 
 Changelog:
-### Fixed
-- update SciTokens logging level (xrootd-prod.cfg) (82a300b)
+### Maintenance
+- disable RPM packaging in workflows and update docs (1531c2b)
 
