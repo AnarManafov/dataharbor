@@ -1,8 +1,8 @@
 # Release Notes
 
-## v1.0.16 (2026-03-28)
+## v1.0.17 (2026-03-28)
 
 Changelog:
 ### Fixed
-- update xrootd user/group creation instructions (docker) (a6c86ac)
+- mount host SSSD socket for LDAP/AD user resolution in XRootD container (docker) (17b3a02)
 
