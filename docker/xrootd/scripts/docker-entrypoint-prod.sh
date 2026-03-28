@@ -222,14 +222,34 @@ done
 # Validate host user database
 # ==========================================
 # The multiuser plugin calls getpwnam() to resolve mapped usernames to UIDs.
-# Host /etc/passwd and /etc/group must be bind-mounted directly into the
-# container so that mapped users can be resolved. Direct mount also picks up
-# host user changes without restarting the container.
-#
-# The Dockerfile no longer copies /etc/passwd from the builder — we rely
-# entirely on the host's user database. The entrypoint ensures the xrootd
-# system user exists (needed to run the xrootd process itself).
+# On HPC/enterprise hosts, users typically come from LDAP/AD via SSSD — not
+# from /etc/passwd. We need three things mounted from the host:
+#   1. /etc/passwd and /etc/group    — local system users (e.g. xrootd)
+#   2. /etc/nsswitch.conf            — tells NSS to query sss for user lookups
+#   3. /var/lib/sss/pipes            — SSSD Unix socket for NSS queries
+# The container image includes sssd-client (libnss_sss.so) to talk to the
+# host's SSSD daemon via the mounted socket.
 log_info "Validating user database for multiuser plugin..."
+
+# Check SSSD socket availability (required for LDAP/AD user resolution)
+SSSD_NSS_SOCKET="/var/lib/sss/pipes/nss"
+if [ -S "$SSSD_NSS_SOCKET" ]; then
+    log_ok "SSSD NSS socket available ($SSSD_NSS_SOCKET)"
+elif [ -d "/var/lib/sss/pipes" ]; then
+    log_warn "SSSD pipes directory mounted but NSS socket not found"
+    log_warn "Ensure SSSD is running on the host: systemctl status sssd"
+else
+    log_warn "SSSD pipes not mounted — LDAP/AD users will NOT be resolvable"
+    log_warn "Mount host SSSD socket: -v /var/lib/sss/pipes:/var/lib/sss/pipes:ro"
+fi
+
+# Check nsswitch.conf has sss configured
+if grep -q 'sss' /etc/nsswitch.conf 2>/dev/null; then
+    log_ok "NSS configured to use SSSD (nsswitch.conf)"
+else
+    log_warn "nsswitch.conf does not reference 'sss' — LDAP/AD users may not resolve"
+    log_warn "Mount host nsswitch.conf: -v /etc/nsswitch.conf:/etc/nsswitch.conf:ro"
+fi
 
 # Ensure xrootd system user exists (must be present in the mounted /etc/passwd)
 if ! getent passwd xrootd >/dev/null 2>&1; then
