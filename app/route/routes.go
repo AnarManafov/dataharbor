@@ -68,6 +68,7 @@ func SetupRouter(r *gin.Engine) {
 	v1.GET("/xrd/initialDir", controller.FetchInitialDir)
 	v1.GET("/xrd/download", controller.DownloadFile)
 	v1.GET("/xrd/hostname", controller.FetchHostName)
+	v1.GET("/xrd/vstat", controller.FetchVirtualFSStat)
 	v1.POST("/xrd/ls/paged", controller.FetchDirItemsByPage)
 
 	// Future: Multi-file download endpoints (interface prepared, implementation pending)

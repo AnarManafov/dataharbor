@@ -1,11 +1,12 @@
 <template>
     <el-table v-loading='tableLoading' :data='sortedData' :default-sort='{ prop: "name", order: "ascending" }'
-        @sort-change="handleSortChange" border>
+        @sort-change="handleSortChange">
         <el-table-column prop='name' label='Name' sortable="custom">
             <template #default='scope'>
                 <div style='display: flex; align-items: center'>
-                    <el-icon :size='14' color='#409EFF' v-if='scope.row.type === "dir" && scope.row.name === ".."'>
-                        <ArrowUp />
+                    <el-icon :size='14' color='#409EFF' class='clickable'
+                        v-if='scope.row.type === "dir" && scope.row.name === ".."' @click='() => selectDir(scope.row)'>
+                        <Folder />
                     </el-icon>
                     <el-icon :size='14' color='#409EFF' v-else-if='scope.row.type === "dir"'>
                         <Folder />
@@ -48,7 +49,7 @@
 
 <script lang="ts" setup>
 import { ref, computed } from 'vue';
-import { Folder, Document, ArrowUp, Download } from '@element-plus/icons-vue';
+import { Folder, Document, Download } from '@element-plus/icons-vue';
 
 const props = defineProps({
     filteredData: {
@@ -150,6 +151,15 @@ const selectDir = (row: { type: string; name: string }) => {
 
 .clickable:hover {
     text-decoration: underline;
+}
+
+/* Remove vertical grid lines, keep horizontal */
+:deep(.el-table td.el-table__cell) {
+    border-right: none;
+}
+
+:deep(.el-table th.el-table__cell) {
+    border-right: none;
 }
 
 /* Actions column styling */

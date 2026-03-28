@@ -7,6 +7,15 @@ type DirectoryItemResponse struct {
 	Size     uint64 `json:"size"`
 }
 
+type VirtualFSStatResponse struct {
+	NodesRW            int `json:"nodesRW"`
+	FreeSpaceMB        int `json:"freeSpaceMB"`
+	UtilizationPercent int `json:"utilizationPercent"`
+	NodesStaging       int `json:"nodesStaging"`
+	FreeSpaceStagingMB int `json:"freeSpaceStagingMB"`
+	UtilizationStaging int `json:"utilizationStaging"`
+}
+
 type DirectoryResponse struct {
 	Code               int                     `json:"code"`
 	Items              []DirectoryItemResponse `json:"items"`
