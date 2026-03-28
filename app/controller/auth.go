@@ -92,6 +92,34 @@ func deleteTokens(tokenID string) {
 	delete(tokenStore, tokenID)
 }
 
+// sessionCookieOptions returns the session cookie options for the current environment.
+// It centralizes cookie security settings to prevent mismatches between InitAuth and LoginInit.
+//
+// Production (behind nginx/reverse proxy with HTTPS):
+//   - Secure=true  — cookie only sent over HTTPS
+//   - SameSite=Lax — allows the OIDC callback (a top-level GET redirect from the IdP)
+//
+// IMPORTANT: SameSite=None MUST have Secure=true, otherwise modern browsers silently
+// reject the cookie entirely, breaking the OIDC flow.
+func sessionCookieOptions(cfg *config.Config, c *gin.Context) *sessions.Options {
+	secureCookies := true
+	if cfg.Env == "development" && !cfg.Server.SSL.Enabled {
+		secureCookies = false
+	}
+	// When behind a reverse proxy that terminates TLS (e.g. nginx),
+	// SSL.Enabled is false but the actual client connection is HTTPS.
+	if c != nil && schemeFromRequest(c) == "https" {
+		secureCookies = true
+	}
+	return &sessions.Options{
+		Path:     "/",
+		MaxAge:   sessionMaxAge,
+		HttpOnly: true,
+		Secure:   secureCookies,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
 // InitAuth initializes the authentication system
 // This should be called during application startup after config is loaded
 func InitAuth() {
@@ -115,21 +143,13 @@ func InitAuth() {
 
 	// Initialize the session store with the secret
 	SessionStore = sessions.NewCookieStore([]byte(sessionSecret))
-	// SameSite=Lax is required for OIDC flows where the IdP redirects back to
-	// our callback URL. Strict would block the session cookie on that cross-site
-	// redirect, breaking authentication. Lax still protects against CSRF for
-	// POST/PUT/DELETE while allowing top-level GET navigations (the callback).
-	secureCookies := true
-	if cfg.Env == "development" && !cfg.Server.SSL.Enabled {
-		secureCookies = false
+	// Use centralized cookie options (no request context at startup)
+	opts := sessionCookieOptions(cfg, nil)
+	SessionStore.Options = opts
+	logger.Infof("Session cookie defaults — Secure: %v, SameSite: %v, HttpOnly: %v, MaxAge: %d",
+		opts.Secure, opts.SameSite, opts.HttpOnly, opts.MaxAge)
+	if cfg.Env == "development" && !opts.Secure {
 		logger.Info("Running in development mode without SSL: using relaxed cookie settings")
-	}
-	SessionStore.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		HttpOnly: true,          // Mitigate XSS risks
-		Secure:   secureCookies, // Require HTTPS (true in prod, even behind proxy)
-		SameSite: http.SameSiteLaxMode,
 	}
 }
 
@@ -228,20 +248,10 @@ func LoginInit(c *gin.Context) {
 	session.Values["oidc_state"] = state
 	logger.Infof("Setting state in session: %s", state)
 
-	// Set session options for the OIDC login flow.
-	// SameSite=Lax is required because the OIDC callback is a cross-site redirect
-	// from the IdP (e.g., Keycloak). Strict would block the cookie on that redirect,
-	// and None requires Secure which may not be set when SSL terminates at a proxy.
-	// Lax allows cookies on top-level GET navigations, which is exactly the callback.
-	secureCookies := cfg.Server.SSL.Enabled || schemeFromRequest(c) == "https"
-
-	session.Options = &sessions.Options{
-		Path:     "/",
-		MaxAge:   sessionMaxAge,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   secureCookies,
-	}
+	// Use centralized cookie options with request context for accurate HTTPS detection
+	session.Options = sessionCookieOptions(cfg, c)
+	logger.Infof("Cookie options — Secure: %v, SameSite: %v, HttpOnly: %v",
+		session.Options.Secure, session.Options.SameSite, session.Options.HttpOnly)
 
 	// Save the session
 	if err := session.Save(c.Request, c.Writer); err != nil {
