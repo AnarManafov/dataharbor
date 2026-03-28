@@ -138,9 +138,10 @@ Before deploying, ensure the following are set up on the **host machine**:
    # Check if xrootd user exists
    getent passwd xrootd
 
-   # If not, create it (UID 998 matches the XRootD RPM default)
-   sudo groupadd -r -g 998 xrootd
-   sudo useradd -r -u 998 -g 998 -s /sbin/nologin -d /var/spool/xrootd xrootd
+   # If not, install the xrootd RPM (which creates the user automatically)
+   # or create it manually (the UID/GID is allocated dynamically):
+   sudo groupadd -r xrootd
+   sudo useradd -r -g xrootd -s /sbin/nologin -d /var/spool/xrootd xrootd
    ```
 
 2. **Mapped users must exist on the host** — Every username listed as `"result"` in the mapfile must be a valid user in the host's `/etc/passwd` with the correct UID matching the data filesystem (Lustre/GPFS/NFS).

@@ -141,6 +141,9 @@ services:
     build:
       context: ..
       dockerfile: docker/xrootd/Dockerfile.prod # Production-optimized Dockerfile
+      args:
+        XROOTD_UID: ${XROOTD_UID:-994}
+        XROOTD_GID: ${XROOTD_GID:-993}
     image: dataharbor-xrootd:latest
     container_name: dataharbor-xrootd-prod
     restart: unless-stopped
