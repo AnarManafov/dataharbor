@@ -88,6 +88,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: master # Must use master to get the version-bumped package.json from version-tag-processor
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4

@@ -95,6 +95,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: master # Must use master to get the version-bumped package.json and v* tags from version-tag-processor
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -128,6 +129,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: master # Must use master to get the version-bumped go files and app/v* tags from version-tag-processor
 
       - name: Set up Go
         uses: actions/setup-go@v6
