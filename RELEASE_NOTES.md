@@ -1,8 +1,8 @@
 # Release Notes
 
-## v1.0.7 (2026-03-28)
+## v1.0.8 (2026-03-28)
 
 Changelog:
 ### Added
-- add XRootD virtual filesystem statistics (backend,frontend) (f7f6343)
+- add XRD ping endpoint and network stats tracking (backend,frontend) (8a5c998)
 
