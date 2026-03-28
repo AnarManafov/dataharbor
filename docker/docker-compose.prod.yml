@@ -184,6 +184,16 @@ services:
       - ${CA_CERTS_PATH:-/etc/ssl/certs}:/etc/grid-security/certificates:ro
 
       # ==========================================
+      # HOST USER DATABASE - Required for multiuser plugin
+      # ==========================================
+      # The multiuser plugin calls getpwnam() to resolve mapped usernames to UIDs.
+      # Users in the mapfile must exist in /etc/passwd inside the container.
+      # Direct mount reflects host user changes without container restart.
+      # The entrypoint ensures the xrootd system user exists after mount.
+      - ${HOST_PASSWD_PATH:-/etc/passwd}:/etc/passwd:ro
+      - ${HOST_GROUP_PATH:-/etc/group}:/etc/group:ro
+
+      # ==========================================
       # USER MAPFILE - Token-to-Unix-user mapping
       # ==========================================
       # CRITICAL: UIDs in mapfile MUST match filesystem UIDs (especially for Lustre/NFS)

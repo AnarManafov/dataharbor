@@ -219,6 +219,51 @@ head -n 20 "$MAPFILE" | grep -E '"sub"|"result"' | head -n 10 | while read line;
 done
 
 # ==========================================
+# Validate host user database
+# ==========================================
+# The multiuser plugin calls getpwnam() to resolve mapped usernames to UIDs.
+# Host /etc/passwd and /etc/group must be bind-mounted directly into the
+# container so that mapped users can be resolved. Direct mount also picks up
+# host user changes without restarting the container.
+#
+# The Dockerfile no longer copies /etc/passwd from the builder — we rely
+# entirely on the host's user database. The entrypoint ensures the xrootd
+# system user exists (needed to run the xrootd process itself).
+log_info "Validating user database for multiuser plugin..."
+
+# Ensure xrootd system user exists (must be present in the mounted /etc/passwd)
+if ! getent passwd xrootd >/dev/null 2>&1; then
+    log_error "xrootd system user not found in /etc/passwd"
+    log_error "Add xrootd user on the host: useradd -r -u 998 -s /sbin/nologin xrootd"
+    exit 1
+fi
+if ! getent group xrootd >/dev/null 2>&1; then
+    log_error "xrootd group not found in /etc/group"
+    log_error "Add xrootd group on the host: groupadd -r -g 998 xrootd"
+    exit 1
+fi
+
+# Spot-check: verify a sample of mapped users are resolvable
+MISSING_USERS=0
+CHECKED=0
+MAP_USERS=$(grep -o '"result"[[:space:]]*:[[:space:]]*"[^"]*"' "$MAPFILE" 2>/dev/null | sed 's/"result"[[:space:]]*:[[:space:]]*"//;s/"$//')
+for USERNAME in $MAP_USERS; do
+    CHECKED=$((CHECKED + 1))
+    if ! getent passwd "$USERNAME" >/dev/null 2>&1; then
+        MISSING_USERS=$((MISSING_USERS + 1))
+        if [ "$MISSING_USERS" -le 3 ]; then
+            log_warn "Mapped user not found in /etc/passwd: $USERNAME"
+        fi
+    fi
+done
+if [ "$MISSING_USERS" -gt 0 ]; then
+    log_warn "$MISSING_USERS of $CHECKED mapped users not found in /etc/passwd"
+    log_warn "Ensure host /etc/passwd is bind-mounted into the container"
+else
+    log_ok "All $CHECKED mapped users resolved successfully"
+fi
+
+# ==========================================
 # Validate Data Directory
 # ==========================================
 log_info "Validating data directory..."

@@ -128,6 +128,25 @@ VERSION=0.14.6 docker compose -f docker-compose.deploy.yml up -d
 VERSION=pr-41 docker compose -f docker-compose.deploy.yml up -d
 ```
 
+### Host Prerequisites
+
+Before deploying, ensure the following are set up on the **host machine**:
+
+1. **`xrootd` system user and group** — The XRootD container mounts the host's `/etc/passwd` and `/etc/group` directly (so the multiuser plugin can resolve mapped usernames to UIDs). The `xrootd` system user must exist on the host:
+
+   ```bash
+   # Check if xrootd user exists
+   getent passwd xrootd
+
+   # If not, create it (UID 998 matches the XRootD RPM default)
+   sudo groupadd -r -g 998 xrootd
+   sudo useradd -r -u 998 -g 998 -s /sbin/nologin -d /var/spool/xrootd xrootd
+   ```
+
+2. **Mapped users must exist on the host** — Every username listed as `"result"` in the mapfile must be a valid user in the host's `/etc/passwd` with the correct UID matching the data filesystem (Lustre/GPFS/NFS).
+
+3. **Docker and Docker Compose** installed.
+
 ### Required Configuration
 
 Edit `.env` with these required settings:
@@ -142,6 +161,11 @@ XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 
 # User mapping file
 XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+
+# Host user database (for XRootD multiuser plugin)
+# The xrootd user must exist on the host (see Host Prerequisites above)
+HOST_PASSWD_PATH=/etc/passwd
+HOST_GROUP_PATH=/etc/group
 
 # Nginx SSL certificates
 SSL_CERT_PATH=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
