@@ -191,6 +191,179 @@ func TestDeleteTokens(t *testing.T) {
 // InitAuth Tests
 // ============================================
 
+// ============================================
+// sessionCookieOptions Tests
+// ============================================
+
+func TestSessionCookieOptions(t *testing.T) {
+	t.Run("production without SSL config but behind HTTPS proxy", func(t *testing.T) {
+		// This is the exact production scenario: nginx terminates TLS,
+		// backend has SSL.Enabled=false, but X-Forwarded-Proto=https
+		cfg := &config.Config{
+			Env: "production",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: false},
+			},
+		}
+		config.SetConfig(cfg)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login", nil)
+		c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+		opts := sessionCookieOptions(cfg, c)
+
+		assert.True(t, opts.Secure, "Secure must be true when behind HTTPS proxy")
+		assert.Equal(t, http.SameSiteLaxMode, opts.SameSite, "SameSite must be Lax for OIDC flows")
+		assert.True(t, opts.HttpOnly)
+		assert.Equal(t, "/", opts.Path)
+		assert.Equal(t, sessionMaxAge, opts.MaxAge)
+	})
+
+	t.Run("production with SSL enabled directly", func(t *testing.T) {
+		cfg := &config.Config{
+			Env: "production",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: true},
+			},
+		}
+
+		opts := sessionCookieOptions(cfg, nil)
+
+		assert.True(t, opts.Secure)
+		assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+	})
+
+	t.Run("production without any HTTPS signals", func(t *testing.T) {
+		// Even without proxy headers, production defaults to Secure=true
+		cfg := &config.Config{
+			Env: "production",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: false},
+			},
+		}
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login", nil)
+		// No X-Forwarded-Proto header
+
+		opts := sessionCookieOptions(cfg, c)
+
+		assert.True(t, opts.Secure, "Production always defaults to Secure=true")
+		assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+	})
+
+	t.Run("production nil context falls back to secure", func(t *testing.T) {
+		// InitAuth calls with nil context at startup
+		cfg := &config.Config{
+			Env: "production",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: false},
+			},
+		}
+
+		opts := sessionCookieOptions(cfg, nil)
+
+		assert.True(t, opts.Secure, "nil context in production must still be Secure=true")
+		assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+	})
+
+	t.Run("development without SSL", func(t *testing.T) {
+		cfg := &config.Config{
+			Env: "development",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: false},
+			},
+		}
+
+		opts := sessionCookieOptions(cfg, nil)
+
+		assert.False(t, opts.Secure, "Dev without SSL should allow insecure cookies")
+		assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+	})
+
+	t.Run("development without SSL but behind HTTPS proxy", func(t *testing.T) {
+		// Dev container behind an HTTPS tunnel (e.g., Codespaces)
+		cfg := &config.Config{
+			Env: "development",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: false},
+			},
+		}
+		config.SetConfig(cfg)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login", nil)
+		c.Request.Header.Set("X-Forwarded-Proto", "https")
+
+		opts := sessionCookieOptions(cfg, c)
+
+		assert.True(t, opts.Secure, "HTTPS proxy should override dev insecure default")
+	})
+
+	t.Run("development with SSL enabled", func(t *testing.T) {
+		cfg := &config.Config{
+			Env: "development",
+			Server: config.ServerConfig{
+				SSL: config.SSLConfig{Enabled: true},
+			},
+		}
+
+		opts := sessionCookieOptions(cfg, nil)
+
+		assert.True(t, opts.Secure)
+		assert.Equal(t, http.SameSiteLaxMode, opts.SameSite)
+	})
+
+	t.Run("never returns SameSite=None", func(t *testing.T) {
+		// Regression test: SameSite=None without Secure breaks modern browsers
+		environments := []string{"production", "development", "test", "staging"}
+		for _, env := range environments {
+			cfg := &config.Config{
+				Env: env,
+				Server: config.ServerConfig{
+					SSL: config.SSLConfig{Enabled: false},
+				},
+			}
+
+			opts := sessionCookieOptions(cfg, nil)
+
+			assert.NotEqual(t, http.SameSiteNoneMode, opts.SameSite,
+				"SameSite must never be None (env=%s) — browsers reject None without Secure", env)
+		}
+	})
+
+	t.Run("SameSite is always Lax regardless of environment", func(t *testing.T) {
+		configs := []struct {
+			env        string
+			sslEnabled bool
+		}{
+			{"production", true},
+			{"production", false},
+			{"development", true},
+			{"development", false},
+			{"test", false},
+		}
+
+		for _, tc := range configs {
+			cfg := &config.Config{
+				Env: tc.env,
+				Server: config.ServerConfig{
+					SSL: config.SSLConfig{Enabled: tc.sslEnabled},
+				},
+			}
+
+			opts := sessionCookieOptions(cfg, nil)
+
+			assert.Equal(t, http.SameSiteLaxMode, opts.SameSite,
+				"SameSite must be Lax for OIDC (env=%s, ssl=%v)", tc.env, tc.sslEnabled)
+		}
+	})
+}
+
 func TestInitAuth(t *testing.T) {
 	t.Run("with session secret", func(t *testing.T) {
 		setupTestConfig(true, "https://issuer.example.com", "client-id", "client-secret")
@@ -274,6 +447,64 @@ func TestInitAuth(t *testing.T) {
 		assert.NotNil(t, SessionStore)
 		assert.True(t, SessionStore.Options.Secure) // Should be true for dev with SSL
 	})
+
+	t.Run("SameSite is always Lax not None or Strict", func(t *testing.T) {
+		// Regression: SameSite=None without Secure caused cookie rejection in production.
+		// SameSite=Strict blocks the OIDC callback redirect from the IdP.
+		configs := []struct {
+			env        string
+			sslEnabled bool
+		}{
+			{"production", false},
+			{"production", true},
+			{"development", false},
+			{"development", true},
+		}
+		for _, tc := range configs {
+			testConfig := &config.Config{
+				Env: tc.env,
+				Server: config.ServerConfig{
+					Address: ":8080",
+					SSL:     config.SSLConfig{Enabled: tc.sslEnabled},
+				},
+				Auth: config.AuthConfig{
+					Enabled: true,
+					OIDC: config.OIDCConfig{
+						SessionSecret: "test-secret",
+					},
+				},
+			}
+			config.SetConfig(testConfig)
+			InitAuth()
+
+			assert.Equal(t, http.SameSiteLaxMode, SessionStore.Options.SameSite,
+				"SameSite must be Lax (env=%s, ssl=%v)", tc.env, tc.sslEnabled)
+			assert.NotEqual(t, http.SameSiteNoneMode, SessionStore.Options.SameSite,
+				"SameSite=None breaks browsers without Secure (env=%s, ssl=%v)", tc.env, tc.sslEnabled)
+		}
+	})
+
+	t.Run("production always sets Secure even without SSL config", func(t *testing.T) {
+		// In production behind nginx, SSL.Enabled is false but cookies must be Secure
+		testConfig := &config.Config{
+			Env: "production",
+			Server: config.ServerConfig{
+				Address: ":8080",
+				SSL:     config.SSLConfig{Enabled: false},
+			},
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC: config.OIDCConfig{
+					SessionSecret: "test-secret",
+				},
+			},
+		}
+		config.SetConfig(testConfig)
+		InitAuth()
+
+		assert.True(t, SessionStore.Options.Secure,
+			"Production must set Secure=true even when SSL terminates at proxy")
+	})
 }
 
 // ============================================
@@ -356,6 +587,90 @@ func TestLoginInit(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, "/auth/disabled", response["auth_url"])
+	})
+
+	t.Run("cookie has Secure and Lax when behind HTTPS proxy", func(t *testing.T) {
+		// Regression test for the production bug: nginx terminates TLS,
+		// backend has SSL.Enabled=false. Before the fix, LoginInit set
+		// SameSite=None without Secure, causing browsers to silently
+		// reject the cookie. The OIDC callback then had no session → 400.
+		testConfig := &config.Config{
+			Env: "production",
+			Server: config.ServerConfig{
+				Address: ":8080",
+				SSL:     config.SSLConfig{Enabled: false}, // SSL at nginx, not backend
+			},
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC: config.OIDCConfig{
+					Issuer:        "https://issuer.example.com",
+					ClientID:      "client-id",
+					ClientSecret:  "client-secret",
+					SessionSecret: "test-secret",
+				},
+			},
+			Frontend: config.FrontendConfig{
+				URL: "https://dataharbor.example.com",
+			},
+		}
+		config.SetConfig(testConfig)
+		InitAuth()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login", nil)
+		c.Request.Header.Set("X-Forwarded-Proto", "https")
+		c.Request.Header.Set("X-Forwarded-Host", "dataharbor.example.com")
+
+		LoginInit(c)
+
+		// Cookie should be set regardless of whether discovery succeeds
+		setCookieHeader := w.Header().Get("Set-Cookie")
+		if setCookieHeader != "" {
+			assert.Contains(t, setCookieHeader, "Secure",
+				"Cookie must have Secure flag when behind HTTPS proxy")
+			assert.NotContains(t, setCookieHeader, "SameSite=None",
+				"SameSite=None without Secure breaks modern browsers")
+			assert.Contains(t, setCookieHeader, "HttpOnly",
+				"Cookie must be HttpOnly to prevent XSS access")
+		}
+	})
+
+	t.Run("cookie not Secure in dev without SSL or proxy", func(t *testing.T) {
+		testConfig := &config.Config{
+			Env: "development",
+			Server: config.ServerConfig{
+				Address: ":8080",
+				SSL:     config.SSLConfig{Enabled: false},
+			},
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC: config.OIDCConfig{
+					Issuer:        "https://issuer.example.com",
+					ClientID:      "client-id",
+					ClientSecret:  "client-secret",
+					SessionSecret: "test-secret",
+				},
+			},
+			Frontend: config.FrontendConfig{
+				URL: "http://localhost:5173",
+			},
+		}
+		config.SetConfig(testConfig)
+		InitAuth()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login", nil)
+		// No X-Forwarded-Proto header — plain HTTP in dev
+
+		LoginInit(c)
+
+		setCookieHeader := w.Header().Get("Set-Cookie")
+		if setCookieHeader != "" {
+			assert.NotContains(t, setCookieHeader, "Secure",
+				"Dev without SSL should not set Secure flag")
+		}
 	})
 }
 
