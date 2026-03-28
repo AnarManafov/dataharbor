@@ -64,17 +64,15 @@ sed -i "s|config=/etc/xrootd/scitokens_prod.cfg|config=/etc/xrootd/scitokens_ren
 chown xrootd:xrootd "$SCITOKENS_RENDERED"
 log_ok "SciTokens config rendered (issuer: $SCITOKENS_ISSUER)"
 
-# TLS CA verification: generate tlsca.cfg from env var
+# TLS CA verification: update xrootd-prod.cfg in-place based on env var
 XROOTD_TLS_CA_VERIFY="${XROOTD_TLS_CA_VERIFY:-true}"
-TLSCA_CFG="/etc/xrootd/tlsca.cfg"
+XROOTD_CFG="/etc/xrootd/xrootd-prod.cfg"
 if [ "$XROOTD_TLS_CA_VERIFY" = "false" ] || [ "$XROOTD_TLS_CA_VERIFY" = "0" ]; then
-    echo "xrd.tlsca noverify" > "$TLSCA_CFG"
+    sed -i 's|^xrd\.tlsca .*|xrd.tlsca noverify|' "$XROOTD_CFG"
     log_warn "TLS CA verification DISABLED (testing mode)"
 else
-    echo "xrd.tlsca certdir /etc/grid-security/certificates" > "$TLSCA_CFG"
     log_ok "TLS CA verification enabled"
 fi
-chown xrootd:xrootd "$TLSCA_CFG"
 
 # ==========================================
 # Setup runtime directories

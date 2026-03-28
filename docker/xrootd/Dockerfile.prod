@@ -21,7 +21,7 @@
 # ============================================
 
 # Global build argument for XRootD version
-ARG XROOTD_VERSION=5.9.0
+ARG XROOTD_VERSION=5.9.1
 
 # ---------------------------------------------
 # Build stage: Install XRootD and dependencies
