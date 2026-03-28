@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2026-03-28
+
+### Fixed
+
+- mount host SSSD socket for LDAP/AD user resolution in XRootD container (docker) (17b3a02)
+
 ## [1.0.16] - 2026-03-28
 
 ### Fixed
