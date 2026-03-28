@@ -150,8 +150,11 @@ jobs:
           retention-days: 1 # Short retention since it's just for the workflow
 
   # Use the reusable workflow to build RPM packages
+  # Temporarily disabled - RPM packaging is not in active use; Docker Compose is the current deployment method.
+  # Re-enable by removing 'if: false' and restoring 'build-rpms' to the publish-release needs list.
   build-rpms:
     name: Build RPM Packages
+    if: false
     needs: [prepare-release, build-frontend, build-backend]
     uses: ./.github/workflows/build-rpm.yml
     with:
@@ -162,7 +165,7 @@ jobs:
   # Final job to publish the release
   publish-release:
     name: Publish GitHub Release
-    needs: [prepare-release, build-rpms]
+    needs: [prepare-release, build-frontend, build-backend]
     # Do not run if previous jobs failed
     if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
     runs-on: ubuntu-latest
@@ -171,12 +174,16 @@ jobs:
       contents: write
     steps:
       - name: Download RPM packages
+        # Temporarily disabled - RPM packaging is not in active use.
+        if: false
         uses: actions/download-artifact@v8
         with:
           name: rpm-packages-both-amd64
           path: /tmp/rpms
 
       - name: Check RPM packages
+        # Temporarily disabled - RPM packaging is not in active use.
+        if: false
         run: |
           echo "Found RPMs:"
           find /tmp/rpms -name "*.rpm" -type f | sort
@@ -188,6 +195,8 @@ jobs:
           path: /tmp/changelog
 
       - name: Extract RPM names
+        # Temporarily disabled - RPM packaging is not in active use.
+        if: false
         id: rpm_names
         run: |
           mkdir -p /tmp/rpm-info
@@ -302,15 +311,14 @@ jobs:
 
             ## RPM Packages
 
-            The following RPM packages are available for installation:
-            ${{ steps.rpm_names.outputs.frontend_rpm != 'not-found' && format('- **Frontend**: `{0}`', steps.rpm_names.outputs.frontend_rpm) || '' }}
-            ${{ steps.rpm_names.outputs.backend_rpm != 'not-found' && format('- **Backend**: `{0}`', steps.rpm_names.outputs.backend_rpm) || '' }}
+            > **Note:** RPM package builds are temporarily disabled. Docker Compose is the current deployment method.
+            > RPM packages will be re-enabled in a future release.
 
             *Release artifacts are attached below.*
 
             *This release was automatically created by GitHub Actions.*
           files: |
-            /tmp/rpms/*.rpm
+            # /tmp/rpms/*.rpm  # Temporarily disabled - RPM packaging not in active use
             ${{ steps.deploy_bundle.outputs.bundle_file }}
           fail_on_unmatched_files: false
           token: ${{ secrets.GITHUB_TOKEN }}

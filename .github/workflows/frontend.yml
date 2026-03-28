@@ -73,7 +73,10 @@ jobs:
         continue-on-error: true # Don't fail the workflow for security issues, just report them
 
   # Job to build frontend RPM package using the reusable workflow
+  # Temporarily disabled - RPM packaging is not in active use; Docker Compose is the current deployment method.
+  # Re-enable by removing 'if: false' when RPM-based deployments are needed.
   build-rpm:
+    if: false
     needs: [build, security-scan] # Only build RPM if other jobs succeed
     uses: ./.github/workflows/build-rpm.yml
     with:

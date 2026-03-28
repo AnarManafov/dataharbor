@@ -211,7 +211,10 @@ jobs:
           retention-days: 7
 
   # Job to build backend RPM package using the reusable workflow
+  # Temporarily disabled - RPM packaging is not in active use; Docker Compose is the current deployment method.
+  # Re-enable by removing 'if: false' when RPM-based deployments are needed.
   build-rpm:
+    if: false
     needs: [build, test-and-coverage, lint, integration-tests] # Only build RPM if other jobs succeed
     strategy:
       matrix:
