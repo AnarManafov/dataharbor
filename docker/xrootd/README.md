@@ -6,10 +6,10 @@ Storage server with ZTN protocol, SciTokens authentication, and user mapping.
 
 DataHarbor provides two XRootD container configurations:
 
-| Configuration | Dockerfile | Purpose |
-|---------------|------------|---------|
-| **Development** | `Dockerfile` | Self-signed certs, test users, test data |
-| **Production** | `Dockerfile.prod` | External mounts, minimal image, security-hardened |
+| Configuration   | Dockerfile        | Purpose                                           |
+| --------------- | ----------------- | ------------------------------------------------- |
+| **Development** | `Dockerfile`      | Self-signed certs, test users, test data          |
+| **Production**  | `Dockerfile.prod` | External mounts, minimal image, security-hardened |
 
 ### Features
 
@@ -67,24 +67,24 @@ docker compose -f docker-compose.deploy.yml up -d
 
 ### Development vs Production
 
-| Aspect | Development | Production |
-|--------|-------------|------------|
-| **TLS Certificates** | Auto-generated self-signed | Host-mounted real certs |
-| **Data Directory** | Named volume with test data | Bind mount from host (Lustre/GPFS) |
-| **User Mapfile** | Baked into image | Mounted from host |
-| **Test Users** | Created in container | Map to host filesystem UIDs |
-| **Logging** | Verbose (debug) | Minimal (error only) |
-| **Token Validation** | Passthrough on missing | Deny on missing |
+| Aspect               | Development                 | Production                         |
+| -------------------- | --------------------------- | ---------------------------------- |
+| **TLS Certificates** | Auto-generated self-signed  | Host-mounted real certs            |
+| **Data Directory**   | Named volume with test data | Bind mount from host (Lustre/GPFS) |
+| **User Mapfile**     | Baked into image            | Mounted from host                  |
+| **Test Users**       | Created in container        | Map to host filesystem UIDs        |
+| **Logging**          | Verbose (debug)             | Minimal (error only)               |
+| **Token Validation** | Passthrough on missing      | Deny on missing                    |
 
 ### Required Environment Variables (Production)
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `XROOTD_DATA_DIR` | Host directory to serve | `/lustre/dataharbor` |
-| `XRD_CERT_PATH` | Host path to TLS certificate | `/etc/ssl/certs/server.crt` |
-| `XRD_KEY_PATH` | Host path to TLS private key | `/etc/ssl/private/server.key` |
-| `XRD_MAPFILE_PATH` | Host path to user mapfile | `/opt/xrootd/mapfile` |
-| `CA_CERTS_PATH` | Host path to CA certificates | `/etc/grid-security/certificates` |
+| Variable           | Description                  | Example                           |
+| ------------------ | ---------------------------- | --------------------------------- |
+| `XROOTD_DATA_DIR`  | Host directory to serve      | `/lustre/dataharbor`              |
+| `XRD_CERT_PATH`    | Host path to TLS certificate | `/etc/ssl/certs/server.crt`       |
+| `XRD_KEY_PATH`     | Host path to TLS private key | `/etc/ssl/private/server.key`     |
+| `XRD_MAPFILE_PATH` | Host path to user mapfile    | `/opt/xrootd/mapfile`             |
+| `CA_CERTS_PATH`    | Host path to CA certificates | `/etc/grid-security/certificates` |
 
 ## User Mapping
 
@@ -117,19 +117,19 @@ The mapfile is a JSON array of mappings:
 ]
 ```
 
-| Field | Description |
-|-------|-------------|
-| `sub` | JWT token subject claim (exact match or `*` for wildcard) |
-| `result` | Unix username to map to (empty string = deny access) |
+| Field    | Description                                               |
+| -------- | --------------------------------------------------------- |
+| `sub`    | JWT token subject claim (exact match or `*` for wildcard) |
+| `result` | Unix username to map to (empty string = deny access)      |
 
 ### Test Users (Development Only)
 
-| Token Subject | Unix User | UID | Home Directory |
-|---------------|-----------|-----|----------------|
-| `a.manafov` | `amanafov` | 1003 | `/data/amanafov` |
-| `testuser1` | `testuser1` | 1001 | `/data/testuser1` |
-| `testuser2` | `testuser2` | 1002 | `/data/testuser2` |
-| (unmapped) | denied | - | - |
+| Token Subject | Unix User   | UID  | Home Directory    |
+| ------------- | ----------- | ---- | ----------------- |
+| `a.manafov`   | `amanafov`  | 1003 | `/data/amanafov`  |
+| `testuser1`   | `testuser1` | 1001 | `/data/testuser1` |
+| `testuser2`   | `testuser2` | 1002 | `/data/testuser2` |
+| (unmapped)    | denied      | -    | -                 |
 
 ### Production User Setup
 
@@ -184,17 +184,17 @@ The production entrypoint validates certificates on startup:
 
 ### XRootD Configuration
 
-| File | Purpose |
-|------|---------|
-| `xrootd-dev.cfg` | Development with verbose logging |
-| `xrootd-prod.cfg` | Production with minimal logging |
+| File              | Purpose                          |
+| ----------------- | -------------------------------- |
+| `xrootd-dev.cfg`  | Development with verbose logging |
+| `xrootd-prod.cfg` | Production with minimal logging  |
 
 ### SciTokens Configuration
 
-| File | Purpose |
-|------|---------|
-| `scitokens_dev.cfg` | Development (passthrough on missing token) |
-| `scitokens_prod.cfg` | Production (deny on missing token) |
+| File                 | Purpose                                    |
+| -------------------- | ------------------------------------------ |
+| `scitokens_dev.cfg`  | Development (passthrough on missing token) |
+| `scitokens_prod.cfg` | Production (deny on missing token)         |
 
 ### Key Configuration Options
 
@@ -284,12 +284,12 @@ docker compose exec xrootd xrdfs localhost:1094 ls /data
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Permission Denied | Token mapping failed | Check mapfile and user exists |
-| TLS Handshake Failed | Certificate mismatch | Verify cert hostname and CA |
-| Data Directory Empty | Mount not propagated | Check `rslave` propagation |
-| User Not Found | UID mismatch | Ensure UIDs match host filesystem |
+| Issue                | Cause                | Solution                          |
+| -------------------- | -------------------- | --------------------------------- |
+| Permission Denied    | Token mapping failed | Check mapfile and user exists     |
+| TLS Handshake Failed | Certificate mismatch | Verify cert hostname and CA       |
+| Data Directory Empty | Mount not propagated | Check `rslave` propagation        |
+| User Not Found       | UID mismatch         | Ensure UIDs match host filesystem |
 
 ### Debug Mode
 
