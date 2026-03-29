@@ -38,7 +38,7 @@
                         <span class='stat-label'>Used:</span>
                         <span class='stat-value' :class='utilizationClass(vfsStat.utilizationPercent)'>{{
                             vfsStat.utilizationPercent
-                        }}%</span>
+                            }}%</span>
                     </span>
                 </div>
                 <div style='font-size: 10px; color: var(--el-text-color-secondary); margin-top: 2px;'
@@ -53,10 +53,10 @@
                 <span class='net-stat-item'>
                     <span class='net-stat-label'>Showing:</span>
                     <span class='net-stat-value' style='color: var(--el-color-primary)'>{{ folderCount
-                        }}&nbsp;folders</span>
+                    }}&nbsp;folders</span>
                     <span class='net-stat-dot'>&middot;</span>
                     <span class='net-stat-value' style='color: var(--el-color-success)'>{{ fileCount
-                        }}&nbsp;files</span>
+                    }}&nbsp;files</span>
                     <span class='net-stat-dot'>&middot;</span>
                     <span class='net-stat-value'>{{ totalOnPageFileSize }}</span>
                 </span>
@@ -64,10 +64,10 @@
                 <span class='net-stat-item'>
                     <span class='net-stat-label'>Total:</span>
                     <span class='net-stat-value' style='color: var(--el-color-primary)'>{{ totalFolderCount
-                        }}&nbsp;folders</span>
+                    }}&nbsp;folders</span>
                     <span class='net-stat-dot'>&middot;</span>
                     <span class='net-stat-value' style='color: var(--el-color-success)'>{{ totalFileCount
-                        }}&nbsp;files</span>
+                    }}&nbsp;files</span>
                     <span class='net-stat-dot'>&middot;</span>
                     <span class='net-stat-value'>{{ totalFileSize }}</span>
                 </span>
@@ -143,7 +143,9 @@ const changeDir = (index: number) => {
 };
 
 const formatFreeSpace = (mb: number): string => {
-    if (mb >= 1024 * 1024) {
+    if (mb >= 1024 * 1024 * 1024) {
+        return `${(mb / (1024 * 1024 * 1024)).toFixed(1)} PB`;
+    } else if (mb >= 1024 * 1024) {
         return `${(mb / (1024 * 1024)).toFixed(1)} TB`;
     } else if (mb >= 1024) {
         return `${(mb / 1024).toFixed(1)} GB`;
