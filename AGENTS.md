@@ -56,33 +56,44 @@ The root `package.json` uses **npm workspaces** to orchestrate both components.
 
 ## Quick Reference Commands
 
+The project includes a `Makefile` for all common tasks. Run `make help` to see all available targets.
+
 ```bash
 # Start full dev environment (frontend + backend concurrently)
-npm run dev
+make dev
 
 # Start components independently
-npm run dev:frontend          # https://localhost:5173
-npm run dev:backend           # https://localhost:22000
+make dev-frontend             # https://localhost:5173
+make dev-backend              # https://localhost:22000
 
 # Build both components
-npm run build
+make build
 
-# Backend only
-cd app
-go run .                      # Run
-go test -v ./...              # All tests
-go test -cover ./...          # Tests with coverage
-go test -race ./...           # Tests with race detection
-go test -v ./controller       # Test one package
-go test -v ./controller -run TestHealthHandler  # One test
-cd test && go test -v -run Integration          # Integration tests
-cd test && go test -bench . -benchmem           # Benchmarks
+# Build components individually
+make build-backend            # Static binary with version injection
+make build-frontend           # Vite production build
 
-# Frontend only
-cd web
-npm run dev                   # Dev server
-npm run build                 # Production build
-npm run preview               # Preview production build
+# Testing
+make test                     # All backend tests with coverage
+make test-verbose             # Verbose test output
+make test-race                # Tests with race detection
+make test-coverage-html       # HTML coverage report
+make test-integration         # Integration tests
+make test-benchmark           # Benchmark tests
+
+# Code quality
+make fmt                      # Format Go code
+make vet                      # Run go vet
+make lint                     # Run golangci-lint
+
+# Dependencies
+make deps                     # Install all dependencies
+make update                   # Update all dependencies
+make tidy                     # Tidy go.mod
+
+# Clean
+make clean                    # Clean build artifacts
+make clean-all                # Clean everything including node_modules
 ```
 
 ---
@@ -281,10 +292,10 @@ Full development environment via `.devcontainer/` with Go, Node.js, Docker CLI, 
 - **Framework**: `testify` (assertions + mocks)
 - **Location**: Co-located `*_test.go` files in each package
 - **Shared setup**: `main_test.go` per package for test suite initialization
-- **Integration tests**: `app/test/config_integration_test.go` — run with `go test -v -run Integration`
-- **Benchmarks**: `app/test/config_benchmark_test.go` — run with `go test -bench . -benchmem`
+- **Integration tests**: `app/test/config_integration_test.go` — run with `make test-integration`
+- **Benchmarks**: `app/test/config_benchmark_test.go` — run with `make test-benchmark`
 - **Coverage target**: 80% overall, 90% for critical paths (auth, file operations)
-- **Race detection**: Use `go test -race ./...` before submitting
+- **Race detection**: Use `make test-race` before submitting
 - **Mandatory tests**: All code changes (new features, bug fixes, refactors) must include corresponding unit tests. Do not submit changes without test coverage for new or modified logic.
 
 ### Frontend Tests
@@ -306,4 +317,4 @@ Full development environment via `.devcontainer/` with Go, Node.js, Docker CLI, 
 7. **Config file location**: Backend expects config at `app/config/application.yaml` (or `application.development.yaml` for dev). Missing config causes startup failure.
 8. **Static binary**: Backend is built with `CGO_ENABLED=0` for static linking. Don't add dependencies requiring CGO.
 9. **SSL in dev**: Both frontend (Vite) and backend (Gin) support HTTPS. Dev certificates are managed via `web/cert-config.js` and `config/application.development.yaml`.
-10. **npm install from root**: Always run `npm install` from the repo root (npm workspaces). Running it only in `web/` may cause lock file inconsistencies.
+10. **Dependencies from root**: Always run `make deps` (or `npm install`) from the repo root. Running it only in `web/` may cause lock file inconsistencies.

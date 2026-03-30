@@ -13,23 +13,23 @@ Vue 3 + Vite frontend for DataHarbor - provides web interface for XROOTD file sy
 ### Development
 
 ```shell
-# Install dependencies
-npm install
+# Install dependencies (from repo root)
+make deps-frontend
 
 # Development server (with HTTPS)
-npm run dev
+make dev-frontend
 
 # Development server with PKM certificates
-npm run dev:pkm-certs
+cd web && npm run dev:pkm-certs
 
 # Build for production
-npm run build
+make build-frontend
 ```
 
 ## Key Features
 
 - **Vue 3 + Composition API**: Modern reactive framework
-- **Pinia State Management**: Centralized application state  
+- **Pinia State Management**: Centralized application state
 - **OIDC Authentication**: Secure authentication with session management
 - **File Explorer Interface**: Intuitive directory browsing and file operations
 - **Responsive Design**: Works on desktop and mobile devices

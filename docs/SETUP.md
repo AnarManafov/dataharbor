@@ -83,22 +83,11 @@ cd dataharbor
 
 ### 2. Install Project Dependencies
 
-#### Backend Dependencies
-
 ```shell
-cd app
-go mod download
-go mod tidy
-cd ..
+make deps
 ```
 
-#### Frontend Dependencies
-
-```shell
-cd web
-npm install
-cd ..
-```
+This installs both backend (Go modules) and frontend (npm) dependencies.
 
 ### 3. Development Configuration
 
@@ -161,17 +150,17 @@ If no certificates are found, the development server will run in HTTP mode.
 
 ### Quick Start Commands
 
-| Command                | Description                                  |
-| ---------------------- | -------------------------------------------- |
-| `npm run dev`          | Start both frontend and backend concurrently |
-| `npm run dev:frontend` | Start frontend only (https://localhost:5173) |
-| `npm run dev:backend`  | Start backend only (http://localhost:8081)   |
-| `npm run build`        | Build both for production                    |
+| Command             | Description                                  |
+| ------------------- | -------------------------------------------- |
+| `make dev`          | Start both frontend and backend concurrently |
+| `make dev-frontend` | Start frontend only (https://localhost:5173) |
+| `make dev-backend`  | Start backend only (http://localhost:8081)   |
+| `make build`        | Build both for production                    |
 
 ### Starting Both Services
 
 ```shell
-npm run dev
+make dev
 ```
 
 This starts:
@@ -182,10 +171,10 @@ This starts:
 
 ```shell
 # Terminal 1: Backend
-npm run dev:backend
+make dev-backend
 
 # Terminal 2: Frontend
-npm run dev:frontend
+make dev-frontend
 ```
 
 > **📖 For detailed development workflow**, including Git branching, CI/CD, and contribution guidelines, see **[Development Guide](./DEVELOPMENT.md)**.
@@ -194,11 +183,11 @@ npm run dev:frontend
 
 ```shell
 # Build both frontend and backend
-npm run build
+make build
 
 # Build individually
-npm run build:frontend
-npm run build:backend
+make build-frontend
+make build-backend
 ```
 
 ## Running Tests
@@ -206,13 +195,14 @@ npm run build:backend
 #### Backend Tests
 
 ```shell
-cd app
-go test -v ./...
+# Run all tests with coverage
+make test
 
-# With coverage
-go test -cover ./...
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
+# Verbose output
+make test-verbose
+
+# HTML coverage report
+make test-coverage-html
 ```
 
 #### Frontend Tests
@@ -228,10 +218,10 @@ npm test  # If test framework is configured
 
 ```shell
 # Synchronize versions across components
-npm run sync-versions
+make sync-versions
 
 # Prepare for release
-npm run prepare-release
+make prepare-release
 ```
 
 ### Certificate Management
@@ -261,7 +251,7 @@ Ensure your Go workspace is properly configured:
 ```shell
 cd app
 go mod init github.com/AnarManafov/dataharbor/app  # Already done
-go mod tidy
+make tidy
 ```
 
 ## Next Steps

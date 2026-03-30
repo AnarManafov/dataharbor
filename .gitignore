@@ -38,3 +38,8 @@ docker/xrootd-data/
 # Backend logs
 log/
 *.log
+
+# Ignore test data directories
+/amanafov
+/testuser1
+/testuser2

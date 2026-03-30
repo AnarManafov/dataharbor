@@ -32,12 +32,10 @@
         // Markdown support
         "yzhang.markdown-all-in-one",
         "DavidAnson.vscode-markdownlint",
-        "bierner.markdown-mermaid",
+        "mermaidchart.vscode-mermaid-chart",
         // GitHub Copilot (optional - requires license)
         "github.copilot",
-        "github.copilot-chat",
-        // Mermaid diagram support
-        "mermaidchart.vscode-mermaid-chart"
+        "github.copilot-chat"
       ],
       // Workspace settings applied in container
       "settings": {
@@ -56,10 +54,73 @@
           "typescript",
           "vue"
         ],
+        // General editor settings
+        "editor.formatOnSave": true,
+        "editor.formatOnPaste": false,
+        "editor.rulers": [
+          100,
+          120
+        ],
+        "editor.tabSize": 2,
+        "editor.insertSpaces": false, // Default to tabs (for Go)
+        "files.eol": "\n",
+        "files.insertFinalNewline": true,
+        "files.trimTrailingWhitespace": true,
+        // JSON/JSONC - use spaces (standard convention)
+        "[json]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        },
+        "[jsonc]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        },
+        // JavaScript/TypeScript - use spaces
+        "[javascript]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        },
+        "[typescript]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        },
+        "[typescriptreact]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        },
+        // Terminal settings
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "/bin/zsh",
+            "icon": "terminal-linux"
+          }
+        },
         // File associations - project-specific file types
         "files.associations": {
           "*.vue": "vue",
-          "docker-compose*.yml": "dockercompose"
+          "docker-compose*.yml": "dockercompose",
+          "Makefile": "makefile",
+          "*.mk": "makefile"
+        },
+        // Markdown settings
+        "markdown.extension.toc.levels": "2..6",
+        // Markdown - use spaces (markdownlint MD007/MD010 requires spaces, not tabs)
+        "[markdown]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2,
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+        },
+        // YAML settings
+        "[yaml]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2,
+          "editor.autoIndent": "advanced"
         }
       }
     }

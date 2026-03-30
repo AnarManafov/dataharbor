@@ -2,33 +2,28 @@
 """
 Release Notes Generator Script
 
-Generates release notes by leveraging the CHANGELOG.md content, but with 
-more user-friendly formatting and additional information relevant for releases.
+Generates release notes content and prints it to stdout for use by CI.
+The RELEASE_NOTES.md file itself is written by the version-tag-processor CI workflow.
 
 Usage:
-  python generate_release_notes.py [--version VERSION] [--from-tag TAG] [--to-tag TAG] [--output-file FILE]
+  python generate_release_notes.py --version VERSION [--from-tag TAG] [--to-tag TAG]
 
 Options:
-  --version      The version to generate release notes for (required)
-  --from-tag     Get commits starting from this tag (default: previous tag)
-  --to-tag       Get commits up to this tag (default: v{VERSION})
-  --output-file  Where to write the release notes (default: RELEASE_NOTES.md)
+  --version   The version to generate release notes for (required)
+  --from-tag  Get commits starting from this tag (default: previous tag)
+  --to-tag    Get commits up to this tag (default: v{VERSION})
 """
 
 import argparse
-import os
 import re
-import subprocess
 from datetime import date
 import sys
-import json
 from typing import Dict, List, Optional, Tuple
 
 # Import functions from changelog.py
 try:
     from changelog import (
         run_git_command,
-        get_repo_root,
         get_latest_tag,
         extract_ticket_reference,
         get_commits,
@@ -50,8 +45,6 @@ def parse_args():
         "--from-tag", help="Get commits starting from this tag (default: previous tag)")
     parser.add_argument(
         "--to-tag", help="Get commits up to this tag (default: v{VERSION})")
-    parser.add_argument("--output-file", default="RELEASE_NOTES.md",
-                        help="File to write release notes to (default: RELEASE_NOTES.md)")
 
     return parser.parse_args()
 
@@ -138,8 +131,7 @@ def get_commit_summary(from_tag: str, to_tag: str) -> str:
 
 
 def generate_release_notes(version: str, from_tag: str = None, to_tag: str = None) -> str:
-    """Generate release notes content."""
-    repo_root = get_repo_root()
+    """Generate release notes content and return (release_notes, raw_changelog)."""
     today = date.today().isoformat()
 
     # Determine from_tag and to_tag if not specified
@@ -192,51 +184,14 @@ Changelog:
     return release_notes, raw_changelog
 
 
-def update_release_notes(release_notes_content: str, output_file: str) -> None:
-    """Update the RELEASE_NOTES.md file with new content."""
-    repo_root = get_repo_root()
-    release_notes_path = os.path.join(repo_root, output_file)
-
-    try:
-        # Simply write the new content, replacing any existing file
-        # This ensures only the latest version is included
-        with open(release_notes_path, "w", encoding="utf-8") as f:
-            f.write(f"# Release Notes\n\n{release_notes_content}")
-
-        print(f"Successfully updated {output_file}", file=sys.stderr)
-
-    except Exception as e:
-        print(f"Error updating release notes: {e}")
-        sys.exit(1)
-
-
-def save_raw_changelog(raw_content: str, version: str) -> None:
-    """Save the raw changelog content to a separate file for CI tools."""
-    repo_root = get_repo_root()
-    raw_path = os.path.join(repo_root, f"CHANGELOG_RAW_{version}.txt")
-
-    try:
-        with open(raw_path, "w", encoding="utf-8") as f:
-            f.write(f"GENERATED_CHANGELOG<<EOF\n{raw_content}\nEOF\n")
-        print(
-            f"Saved raw changelog to {raw_path} for CI tools", file=sys.stderr)
-    except Exception as e:
-        print(f"Error saving raw changelog: {e}")
-
-
 if __name__ == "__main__":
     args = parse_args()
 
-    # Generate release notes content
-    release_notes_content, raw_changelog = generate_release_notes(
+    # Generate release notes; print raw changelog to stdout for CI shell redirection.
+    # The workflow expects just the changelog content, not the full release notes format.
+    _, raw_changelog = generate_release_notes(
         args.version,
         from_tag=args.from_tag,
         to_tag=args.to_tag
     )
-
-    # For CI workflows that use shell redirection, output the raw changelog content to stdout
-    # The workflow expects just the changelog content, not the full release notes format
     print(raw_changelog)
-
-    # Also save to file for local use and CI tools
-    save_raw_changelog(raw_changelog, args.version)

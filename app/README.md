@@ -15,23 +15,23 @@ Go backend for DataHarbor - provides REST API for XROOTD file system operations 
 
 ```shell
 # Install dependencies
-go mod download
+make deps-backend
 
-# Run with auto-reload
-go run .
+# Run dev server
+make dev-backend
 
 # Run with specific config
-go run . --config=config/application.development.yaml
+cd app && go run . --config=config/application.development.yaml
 ```
 
 ### Testing
 
 ```shell
 # Run all tests
-go test -v ./...
+make test
 
 # Run with coverage
-go test -cover ./...
+make test-coverage
 ```
 
 ## Key Features

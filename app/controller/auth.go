@@ -114,10 +114,7 @@ func deleteTokens(tokenID string) {
 // IMPORTANT: SameSite=None MUST have Secure=true, otherwise modern browsers silently
 // reject the cookie entirely, breaking the OIDC flow.
 func sessionCookieOptions(cfg *config.Config, c *gin.Context) *sessions.Options {
-	secureCookies := true
-	if cfg.Env == "development" && !cfg.Server.SSL.Enabled {
-		secureCookies = false
-	}
+	secureCookies := cfg.Env != "development" || cfg.Server.SSL.Enabled
 	// When behind a reverse proxy that terminates TLS (e.g. nginx),
 	// SSL.Enabled is false but the actual client connection is HTTPS.
 	if c != nil && schemeFromRequest(c) == "https" {
