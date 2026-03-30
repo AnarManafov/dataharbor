@@ -220,7 +220,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "timeout 5 xrdfs 127.0.0.1:1094 query config version || exit 1",
+          "bash -c 'echo > /dev/tcp/127.0.0.1/1094' 2>/dev/null || exit 1",
         ]
       interval: 30s
       timeout: 10s
