@@ -4,8 +4,6 @@
 
 This document covers production deployment and packaging for DataHarbor.
 
-> **Note**: This is the general deployment guide. For environment-specific deployments, see the **[GSI Documentation](./gsi/README.md)** section.
-
 ## Deployment Architecture Diagrams
 
 ### Multi-Environment Deployment Strategy
@@ -1163,7 +1161,6 @@ For troubleshooting deployment and production issues, see the **[Troubleshooting
 
 ## Related Documentation
 
-- **[GSI Deployment](./gsi/README.md)** - GSI-specific deployment guides
 - **[Backend Configuration](./BACKEND_CONFIGURATION.md)** - Complete backend configuration reference
 - **[Frontend Configuration](./FRONTEND_CONFIGURATION.md)** - Frontend deployment and configuration
 - **[Setup Guide](./SETUP.md)** - Development environment setup

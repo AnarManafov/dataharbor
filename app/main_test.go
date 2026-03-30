@@ -48,11 +48,9 @@ func TestStartServer_DebugMode(t *testing.T) {
 
 	// Call the startServer function
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		startServer(stop)
-	}()
+	})
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.TestMode, gin.Mode())
@@ -80,11 +78,9 @@ func TestStartServer_ReleaseMode(t *testing.T) {
 
 	// Call the startServer function
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		startServer(stop)
-	}()
+	})
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.ReleaseMode, gin.Mode())
@@ -116,15 +112,13 @@ func TestStartServer_SSLEnabled(t *testing.T) {
 
 	// This will fail to start due to missing cert files, but it exercises the SSL path
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer func() {
 			// Recover from any panic
 			_ = recover()
 		}()
 		startServer(stop)
-	}()
+	})
 
 	// Signal stop and wait for the goroutine to finish
 	close(stop)
@@ -148,11 +142,9 @@ func TestStartServer_DefaultAddress(t *testing.T) {
 
 	// Start server in goroutine
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		startServer(stop)
-	}()
+	})
 
 	// Signal stop and wait for the goroutine to finish
 	close(stop)

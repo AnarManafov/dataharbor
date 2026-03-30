@@ -11,21 +11,20 @@ DataHarbor's Vue.js frontend uses a multi-layered configuration system with buil
 1. **Install dependencies**:
 
    ```bash
-   cd web
-   npm install
+   make deps-frontend
    ```
 
 2. **Start development server**:
 
    ```bash
    # Basic development server
-   npm run dev
-   
+   make dev-frontend
+
    # With PKM certificates (if available)
-   npm run dev:pkm-certs
-   
+   cd web && npm run dev:pkm-certs
+
    # With custom SSL certificates
-   VITE_SSL_KEY="path/to/server.key" VITE_SSL_CERT="path/to/server.crt" npm run dev
+   cd web && VITE_SSL_KEY="path/to/server.key" VITE_SSL_CERT="path/to/server.crt" npm run dev
    ```
 
 3. **Access the application**:
@@ -43,28 +42,28 @@ flowchart TD
         EnvVars[VITE_* Environment Variables<br/>Build-time Values]
         PackageJson[package.json<br/>Scripts & Dependencies]
     end
-    
+
     subgraph "Runtime Configuration"
         PublicConfig[public/config.json<br/>Deployment Settings]
         DefaultConfig[src/config/default-config.js<br/>Fallback Values]
         ConfigLoader[src/config/config.js<br/>Configuration Loader]
     end
-    
+
     subgraph "SSL Management"
         CertConfig[cert-config.js<br/>Certificate Discovery]
         CertPaths[Multiple Certificate Sources<br/>Environment, PKM, Local]
     end
-    
+
     ViteConfig --> ConfigLoader
     EnvVars --> ViteConfig
     PublicConfig --> ConfigLoader
     DefaultConfig --> ConfigLoader
     CertConfig --> ViteConfig
-    
+
     classDef buildtime fill:#e3f2fd
     classDef runtime fill:#f1f8e9
     classDef ssl fill:#fff3e0
-    
+
     class ViteConfig,EnvVars,PackageJson buildtime
     class PublicConfig,DefaultConfig,ConfigLoader runtime
     class CertConfig,CertPaths ssl
@@ -76,21 +75,21 @@ flowchart TD
 flowchart TD
     Start[Application Start] --> LoadRuntime[Load Runtime Config]
     LoadRuntime --> FetchPublic{Fetch /config.json?}
-    
+
     FetchPublic -->|Success| MergePublic[Merge with Public Config]
     FetchPublic -->|Failed| UseDefaults[Use Default Config]
-    
+
     MergePublic --> SetGlobal[Set Global Config]
     UseDefaults --> SetGlobal
-    
+
     SetGlobal --> InitAPI[Initialize API Client]
     InitAPI --> Ready[Application Ready]
-    
+
     classDef start fill:#e8f5e8
     classDef process fill:#e3f2fd
     classDef decision fill:#fff3e0
     classDef ready fill:#f1f8e9
-    
+
     class Start start
     class LoadRuntime,MergePublic,UseDefaults,SetGlobal,InitAPI process
     class FetchPublic decision
@@ -138,7 +137,7 @@ proxy: {
 
 1. **Environment Variables** (highest priority)
 2. **PKM Workspace** (relative paths)
-3. **User Home PKM** (common locations)  
+3. **User Home PKM** (common locations)
 4. **Local app/config** (fallback)
 
 #### Environment Variables
@@ -157,7 +156,7 @@ Automatic discovery of certificates in PKM workspace:
 '../../pkm/docs/gsi/dataharbor/test/cert/server.key'
 '../../pkm/docs/gsi/dataharbor/test/cert/server.crt'
 
-// User home PKM paths  
+// User home PKM paths
 '~/Documents/workspace/pkm/docs/gsi/dataharbor/test/cert/'
 ```
 

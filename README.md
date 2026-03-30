@@ -40,7 +40,7 @@ Zero-configuration development environment with all tools pre-installed:
 1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop) + [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 2. Clone and open: `git clone https://github.com/AnarManafov/dataharbor.git && code dataharbor`
 3. Click "Reopen in Container" when prompted
-4. Run `npm run dev` — access at `https://localhost:5173`
+4. Run `make dev` — access at `https://localhost:5173`
 
 🛠️ **[Dev Container Guide](./.devcontainer/README.md)** — Full setup details, WSL2 instructions, troubleshooting.
 
@@ -72,11 +72,10 @@ For running services directly on your machine without containers:
 git clone https://github.com/AnarManafov/dataharbor.git && cd dataharbor
 
 # Install dependencies
-cd web && npm install && cd ..
-cd app && go mod download && cd ..
+make deps
 
 # Start development servers
-npm run dev  # Or: npm run dev:frontend / npm run dev:backend
+make dev  # Or: make dev-frontend / make dev-backend
 ```
 
 Access at `https://localhost:5173` (accept the self-signed certificate warning).
@@ -139,18 +138,13 @@ Access at `https://localhost:5173` (accept the self-signed certificate warning).
 ### Build for Production
 
 ```shell
-npm run build
+make build
 ```
 
 ### Update Dependencies
 
 ```shell
-# Update all frontend dependencies
-npx npm-check-updates --workspaces -u
-npm install
-
-# Update backend dependencies
-cd app && go get -u ./... && go mod tidy && cd ..
+make update
 ```
 
 See [DEVELOPMENT.md](./docs/DEVELOPMENT.md#dependency-management) for detailed dependency management guidelines.
@@ -158,23 +152,24 @@ See [DEVELOPMENT.md](./docs/DEVELOPMENT.md#dependency-management) for detailed d
 ### Run Tests
 
 ```shell
-# Backend tests
-cd app
-go test -v ./...
+# Backend tests with coverage
+make test
 
-# Frontend tests (if available)
-cd web
-npm test
+# Verbose output
+make test-verbose
+
+# Race detection
+make test-race
 ```
 
 ### Version Management
 
 ```shell
 # Sync versions across components
-npm run sync-versions
+make sync-versions
 
 # Prepare release
-npm run prepare-release
+make prepare-release
 ```
 
 ## Project Structure

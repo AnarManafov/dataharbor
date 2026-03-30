@@ -37,7 +37,7 @@ web/
 │   │   ├── GlobalSidebar.vue # Navigation sidebar
 │   │   └── partials/       # Small, focused UI components
 │   │
-│   ├── views/              # Page-level route components  
+│   ├── views/              # Page-level route components
 │   │   ├── HomeView.vue    # Landing page
 │   │   ├── BrowseXrdView.vue # File system browser
 │   │   ├── LoginView.vue   # Authentication interface
@@ -95,37 +95,34 @@ web/
 ### Prerequisites
 
 - **Node.js 18+** - Modern JavaScript runtime
-- **npm** - Package manager for dependency management  
+- **npm** - Package manager for dependency management
 - **Git** - Version control system
 
 ### Quick Start
 
 ```shell
-# Navigate to frontend directory
-cd web
-
-# Install dependencies
-npm install
+# Install dependencies (from repo root)
+make deps-frontend
 
 # Start development server with HTTPS
-npm run dev
+make dev-frontend
 
 # Alternative: Development with custom certificates
-npm run dev:env-certs
+cd web && npm run dev:env-certs
 ```
 
 The development server runs on `https://localhost:5173` with automatic HTTPS configuration for secure local development.
 
 ### Development Commands
 
-| Command              | Purpose                                  |
-| -------------------- | ---------------------------------------- |
-| `npm run dev`        | Start development server with hot reload |
-| `npm run build`      | Create production build                  |
-| `npm run preview`    | Preview production build locally         |
-| `npm run cert:check` | Verify SSL certificate configuration     |
-| `npm test`           | Run unit tests (when available)          |
-| `npm run lint`       | Check code style and quality             |
+| Command               | Purpose                                  |
+| --------------------- | ---------------------------------------- |
+| `make dev-frontend`   | Start development server with hot reload |
+| `make build-frontend` | Create production build                  |
+| `npm run preview`     | Preview production build locally         |
+| `npm run cert:check`  | Verify SSL certificate configuration     |
+| `npm test`            | Run unit tests (when available)          |
+| `npm run lint`        | Check code style and quality             |
 
 ## Frontend Architecture Diagrams
 
@@ -139,64 +136,64 @@ graph TB
         Main --> Pinia[Pinia Store Setup]
         Main --> Plugins[Plugin Registration]
     end
-    
+
     subgraph "Root Layout"
         App --> TopBar[TopBar.vue]
         App --> Sidebar[GlobalSidebar.vue]
         App --> RouterView[<router-view>]
     end
-    
+
     subgraph "Views (Route Components)"
         RouterView --> HomeView[HomeView.vue]
         RouterView --> BrowseView[BrowseXrdView.vue]
         RouterView --> LoginView[LoginView.vue]
         RouterView --> DocsView[DocumentationView.vue]
     end
-    
+
     subgraph "Reusable Components"
         FileExplorer[FileExplorer.vue]
         DownloadManager[DownloadManager.vue]
         BreadcrumbNav[BreadcrumbNavigation.vue]
         LoadingSpinner[LoadingSpinner.vue]
     end
-    
+
     subgraph "Pinia Stores"
         AuthStore[Auth Store]
         FilesStore[Files Store]
         UIStore[UI Store]
     end
-    
+
     subgraph "Composables (Business Logic)"
         UseAuth[useAuth.js]
         UseFileOps[useFileOps.js]
         UseAPI[useAPI.js]
         UseDownload[useDownload.js]
     end
-    
+
     subgraph "API Layer"
         APIClient[api.js]
         RequestInterceptors[Request Interceptors]
         ResponseInterceptors[Response Interceptors]
     end
-    
+
     BrowseView --> FileExplorer
     BrowseView --> DownloadManager
     FileExplorer --> BreadcrumbNav
-    
+
     TopBar --> AuthStore
     BrowseView --> FilesStore
     FileExplorer --> FilesStore
     LoadingSpinner --> UIStore
-    
+
     AuthStore --> UseAuth
     FilesStore --> UseFileOps
     UseFileOps --> UseAPI
     UseDownload --> UseAPI
-    
+
     UseAPI --> APIClient
     APIClient --> RequestInterceptors
     APIClient --> ResponseInterceptors
-    
+
     classDef entry fill:#e3f2fd
     classDef layout fill:#fff3e0
     classDef views fill:#f1f8e9
@@ -204,7 +201,7 @@ graph TB
     classDef stores fill:#f3e5f5
     classDef composables fill:#e8f5e8
     classDef api fill:#fff8e1
-    
+
     class Main,App,Router,Pinia,Plugins entry
     class TopBar,Sidebar,RouterView layout
     class HomeView,BrowseView,LoginView,DocsView views
@@ -219,51 +216,51 @@ graph TB
 ```mermaid
 stateDiagram-v2
     [*] --> StoreInitialization
-    
+
     StoreInitialization --> AuthStore: Initialize auth state
     StoreInitialization --> FilesStore: Initialize files state
     StoreInitialization --> UIStore: Initialize UI state
-    
+
     state AuthStore {
         [*] --> CheckingAuth
         CheckingAuth --> Authenticated: Valid session found
         CheckingAuth --> Unauthenticated: No valid session
-        
+
         Unauthenticated --> LoggingIn: User initiates login
         LoggingIn --> Authenticated: Login successful
         LoggingIn --> LoginFailed: Login failed
         LoginFailed --> Unauthenticated: Reset state
-        
+
         Authenticated --> LoggingOut: User initiates logout
         LoggingOut --> Unauthenticated: Logout complete
-        
+
         Authenticated --> TokenRefresh: Auto token refresh
         TokenRefresh --> Authenticated: Refresh successful
         TokenRefresh --> Unauthenticated: Refresh failed
     }
-    
+
     state FilesStore {
         [*] --> EmptyState
         EmptyState --> Loading: Directory request
         Loading --> Loaded: Data received
         Loading --> Error: Request failed
-        
+
         Loaded --> Loading: Navigate to new directory
         Loaded --> Refreshing: Refresh current directory
         Refreshing --> Loaded: Refresh complete
-        
+
         Error --> Loading: Retry request
         Error --> EmptyState: Reset state
     }
-    
+
     state UIStore {
         [*] --> Idle
         Idle --> Loading: Show loading indicator
         Loading --> Idle: Hide loading indicator
-        
+
         Idle --> ShowingNotification: Display message
         ShowingNotification --> Idle: Notification dismissed
-        
+
         Idle --> ErrorState: Show error
         ErrorState --> Idle: Error cleared
     }
@@ -279,31 +276,31 @@ sequenceDiagram
     participant Composable as Composable
     participant API as API Layer
     participant Backend as Backend
-    
+
     Note over User,Backend: User Interaction Example: Browse Directory
-    
+
     User->>Component: Click on directory
     Component->>Store: dispatch('navigateToDirectory', path)
-    
+
     Store->>Store: Set loading state
     Store->>Composable: Call navigation logic
-    
+
     Composable->>API: makeRequest('/api/v1/dir', {path})
     API->>API: Add auth headers, format request
     API->>Backend: HTTP POST with directory path
-    
+
     Backend-->>API: Directory listing response
     API-->>Composable: Parsed response data
     Composable-->>Store: Update files state
-    
+
     Store->>Store: Set loaded state
     Store->>Component: Reactive state update
     Component->>User: Re-render with new directory data
-    
+
     Note over Component,Store: Reactive Updates
     Component->>Component: Watch store state changes
     Store->>Component: Automatic re-render on state change
-    
+
     Note over User,Backend: Error Handling Flow
     Backend-->>API: Error response (404, 500, etc.)
     API->>API: Parse error, format for UI
@@ -318,32 +315,32 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     Navigation[Route Navigation] --> BeforeGuard[beforeEach Guard]
-    
+
     BeforeGuard --> CheckAuth{Route Requires Auth?}
     CheckAuth -->|No| AllowNavigation[Allow Navigation]
     CheckAuth -->|Yes| AuthCheck{User Authenticated?}
-    
+
     AuthCheck -->|Yes| AllowNavigation
     AuthCheck -->|No| AuthStore[Check Auth Store]
-    
+
     AuthStore --> ValidateSession{Valid Session?}
     ValidateSession -->|Yes| AllowNavigation
     ValidateSession -->|No| RedirectLogin[Redirect to Login]
-    
+
     AllowNavigation --> LoadComponent[Load Route Component]
     LoadComponent --> RenderView[Render View]
-    
+
     RedirectLogin --> LoginView[Login View]
     LoginView --> AuthProcess[Authentication Process]
     AuthProcess --> ReturnOriginal[Return to Original Route]
-    
+
     ReturnOriginal --> LoadComponent
-    
+
     classDef guard fill:#e3f2fd
     classDef auth fill:#fff3e0
     classDef navigation fill:#f1f8e9
     classDef component fill:#fce4ec
-    
+
     class BeforeGuard,CheckAuth,AuthCheck guard
     class AuthStore,ValidateSession,RedirectLogin,LoginView,AuthProcess auth
     class Navigation,AllowNavigation,ReturnOriginal navigation
@@ -593,16 +590,13 @@ DataHarbor uses Vite for fast builds and optimized production bundles:
 
 ```shell
 # Development build with hot reload
-npm run dev
+make dev-frontend
 
 # Production build
-npm run build
+make build-frontend
 
 # Preview production build locally
-npm run preview
-
-# Build with bundle analysis
-npm run build -- --analyze
+cd web && npm run preview
 ```
 
 ### SSL Certificate Management

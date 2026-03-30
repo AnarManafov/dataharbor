@@ -52,15 +52,13 @@ app/
 To run only the integration tests:
 
 ```bash
-cd app/test
-go test -v -run Integration
+make test-integration
 ```
 
 To run only the benchmark tests (benchmarks are NOT run by default):
 
 ```bash
-cd app/test
-go test -bench . -benchmem
+make test-benchmark
 ```
 
 To run all tests (unit, integration, etc.) in the `app/test` directory (does NOT include benchmarks):
@@ -73,26 +71,26 @@ go test -v ./...
 ### Running All Backend Tests
 
 ```bash
-cd app
-
 # Run all tests
-go test -v ./...
+make test
+
+# Run tests with verbose output
+make test-verbose
 
 # Run tests with coverage
-go test -cover ./...
+make test-coverage
 
-# Generate detailed coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out -o coverage.html
+# Generate HTML coverage report
+make test-coverage-html
 
 # Run specific test package
-go test -v ./controller
+cd app && go test -v ./controller
 
 # Run specific test function
-go test -v ./controller -run TestHealthHandler
+cd app && go test -v ./controller -run TestHealthHandler
 
 # Run tests with race detection
-go test -race ./...
+make test-race
 ```
 
 ## Frontend Testing (Vue.js)
@@ -150,21 +148,18 @@ npm run test:ci
 ### Development Workflow
 
 ```bash
-# Quick test run (backend + frontend)
-cd app && go test ./... && cd ../web && npm test
+# Quick test run (backend)
+make test
 
 # Full coverage report
-cd app && go test -cover ./... && cd ../web && npm run test:coverage
-
-# Watch mode for active development
-cd web && npm run test:watch
+make test-coverage-html
 ```
 
 ### Debugging Tests
 
 ```bash
 # Backend: Run specific test with verbose output
-go test -v ./controller -run TestSpecificFunction
+cd app && go test -v ./controller -run TestSpecificFunction
 
 # Frontend: Run single test file in watch mode
 npm test -- --watch FileExplorer.test.js

@@ -149,23 +149,19 @@ sequenceDiagram
 1. **Install Dependencies**
 
    ```bash
-   # Install all dependencies (uses npm workspaces)
-   npm install
-
-   # Or install individually
-   cd web && npm install && cd ..
-   cd app && go mod download && cd ..
+   # Install all dependencies
+   make deps
    ```
 
 1. **Start Development Environment**
 
    ```bash
    # Start both frontend and backend with hot reload
-   npm run dev
+   make dev
 
    # Or start separately
-   npm run dev:frontend  # https://localhost:5173
-   npm run dev:backend   # http://localhost:8081
+   make dev-frontend  # https://localhost:5173
+   make dev-backend   # http://localhost:8081
    ```
 
 ### Branch Strategy
@@ -202,7 +198,7 @@ cp app/config/application.template.yaml app/config/application.development.yaml
 
 - Follow [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - Use `gofmt` and `goimports` for formatting
-- Run linting with `golangci-lint`
+- Run linting with `make lint`
 - Maintain test coverage > 80%
 
 #### Vue.js Frontend Standards
@@ -257,14 +253,13 @@ npx npm-check-updates --workspace=web
 npx npm-check-updates --workspaces -u
 npm install
 
-# Or update specific packages only
-npx npm-check-updates --workspace=web -u vue axios element-plus
-npm install
+# Or use make (updates web/ workspace)
+make update-frontend
 ```
 
 **Best practices:**
 
-- Always run `npm install` from the root after updating package.json files
+- Always run `npm install` from the root (or `make deps-frontend`) after updating package.json files
 - Test the application after dependency updates
 - Update dependencies in small batches to isolate potential issues
 - Check breaking changes in changelogs before major version updates
@@ -291,6 +286,10 @@ go list -u -m github.com/gin-gonic/gin
 **Update dependencies:**
 
 ```bash
+# Update all Go dependencies
+make update-backend
+
+# Or manually for more control:
 cd app
 
 # Update all dependencies to latest compatible versions
@@ -312,16 +311,11 @@ go mod tidy
 **Verify updates:**
 
 ```bash
-cd app
-
 # Run tests after updates
-go test -v ./...
-
-# Check for security vulnerabilities
-go list -json -deps ./... | nancy sleuth
+make test
 
 # Build to ensure compilation works
-go build .
+make build-backend
 ```
 
 **Best practices:**
@@ -338,18 +332,14 @@ go build .
 
 ```bash
 # 1. Update frontend dependencies
-npx npm-check-updates --workspaces -u
-npm install
+make update-frontend
 
 # 2. Update backend dependencies
-cd app
-go get -u ./...
-go mod tidy
-cd ..
+make update-backend
 
 # 3. Test everything
-npm run build
-cd app && go test -v ./... && cd ..
+make build
+make test
 
 # 4. Commit changes
 git add .
@@ -411,17 +401,13 @@ require (
 
 ```bash
 # Run all backend tests
-cd app && go test -v ./...
-
-# Run frontend tests (when available)
-cd web && npm test
+make test
 
 # Check code coverage
-cd app && go test -cover ./...
+make test-coverage
 
 # Run linting
-cd app && golangci-lint run
-cd web && npm run lint
+make lint
 ```
 
 #### Test Coverage Requirements
@@ -452,8 +438,8 @@ DataHarbor uses a **pre-release trigger** approach to ensure consistent reposito
    git pull origin master
 
    # Run tests and build to verify everything works
-   npm run test
-   npm run build
+   make test
+   make build
    ```
 
 2. **Create Pre-Release Trigger Tag**
@@ -566,11 +552,10 @@ publish-release.yml (triggered by vX.Y.Z tag)
 
    ```bash
    # Run all tests
-   cd app && go test -v ./...
-   cd web && npm test
+   make test
 
    # Check code coverage
-   cd app && go test -cover ./...
+   make test-coverage
    ```
 
 4. **Submit Pull Request**

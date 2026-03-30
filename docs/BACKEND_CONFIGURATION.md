@@ -13,8 +13,8 @@ DataHarbor's Go backend uses a unified configuration system built on [Viper](htt
    ```bash
    # For development
    cp app/config/application.development.yaml app/config/application.yaml
-   
-   # For production  
+
+   # For production
    cp app/config/application.production.yaml app/config/application.yaml
    ```
 
@@ -28,8 +28,11 @@ DataHarbor's Go backend uses a unified configuration system built on [Viper](htt
 3. **Run with custom config**:
 
    ```bash
-   cd app
-   go run . --config=config/application.yaml
+   # Start backend dev server (uses default config)
+   make dev-backend
+
+   # Or run with a specific config file
+   cd app && go run . --config=config/application.yaml
    ```
 
 ## Configuration Architecture
@@ -49,24 +52,24 @@ flowchart TD
     Start[Application Start] --> InitViper[Initialize Viper]
     InitViper --> SetDefaults[Set Default Values]
     SetDefaults --> ConfigFile{Config File Exists?}
-    
+
     ConfigFile -->|Yes| LoadYAML[Load YAML File]
     ConfigFile -->|No| CreateDefault[Create Default Config]
     CreateDefault --> LoadYAML
-    
+
     LoadYAML --> ApplyEnv[Apply Environment Variables]
     ApplyEnv --> Validate[Validate Configuration]
-    
+
     Validate --> Valid{Valid?}
     Valid -->|Yes| Ready[Application Ready]
     Valid -->|No| Exit[Exit with Error]
-    
+
     classDef start fill:#e8f5e8
     classDef process fill:#e3f2fd
     classDef decision fill:#fff3e0
     classDef success fill:#f1f8e9
     classDef error fill:#ffebee
-    
+
     class Start start
     class InitViper,SetDefaults,LoadYAML,CreateDefault,ApplyEnv,Validate process
     class ConfigFile,Valid decision
@@ -195,7 +198,7 @@ All configuration values can be overridden using environment variables with the 
 export DATAHARBOR_SERVER_ADDRESS=":8081"
 export DATAHARBOR_SERVER_DEBUG="true"
 
-# Logging Configuration  
+# Logging Configuration
 export DATAHARBOR_LOGGING_LEVEL="debug"
 export DATAHARBOR_LOGGING_CONSOLE_ENABLED="true"
 export DATAHARBOR_LOGGING_FILE_ENABLED="true"
@@ -223,7 +226,7 @@ The application validates critical settings on startup:
 ### Required Fields
 
 - `server.address` - Must not be empty
-- `xrd.host` - Must not be empty  
+- `xrd.host` - Must not be empty
 - `xrd.port` - Must be greater than 0
 
 ### Conditional Requirements

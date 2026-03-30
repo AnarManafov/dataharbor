@@ -21,7 +21,6 @@ This documentation is organized into logical sections to help you find informati
 | Work on the frontend              | [Frontend Development](./FRONTEND.md) → [Frontend Configuration](./FRONTEND_CONFIGURATION.md) |
 | Use or integrate with the API     | [REST API Reference](./API.md)                                                                |
 | Deploy to production              | [Deployment Guide](./DEPLOYMENT.md) or [Docker Guide](../docker/README.md)                    |
-| Deploy to GSI environment         | [GSI Documentation](./gsi/README.md)                                                          |
 | Debug an issue                    | [Troubleshooting Guide](./TROUBLESHOOTING.md)                                                 |
 
 ---
@@ -76,18 +75,6 @@ Production deployment and operational guides.
 | **[Testing Guide](./TESTING.md)**                 | Testing strategies and coverage requirements |
 | **[Troubleshooting Guide](./TROUBLESHOOTING.md)** | Comprehensive issue resolution and debugging |
 | **[Versioning](./VERSIONING.md)**                 | Backend version management and build process |
-
-## GSI-Specific Documentation
-
-Specialized guides for GSI environment deployment and XRootD configuration.
-
-> 📁 **GSI documentation has been moved to [`docs/gsi/`](./gsi/README.md)** for better organization.
-
-| Document                                          | Description                                                       |
-| ------------------------------------------------- | ----------------------------------------------------------------- |
-| **[GSI Documentation Index](./gsi/README.md)**    | Overview of all GSI-specific docs                                 |
-| **[Docker Deployment](../docker/README.md)**      | **Recommended:** Production deployment guide                      |
-| **[GSI RPM Deployment](./gsi/DEPLOYMENT_GSI.md)** | Manual RPM-based installation with XRootD ZTN configuration guide |
 
 ## Quick Navigation
 

@@ -11,49 +11,49 @@ This guide covers backend development for DataHarbor's Go-based REST API server.
 ```mermaid
 flowchart TD
     Request[HTTP Request] --> GinEngine[Gin HTTP Engine]
-    
+
     GinEngine --> Recovery[Recovery Middleware]
     Recovery --> Logger[Logger Middleware]
     Logger --> CORS[CORS Middleware]
     CORS --> AuthCheck{Auth Required?}
-    
+
     AuthCheck -->|No| Controller[Controller Handler]
     AuthCheck -->|Yes| AuthMW[Auth Middleware]
-    
+
     AuthMW --> SessionCheck{Valid Session?}
     SessionCheck -->|Yes| TokenValidation{Valid Access Token?}
     SessionCheck -->|No| Return401[Return 401 Unauthorized]
-    
+
     TokenValidation -->|Valid| Controller
     TokenValidation -->|Expired| TokenRefresh[Attempt Token Refresh]
-    
+
     TokenRefresh --> RefreshSuccess{Refresh Successful?}
     RefreshSuccess -->|Yes| Controller
     RefreshSuccess -->|No| Return401
-    
+
     Controller --> BusinessLogic[Business Logic]
     BusinessLogic --> XRDOperation{XROOTD Operation?}
-    
+
     XRDOperation -->|Yes| XRDClient[XROOTD Client]
     XRDOperation -->|No| Response[Format Response]
-    
+
     XRDClient --> XRDResult{Operation Success?}
     XRDResult -->|Success| Response
     XRDResult -->|Error| ErrorHandler[Error Handler]
-    
+
     ErrorHandler --> ErrorResponse[Error Response]
     Response --> JSONResponse[JSON Response]
     ErrorResponse --> JSONResponse
-    
+
     JSONResponse --> Client[Return to Client]
     Return401 --> Client
-    
+
     classDef middleware fill:#e3f2fd
     classDef auth fill:#fff3e0
     classDef controller fill:#f1f8e9
     classDef xrootd fill:#fce4ec
     classDef response fill:#f3e5f5
-    
+
     class Recovery,Logger,CORS middleware
     class AuthMW,SessionCheck,TokenValidation,TokenRefresh,RefreshSuccess,Return401 auth
     class Controller,BusinessLogic controller
@@ -71,50 +71,50 @@ graph TB
         ListEndpoint[List Directory Endpoint]
         FileInfoEndpoint[File Info Endpoint]
     end
-    
+
     subgraph "XROOTD Client Wrapper"
         XRDClient[XRD Client Singleton]
         ClientFactory[Client Factory]
         AuthTokenHandler[Auth Token Handler]
     end
-    
+
     subgraph "Native XROOTD Client (go-hep)"
         NativeClient[xrootd.Client]
         FileSystem[xrdfs.FileSystem]
         FileHandle[xrdfs.File]
-        
+
         NativeClient --> FileSystem
         FileSystem --> FileHandle
     end
-    
+
     subgraph "XROOTD Server Communication"
         XRDProtocol[XRD Protocol]
         FileOperations[File Operations]
         Authentication[XRD Authentication]
-        
+
         XRDProtocol --> FileOperations
         XRDProtocol --> Authentication
     end
-    
+
     XRDController --> XRDClient
     DownloadEndpoint --> XRDClient
     ListEndpoint --> XRDClient
     FileInfoEndpoint --> XRDClient
-    
+
     XRDClient --> ClientFactory
     XRDClient --> AuthTokenHandler
-    
+
     ClientFactory --> NativeClient
     AuthTokenHandler --> Authentication
-    
+
     FileSystem --> XRDProtocol
     FileHandle --> XRDProtocol
-    
+
     classDef controller fill:#e3f2fd
     classDef wrapper fill:#fff3e0
     classDef native fill:#f1f8e9
     classDef protocol fill:#fce4ec
-    
+
     class XRDController,DownloadEndpoint,ListEndpoint,FileInfoEndpoint controller
     class XRDClient,ClientFactory,AuthTokenHandler wrapper
     class NativeClient,FileSystem,FileHandle native
@@ -180,16 +180,12 @@ app/
 ### Setup
 
 ```shell
-# Clone and navigate to backend
-cd app
-
-# Install dependencies
-go mod download
-go mod tidy
+# Install backend dependencies (from repo root)
+make deps-backend
 
 # Copy configuration template
-cd config
-copy application.template.yaml application.development.yaml
+cd app/config
+cp application.template.yaml application.development.yaml
 
 # Edit configuration as needed
 code application.development.yaml
@@ -198,15 +194,15 @@ code application.development.yaml
 ### Running the Backend
 
 ```shell
-# Development mode (with hot reload via air if installed)
-go run .
+# Development mode
+make dev-backend
 
 # With custom configuration
-go run . --config=config/application.development.yaml
+cd app && go run . --config=config/application.development.yaml
 
 # Build and run
-go build -o dataharbor-backend .
-./dataharbor-backend
+make build-backend
+./bin/dataharbor-backend
 ```
 
 ## Configuration
@@ -271,20 +267,20 @@ Create configuration files for different environments:
     // controller/example.go
     func (c *Controller) HandleExample(ctx *gin.Context) {
         var req request.ExampleRequest
-        
+
         // Parse and validate request
         if err := ctx.ShouldBindJSON(&req); err != nil {
             response.ErrorResponse(ctx, http.StatusBadRequest, "Invalid request", err)
             return
         }
-        
+
         // Business logic
         result, err := c.processExample(req)
         if err != nil {
             response.ErrorResponse(ctx, http.StatusInternalServerError, "Processing failed", err)
             return
         }
-        
+
         // Success response
         response.SuccessResponse(ctx, result)
     }
@@ -296,7 +292,7 @@ Create configuration files for different environments:
     // route/routes.go
     func RegisterRoutes(router *gin.Engine) {
         api := router.Group("/api/v1")
-        
+
         // Protected routes
         protected := api.Group("/")
         protected.Use(middleware.AuthRequired())
@@ -325,11 +321,11 @@ response.ErrorResponse(ctx, statusCode, message, err)
 ```go
 // Standardized error responses
 func ErrorResponse(ctx *gin.Context, statusCode int, message string, err error) {
-    logger.Error("Request failed", 
+    logger.Error("Request failed",
         zap.String("path", ctx.Request.URL.Path),
         zap.Error(err),
     )
-    
+
     ctx.JSON(statusCode, Response{
         Code:    statusCode,
         Message: message,
@@ -346,26 +342,26 @@ sequenceDiagram
     participant XRDClient as XRD Client Wrapper
     participant NativeFS as Native FileSystem
     participant XRDServer as XROOTD Server
-    
+
     Note over Client,XRDServer: Download Request Initiation
     Client->>Controller: GET /download?path=/large-file.dat
     Controller->>Controller: validateFilePath(path)
     Controller->>Controller: acquireDownloadSlot() [Rate Limiting]
-    
+
     Note over Controller,XRDServer: XROOTD Connection Setup
     Controller->>XRDClient: GetFileSystem(ctx, userToken)
     XRDClient->>NativeFS: Create fresh client with auth
     NativeFS->>XRDServer: Establish XRD connection
     XRDServer-->>NativeFS: Connection established
-    
+
     Note over Controller,Client: HTTP Response Headers
     Controller->>Client: Set streaming headers<br/>Content-Disposition: attachment<br/>Content-Length: file_size<br/>Transfer-Encoding: chunked
-    
+
     Note over Controller,XRDServer: File Access & Streaming
     Controller->>NativeFS: fs.Open(path, OpenModeOtherRead)
     NativeFS->>XRDServer: Open file handle
     XRDServer-->>NativeFS: File handle ready
-    
+
     Note over Controller,Client: Streaming Loop (512KB chunks)
     loop For each chunk until EOF
         Controller->>NativeFS: file.ReadAt(buffer, offset)
@@ -376,7 +372,7 @@ sequenceDiagram
         Controller->>Controller: Flush every 2MB or 500ms
         Controller->>Controller: Log progress every 100MB
     end
-    
+
     Note over Controller,XRDServer: Cleanup & Statistics
     Controller->>NativeFS: file.Close()
     Controller->>XRDClient: cleanup()
@@ -390,30 +386,30 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> MiddlewareCheck
-    
+
     MiddlewareCheck --> SessionValidation: Auth middleware triggered
     SessionValidation --> GetSession: sessions.Default(ctx)
     GetSession --> CheckAccessToken: session.Get("access_token")
-    
+
     CheckAccessToken --> TokenValidation: Token exists
     CheckAccessToken --> Unauthorized: No token
-    
+
     TokenValidation --> ValidateJWT: Parse & verify JWT
     ValidateJWT --> ExtractClaims: Token valid
     ValidateJWT --> RefreshAttempt: Token expired
-    
+
     RefreshAttempt --> RefreshTokenExchange: Use refresh_token
     RefreshTokenExchange --> UpdateSession: Refresh successful
     RefreshTokenExchange --> Unauthorized: Refresh failed
-    
+
     UpdateSession --> ExtractClaims: New tokens stored
     ExtractClaims --> SetUserContext: ctx.Set("user", userInfo)
     SetUserContext --> NextHandler: ctx.Next()
-    
+
     Unauthorized --> Return401: ctx.JSON(401, ...)
     Return401 --> [*]
     NextHandler --> [*]
-    
+
     note right of SessionValidation : HTTP-only cookies<br/>Secure, SameSite=Strict
     note right of RefreshTokenExchange : Server-to-server exchange<br/>No client involvement
     note right of SetUserContext : User claims available<br/>to downstream handlers
@@ -449,21 +445,19 @@ stateDiagram-v2
 
 ```shell
 # Run all tests
-go test -v ./...
+make test
+
+# Run tests with verbose output
+make test-verbose
 
 # Run tests with coverage
-go test -cover ./...
+make test-coverage
 
-# View coverage report in terminal
-go test -coverprofile=coverage.out ./...
-go tool cover -func=coverage.out
-
-# Generate coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
+# Generate HTML coverage report
+make test-coverage-html
 
 # Run specific tests
-go test -v ./controller -run TestHealthController
+cd app && go test -v ./controller -run TestHealthController
 ```
 
 ## Logging
@@ -505,13 +499,10 @@ var (
 ### Building for Production
 
 ```shell
-# Build statically linked binary
-$env:CGO_ENABLED=0
-$env:GOOS="linux"
-go build -a -installsuffix cgo -o dataharbor-backend .
+# Build static binary (from repo root)
+make build-backend
 
-# Build for current platform
-go build -o dataharbor-backend .
+# Binary output: bin/dataharbor-backend
 ```
 
 ### Configuration for Production
@@ -552,7 +543,7 @@ func (c *HealthController) HealthCheck(ctx *gin.Context) {
         "version":   BuildVersion,
         "uptime":    time.Since(StartTime),
     }
-    
+
     // Check dependencies
     if err := c.checkXRDConnection(); err != nil {
         health["xrd_status"] = "error"
@@ -560,7 +551,7 @@ func (c *HealthController) HealthCheck(ctx *gin.Context) {
     } else {
         health["xrd_status"] = "ok"
     }
-    
+
     response.SuccessResponse(ctx, health)
 }
 ```
@@ -576,7 +567,7 @@ var (
         },
         []string{"method", "path", "status"},
     )
-    
+
     requestCount = prometheus.NewCounterVec(
         prometheus.CounterOpts{
             Name: "http_requests_total",
