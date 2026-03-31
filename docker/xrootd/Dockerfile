@@ -40,7 +40,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
     xrootd-${XROOTD_VERSION} \
     xrootd-server-${XROOTD_VERSION} \
-    xrootd-client-${XROOTD_VERSION} \
     xrootd-libs-${XROOTD_VERSION} \
     xrootd-scitokens-${XROOTD_VERSION} \
     xrootd-multiuser \
@@ -81,8 +80,9 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf clean all
 
 # Copy XRootD binaries and libraries from builder
+# Note: xrdfs client binary is not included; use the full builder image for ad-hoc debugging:
+#   docker run --rm dataharbor-xrootd:builder xrdfs <host>:1094 ls /
 COPY --from=builder /usr/bin/xrootd /usr/bin/xrootd
-COPY --from=builder /usr/bin/xrdfs /usr/bin/xrdfs
 COPY --from=builder /usr/lib64/libXrd*.so* /usr/lib64/
 COPY --from=builder /usr/lib64/libSciTokens.so.* /usr/lib64/
 COPY --from=builder /usr/lib64/xrootd /usr/lib64/
