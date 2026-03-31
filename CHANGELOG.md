@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.18] - 2026-03-31
+
+### Added
+
+- unify logging to stdout-only with JSON format and rotation (docker) [GH-45] (d7a0778)
+
+### Fixed
+
+- update healthcheck command for XRootD service (docker) (4cdb181)
+- update health check for XRootD service (docker) [GH-46] (00a56ae)
+- preserve directory listing on access denied navigation (frontend) [GH-44] (4221fde)
+
+### Maintenance
+
+- bump XRootD to 5.9.2 and add PB tier to storage formatter (e5930e6)
+- add Makefile, update docs, and clean up tooling (b83ecb6)
+- Updated coverage badge. (49c31f9)
+
 ## [1.0.17] - 2026-03-28
 
 ### Fixed
