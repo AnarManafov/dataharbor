@@ -44,7 +44,6 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf install -y \
     xrootd-${XROOTD_VERSION} \
     xrootd-server-${XROOTD_VERSION} \
-    xrootd-client-${XROOTD_VERSION} \
     xrootd-libs-${XROOTD_VERSION} \
     xrootd-scitokens-${XROOTD_VERSION} \
     xrootd-multiuser \
@@ -96,13 +95,9 @@ RUN microdnf install -y \
 
 # Copy XRootD binaries and libraries from builder
 COPY --from=builder /usr/bin/xrootd /usr/bin/xrootd
-COPY --from=builder /usr/bin/xrdfs /usr/bin/xrdfs
 COPY --from=builder /usr/lib64/libXrd*.so* /usr/lib64/
 COPY --from=builder /usr/lib64/libSciTokens.so.* /usr/lib64/
 COPY --from=builder /usr/lib64/xrootd /usr/lib64/xrootd/
-# Required by xrdfs CLI (used in healthcheck)
-COPY --from=builder /usr/lib64/libisal.so* /usr/lib64/
-COPY --from=builder /usr/lib64/libtinyxml.so* /usr/lib64/
 COPY --from=builder /usr/share/xrootd /usr/share/xrootd/
 
 # Create unversioned symlink for plugin loading
@@ -166,9 +161,11 @@ EXPOSE 1094
 # Working directory (avoids xrootd home directory issue)
 WORKDIR /var/spool/xrootd
 
-# Health check - verify XRootD is responding
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD xrdfs localhost:1094 query config version || exit 1
+# Health check - verify XRootD port is responding via TCP
+# A simple TCP probe avoids the need for authenticated xrdfs queries
+# (production enforces ztn auth and TLS, making xrdfs health checks fail)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD bash -c 'echo > /dev/tcp/127.0.0.1/1094' 2>/dev/null || exit 1
 
 # Use production entrypoint
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-prod.sh"]
