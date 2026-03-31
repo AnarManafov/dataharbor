@@ -365,9 +365,10 @@ const selectDir = async (row: { type: string; name: string; }) => {
             console.log('Attempting to navigate to: %s', targetPath);
 
             try {
-                // Show loading state
+                // Show loading state but DON'T clear tableData yet
+                // If navigation fails (e.g., access denied), the user stays in the current
+                // directory with its listing intact, avoiding a stuck empty state (GH-44)
                 tableLoading.value = true;
-                tableData.value = [];
 
                 // Try to list the target directory BEFORE navigating
                 // This will trigger authorization check and fail fast if user doesn't have access

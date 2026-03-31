@@ -26,9 +26,9 @@ app.use(VueAxios, axios);
 app.use(colorPlugin);
 
 app.config.errorHandler = (err, vm, info) => {
-    console.error('Error:', err);
-    console.error('Vue component:', vm);
-    console.error('Additional info:', info);
+  console.error('Error:', err);
+  console.error('Vue component:', vm);
+  console.error('Additional info:', info);
 };
 
 // Allow configuration to be customized per environment
@@ -37,46 +37,47 @@ console.log('Loading configuration from:', configPath);
 
 // Try environment-specific config first, with fallback to default
 fetch(configPath)
-    .then(response => {
-        if (!response.ok) {
-            throw new Error(`Failed to load config from ${configPath}: ${response.status}`);
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(`Failed to load config from ${configPath}: ${response.status}`);
+    }
+    return response.json();
+  })
+  .catch(error => {
+    console.warn(`Error loading config from ${configPath}:`, error);
+    console.log('Falling back to default config at /config.json');
+    // Fallback to default path
+    return fetch('/config.json').then(response => response.json());
+  })
+  .then(config => {
+    console.log('Config loaded successfully:', { ...config, oidc: { ...config.oidc, clientSecret: config.oidc?.clientSecret ? '***' : undefined } });
+
+    // Apply the loaded configuration
+    setConfig(config);
+    app.config.globalProperties.$config = config;
+
+    // Register global filters for formatting data consistently across the app
+    // Must be registered BEFORE mounting so components can access them during setup
+    app.config.globalProperties.$filters = {
+      prettyBytes(num) {
+        if (typeof num !== 'number' || isNaN(num)) {
+          throw new TypeError('Expected a number');
         }
-        return response.json();
-    })
-    .catch(error => {
-        console.warn(`Error loading config from ${configPath}:`, error);
-        console.log('Falling back to default config at /config.json');
-        // Fallback to default path
-        return fetch('/config.json').then(response => response.json());
-    })
-    .then(config => {
-        console.log('Config loaded successfully:', { ...config, oidc: { ...config.oidc, clientSecret: config.oidc?.clientSecret ? '***' : undefined } });
+        const units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        const exponent = num === 0 ? 0 : Math.floor(Math.log(num) / Math.log(1000));
+        const size = (num / Math.pow(1000, exponent)).toFixed(2);
+        return `${size} ${units[exponent]}`;
+      }
+    };
 
-        // Apply the loaded configuration
-        setConfig(config);
-        app.config.globalProperties.$config = config;
-
-        // Mount the app immediately - router will handle authentication checks
-        app.mount("#app");
-
-        // Register global filters for formatting data consistently across the app
-        app.config.globalProperties.$filters = {
-            prettyBytes(num) {
-                if (typeof num !== 'number' || isNaN(num)) {
-                    throw new TypeError('Expected a number');
-                }
-                const units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-                const exponent = num === 0 ? 0 : Math.floor(Math.log(num) / Math.log(1000));
-                const size = (num / Math.pow(1000, exponent)).toFixed(2);
-                return `${size} ${units[exponent]}`;
-            }
-        };
-    })
-    .catch(error => {
-        console.error('Fatal error loading configuration:', error);
-        document.body.innerHTML = `<div style="padding: 20px; color: red;">
+    // Mount the app after all global properties are registered
+    app.mount("#app");
+  })
+  .catch(error => {
+    console.error('Fatal error loading configuration:', error);
+    document.body.innerHTML = `<div style="padding: 20px; color: red;">
             <h1>Configuration Error</h1>
             <p>Failed to load application configuration. Please contact support.</p>
             <pre>${error.message}</pre>
         </div>`;
-    });
+  });
