@@ -35,13 +35,13 @@ services:
       DATAHARBOR_AUTH_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
       DATAHARBOR_AUTH_OIDC_SESSION_SECRET: ${OIDC_SESSION_SECRET}
 
-      # Logging
+      # Logging — stdout only (Docker handles rotation)
       DATAHARBOR_LOGGING_LEVEL: ${LOG_LEVEL:-info}
       DATAHARBOR_LOGGING_FORMAT: json
+      DATAHARBOR_LOGGING_FILE_ENABLED: "false"
 
     volumes:
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro # For XRootD ZTN TLS client auth
-      - ${BACKEND_LOG_DIR:-/var/log/dataharbor/backend}:/app/log:rw
 
     networks:
       - dataharbor-network
@@ -60,6 +60,12 @@ services:
       timeout: 3s
       start_period: 10s
       retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     depends_on:
       - frontend
@@ -92,9 +98,13 @@ services:
       start_period: 5s
       retries: 3
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
   nginx:
-    # Multi-arch build supported (nginx has arm64 images)
-    # Prod config baked in: proxies to static frontend on port 80
     build:
       context: ..
       dockerfile: docker/nginx/Dockerfile
@@ -109,7 +119,6 @@ services:
     volumes:
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/server.key:ro
-      - ${NGINX_LOG_DIR:-/var/log/dataharbor/nginx}:/var/log/nginx
 
     networks:
       - dataharbor-network
@@ -128,6 +137,12 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     depends_on:
       - backend
@@ -217,11 +232,6 @@ services:
         bind:
           create_host_path: false
 
-      # ==========================================
-      # LOGS - Persistent on host for monitoring
-      # ==========================================
-      - ${XROOTD_LOG_DIR:-/var/log/dataharbor/xrootd}:/var/log/xrootd:rw
-
     # Port 1094 is NOT exposed externally - only accessible by backend via internal network
     # If external XRootD access is needed, uncomment:
     # ports:
@@ -261,6 +271,12 @@ services:
       nproc:
         soft: 32768
         hard: 32768
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     healthcheck:
       test:

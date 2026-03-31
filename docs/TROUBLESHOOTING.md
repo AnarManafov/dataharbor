@@ -378,18 +378,25 @@ openssl x509 -in server.crt -text -noout | grep -A2 "Validity"
 ls -la /etc/ssl/certs/dataharbor/
 ```
 
-### Log Analysis
+### Log Analysis (Docker Compose)
+
+All services log to stdout/stderr. Docker captures and rotates logs automatically (`json-file` driver, 50 MB × 5 files per service).
 
 ```bash
-# View backend logs
-journalctl -u dataharbor-backend -f --since "1 hour ago"
+# All services, last hour
+docker compose logs --since 1h
 
-# View nginx logs
-tail -f /var/log/nginx/access.log
-tail -f /var/log/nginx/error.log
+# Follow a single service
+docker compose logs -f backend
 
-# Check application logs
-tail -f /opt/dataharbor/logs/application.log
+# Filter backend JSON logs with jq
+docker compose logs backend --no-log-prefix 2>&1 | jq 'select(.level=="error")'
+
+# Filter nginx JSON logs (status >= 400)
+docker compose logs nginx --no-log-prefix 2>&1 | jq 'select(.status >= 400)'
+
+# Search all services for a keyword
+docker compose logs --no-log-prefix 2>&1 | grep "error"
 ```
 
 ## Authentication Issues
@@ -468,7 +475,6 @@ go tool pprof cpu.prof
 - Configure appropriate ulimits
 - Tune kernel parameters for network performance
 - Monitor system resources (CPU, memory, disk I/O)
-- Set up log rotation to prevent disk space issues
 
 ## Debugging Tools
 
@@ -542,9 +548,10 @@ xrdfs root://server.com:1094 query config all
 
 ### Log Locations
 
-- **Backend**: Console output or configured log file
+- **Docker Compose**: `docker compose logs [service]` — single access point for all services
+- **Backend (RPM/systemd)**: `journalctl -u dataharbor-backend`
 - **Frontend**: Browser developer console
-- **XROOTD**: System logs or XROOTD server logs
+- **XRootD**: `docker compose logs xrootd` (or system logs for bare-metal)
 
 ### Common Resolution Steps
 

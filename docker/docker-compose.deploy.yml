@@ -50,13 +50,13 @@ services:
       DATAHARBOR_AUTH_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
       DATAHARBOR_AUTH_OIDC_SESSION_SECRET: ${OIDC_SESSION_SECRET}
 
-      # Logging
+      # Logging — stdout only (Docker handles rotation)
       DATAHARBOR_LOGGING_LEVEL: ${LOG_LEVEL:-info}
       DATAHARBOR_LOGGING_FORMAT: json
+      DATAHARBOR_LOGGING_FILE_ENABLED: "false"
 
     volumes:
       - ${XRD_CLIENT_CERT_PATH:-./certs/client}:/app/certs:ro
-      - ${BACKEND_LOG_DIR:-/var/log/dataharbor/backend}:/app/log:rw
 
     networks:
       - dataharbor-network
@@ -75,6 +75,12 @@ services:
       timeout: 3s
       start_period: 10s
       retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     depends_on:
       - frontend
@@ -105,6 +111,12 @@ services:
       start_period: 5s
       retries: 3
 
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
   nginx:
     # Multi-arch image - pulls native arm64 or amd64 automatically
     # Prod config baked in: proxies to static frontend on port 80
@@ -119,7 +131,6 @@ services:
     volumes:
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/server.crt:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/server.key:ro
-      - ${NGINX_LOG_DIR:-/var/log/dataharbor/nginx}:/var/log/nginx:rw
 
     networks:
       - dataharbor-network
@@ -138,6 +149,12 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     depends_on:
       - backend
@@ -193,9 +210,6 @@ services:
         bind:
           create_host_path: false
 
-      # LOGS
-      - ${XROOTD_LOG_DIR:-/var/log/dataharbor/xrootd}:/var/log/xrootd:rw
-
       # CA CERTIFICATES - Required for TLS verification in production
       # Not needed when XROOTD_TLS_CA_VERIFY=false (testing/staging)
       - ${CA_CERTS_PATH:-/etc/ssl/certs}:/etc/grid-security/certificates:ro
@@ -215,6 +229,12 @@ services:
       nproc:
         soft: 32768
         hard: 32768
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
 
     healthcheck:
       test:

@@ -37,13 +37,7 @@ logging:
     level: info
     format: json
   file:
-    enabled: true
-    level: info
-    filename: "./log/dataharbor.log"
-    maxsize: 10
-    maxbackups: 5
-    maxage: 30
-    compress: true
+    enabled: false
 
 xrd:
   # These values are overridden by environment variables

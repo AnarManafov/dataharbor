@@ -26,6 +26,9 @@ RUN apk add --no-cache \
 # Remove default config
 RUN rm /etc/nginx/conf.d/default.conf
 
+# Install main nginx.conf with JSON log format (stdout/stderr only)
+COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
+
 # SSL certificates mounted at runtime
 RUN mkdir -p /etc/nginx/ssl
 

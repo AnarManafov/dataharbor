@@ -436,3 +436,51 @@ func TestInitLoggerWithConfig_NoOutputsEnabled(t *testing.T) {
 	// Should fallback to development logger
 	assert.NotNil(t, Logger, "initLoggerWithConfig with no outputs should still initialize Logger")
 }
+
+// TestInitLoggerWithConfig_ConsoleOnlyFileDisabled verifies the Docker/12-factor
+// configuration: console enabled (JSON) with file explicitly disabled.
+func TestInitLoggerWithConfig_ConsoleOnlyFileDisabled(t *testing.T) {
+	DestroyLogger()
+
+	cfg := &config.LoggingConfig{
+		Level: "info",
+		Console: config.ConsoleConfig{
+			Enabled: true,
+			Format:  "json",
+			Level:   "info",
+		},
+		File: config.FileConfig{
+			Enabled: false,
+		},
+	}
+
+	initLoggerWithConfig(cfg)
+
+	assert.NotNil(t, Logger, "initLoggerWithConfig with console-only (file disabled) should initialize Logger")
+
+	// Verify logger works by logging without panic
+	Logger.Info("console-only test message")
+}
+
+// TestInitLoggerWithConfig_ConsoleTextFormat verifies console logging in text
+// format (development mode).
+func TestInitLoggerWithConfig_ConsoleTextFormat(t *testing.T) {
+	DestroyLogger()
+
+	cfg := &config.LoggingConfig{
+		Level: "debug",
+		Console: config.ConsoleConfig{
+			Enabled: true,
+			Format:  "text",
+			Level:   "debug",
+		},
+		File: config.FileConfig{
+			Enabled: false,
+		},
+	}
+
+	initLoggerWithConfig(cfg)
+
+	assert.NotNil(t, Logger, "initLoggerWithConfig with text console should initialize Logger")
+	Logger.Debug("text format test message")
+}
