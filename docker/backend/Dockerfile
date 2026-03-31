@@ -58,7 +58,6 @@ COPY docker/config/application.yaml /app/config/application.yaml
 COPY docker/backend/entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh && \
-    mkdir -p /app/log && \
     chown -R dataharbor:dataharbor /app
 
 # Start as root so entrypoint can fix bind-mount ownership, then drop to dataharbor

@@ -58,7 +58,7 @@ The recommended way to deploy DataHarbor in production is using pre-built Docker
 
 ### Quick Start
 
-**Option A: Using the deploy bundle from a GitHub release (recommended)**
+#### Option A: Using the deploy bundle from a GitHub release (recommended)
 
 Each [GitHub release](https://github.com/AnarManafov/dataharbor/releases) includes a deployment bundle (`dataharbor-deploy-<version>.tar.gz`) containing the Compose file and an `.env` template. No need to clone the full repository.
 
@@ -79,7 +79,7 @@ VERSION=${VERSION} docker compose up -d
 docker compose ps
 ```
 
-**Option B: Using the repository source**
+#### Option B: Using the repository source
 
 ```bash
 # 1. Get the deployment files
@@ -217,6 +217,59 @@ VERSION=0.15.0 docker compose -f docker-compose.deploy.yml pull
 VERSION=0.15.0 docker compose -f docker-compose.deploy.yml up -d
 ```
 
+### Logging
+
+All services log exclusively to **stdout/stderr** (12-factor app principle). Docker captures the output and handles rotation via the `json-file` driver.
+
+**Rotation rules** (configured per service in every Compose file):
+
+| Setting    | Value | Effect                                         |
+| ---------- | ----- | ---------------------------------------------- |
+| `max-size` | 50 MB | Rotate when a log file reaches 50 MB           |
+| `max-file` | 5     | Keep 5 rotated files per service (~250 MB max) |
+
+**Log levels per environment:**
+
+| Component        | Development                                                             | Production                                                        | Override                                  |
+| ---------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------- |
+| **Backend**      | `debug` (hardcoded)                                                     | `info` (default)                                                  | `LOG_LEVEL=debug` in `.env`               |
+| **Nginx errors** | `warn`                                                                  | `warn`                                                            | Edit `error_log` in `nginx.conf`          |
+| **Nginx access** | all requests                                                            | all requests                                                      | Always on; not level-controlled           |
+| **XRootD**       | verbose — `auth login debug` + `scitokens.trace all` + full TLS tracing | minimal — `auth login` + `scitokens.trace info` + TLS errors only | Edit `xrootd-prod.cfg` / `xrootd-dev.cfg` |
+| **Frontend**     | Vite default (stdout)                                                   | nginx default (stdout)                                            | —                                         |
+
+> Backend level is the only one overridable at runtime without rebuilding — set `LOG_LEVEL=debug` in `.env` before `docker compose up`. All other levels require a config file edit and image rebuild.
+
+**Log formats:**
+
+| Service  | Format                 | Notes                                                |
+| -------- | ---------------------- | ---------------------------------------------------- |
+| Backend  | JSON (structured)      | Zap logger, console core only; file logging disabled |
+| Nginx    | JSON (`json_combined`) | Defined in `docker/nginx/nginx.conf`                 |
+| XRootD   | Native text (stderr)   | Format is fixed by XRootD; Docker still captures it  |
+| Frontend | Text (stdout)          | Vite dev server / static nginx                       |
+
+**Querying logs:**
+
+```bash
+# All services, last hour
+docker compose logs --since 1h
+
+# Single service, follow in real-time
+docker compose logs -f backend
+
+# Search across everything
+docker compose logs --no-log-prefix 2>&1 | grep "error"
+
+# Parse backend JSON with jq
+docker compose logs backend --no-log-prefix 2>&1 | jq 'select(.level=="error")'
+
+# Parse nginx JSON with jq
+docker compose logs nginx --no-log-prefix 2>&1 | jq 'select(.status >= 500)'
+```
+
+> **Note:** No log files are written inside containers, and no log volumes are mounted to the host. All log data lives in Docker's storage directory (typically `/var/lib/docker/containers/`). This avoids duplication and scattered log locations. To ship logs to an external system (Loki, ELK, Fluentd), swap the `json-file` driver for the appropriate logging driver in the Compose files.
+
 ### Manual Docker Build
 
 For development and testing, you can build images manually using the provided script:
@@ -241,6 +294,7 @@ export GITHUB_TOKEN="ghp_your_token_here"
 The script always builds for `linux/amd64` platform, even on ARM64 hosts.
 
 **Deploy dev images:**
+
 ```bash
 VERSION=dev docker compose -f docker/docker-compose.deploy.yml up -d
 ```
@@ -287,26 +341,30 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
 **Quick Setup Steps:**
 
 1. **Create your configuration from the example:**
+
    ```bash
    sudo cp /etc/dataharbor/application.yaml.example /etc/dataharbor/application.yaml
    sudo nano /etc/dataharbor/application.yaml
    ```
 
-2. **Update required settings in the config:**
+1. **Update required settings in the config:**
+
    - OIDC `client_secret` (get from your OIDC provider)
    - OIDC `session_secret` (generate with: `openssl rand -base64 32`)
    - `frontend.url` (your actual domain, e.g., `https://your-domain.com`)
    - SSL certificate paths
    - XRootD server settings
 
-3. **Enable and start the service:**
+1. **Enable and start the service:**
+
    ```bash
    sudo systemctl enable dataharbor-backend
    sudo systemctl start dataharbor-backend
    sudo systemctl status dataharbor-backend
    ```
 
-4. **Verify deployment:**
+1. **Verify deployment:**
+
    ```bash
    # Test health endpoint
    curl -k https://localhost:8081/health
@@ -318,6 +376,7 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
    ```
 
 **What's included automatically:**
+
 - ✅ SystemD service file at `/usr/lib/systemd/system/dataharbor-backend.service`
 - ✅ Configuration directory at `/etc/dataharbor/`
 - ✅ Log directory at `/var/log/dataharbor/`
@@ -330,6 +389,7 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
 **New in this version:** The frontend RPM now includes multiple nginx configuration templates for different deployment scenarios!
 
 **Installation Locations:**
+
 - Frontend files: `/usr/share/dataharbor-frontend/`
 - Nginx templates: `/etc/dataharbor-frontend/nginx/templates/`
 - Example config: `/usr/share/dataharbor-frontend/config.json.example`
@@ -339,43 +399,51 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
 1. **Choose and copy the appropriate nginx template:**
 
    **For production with HTTPS (recommended):**
+
    ```bash
    sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-https-proxy.conf \
            /etc/nginx/conf.d/dataharbor.conf
    ```
 
    **For simple HTTP (development/testing):**
+
    ```bash
    sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-http-simple.conf \
            /etc/nginx/conf.d/dataharbor.conf
    ```
 
    **For GSI deployment (HTTPS on port 443, backend on port 22000):**
+
    ```bash
    sudo cp /etc/dataharbor-frontend/nginx/templates/nginx-gsi.conf \
            /etc/nginx/conf.d/dataharbor.conf
    ```
 
 2. **Edit the nginx config for your environment:**
+
    ```bash
    sudo nano /etc/nginx/conf.d/dataharbor.conf
    ```
+
    Update:
    - `server_name` (your actual hostname/domain)
    - SSL certificate paths (for HTTPS templates)
    - Backend `proxy_pass` URL and port if different
 
 3. **Create frontend configuration:**
+
    ```bash
    sudo cp /usr/share/dataharbor-frontend/config.json.example \
            /usr/share/dataharbor-frontend/config.json
    sudo nano /usr/share/dataharbor-frontend/config.json
    ```
+
    Update:
    - `apiBaseUrl` (`"/api"` for reverse proxy, or direct backend URL)
    - OIDC settings (authority, client_id, redirect_uri)
 
 4. **Test and reload nginx:**
+
    ```bash
    sudo nginx -t
    sudo systemctl enable nginx
@@ -383,11 +451,13 @@ sudo rpm -ivh dataharbor-frontend-*.rpm
    ```
 
 5. **Test in browser:**
+
    ```bash
    # Open browser: https://your-hostname/
    ```
 
 **Available templates:**
+
 - ✅ `nginx-http-simple.conf` - Basic HTTP (development/testing)
 - ✅ `nginx-https-proxy.conf` - HTTPS with reverse proxy (production)
 - ✅ `nginx-gsi.conf` - GSI-specific configuration
@@ -550,6 +620,7 @@ Since the RPM package doesn't include a systemd service file, you need to create
 If you've installed the frontend RPM package, follow these steps:
 
 **Installation Locations:**
+
 - Frontend files: `/usr/share/dataharbor-frontend/`
 - Nginx templates: `/etc/dataharbor-frontend/nginx/templates/`
 - Example config: `/usr/share/dataharbor-frontend/config.json.example`
@@ -562,7 +633,7 @@ If you've installed the frontend RPM package, follow these steps:
    - **`nginx-https-proxy.conf`** - HTTPS with reverse proxy (recommended for production)
    - **`nginx-gsi.conf`** - GSI-specific: HTTPS on port 443, backend on port 22000
 
-2. **Create the frontend config.json:**
+1. **Create the frontend config.json:**
 
    The frontend needs to know where your backend API is located. Copy your custom config:
 
@@ -579,6 +650,7 @@ If you've installed the frontend RPM package, follow these steps:
    ```
 
    Example configuration:
+
    ```json
    {
      "apiBaseUrl": "https://your-backend-server:8081/api",
@@ -593,7 +665,7 @@ If you've installed the frontend RPM package, follow these steps:
    - `https://your-server-hostname:8081/api` (for remote access)
    - Or use nginx as a reverse proxy (see option 2 below)
 
-2. **Configure Nginx:**
+1. **Configure Nginx:**
 
    You have two options:
 
@@ -610,6 +682,7 @@ If you've installed the frontend RPM package, follow these steps:
    ```
 
    The default config serves the frontend on port 80. Your `config.json` should point directly to the backend:
+
    ```json
    {
      "apiBaseUrl": "https://your-backend-server:8081/api"
@@ -658,13 +731,14 @@ If you've installed the frontend RPM package, follow these steps:
    ```
 
    With this setup, your `config.json` should use a relative path:
+
    ```json
    {
      "apiBaseUrl": "/api"
    }
    ```
 
-3. **Test nginx configuration:**
+1. **Test nginx configuration:**
 
    ```bash
    # Test configuration syntax
@@ -683,7 +757,7 @@ If you've installed the frontend RPM package, follow these steps:
    sudo systemctl enable nginx
    ```
 
-4. **Configure firewall (if needed):**
+1. **Configure firewall (if needed):**
 
    ```bash
    # Allow HTTP traffic
@@ -700,7 +774,7 @@ If you've installed the frontend RPM package, follow these steps:
    # sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
    ```
 
-5. **Test the deployment:**
+1. **Test the deployment:**
 
    ```bash
    # Test frontend is accessible
@@ -715,7 +789,7 @@ If you've installed the frontend RPM package, follow these steps:
    # http://your-hostname/
    ```
 
-6. **Verify end-to-end:**
+1. **Verify end-to-end:**
 
    Open your browser and navigate to:
    - `http://your-hostname/` (or your server's hostname/IP)
@@ -727,7 +801,7 @@ If you've installed the frontend RPM package, follow these steps:
    - [ ] Can authenticate with OIDC
    - [ ] Can browse XRootD directories
 
-7. **Check logs if issues occur:**
+1. **Check logs if issues occur:**
 
    ```bash
    # Nginx error logs
@@ -740,7 +814,7 @@ If you've installed the frontend RPM package, follow these steps:
    sudo journalctl -u dataharbor-backend -f
    ```
 
-8. **Common Issues:**
+1. **Common Issues:**
 
    **Issue:** "Cannot connect to backend"
    - **Solution:** Check `config.json` has correct `apiBaseUrl`
@@ -1043,6 +1117,7 @@ curl -k https://your-domain.com:8081/health
 DataHarbor logs can be found in multiple locations depending on your configuration:
 
 1. **SystemD Journal Logs:**
+
    ```bash
    # View real-time logs
    sudo journalctl -u dataharbor-backend -f
@@ -1054,7 +1129,8 @@ DataHarbor logs can be found in multiple locations depending on your configurati
    sudo journalctl -u dataharbor-backend --since "1 hour ago"
    ```
 
-2. **File Logs (if enabled in config):**
+1. **File Logs (if enabled in config):**
+
    ```bash
    # Common log locations:
    # - /var/log/dataharbor/dataharbor-backend.log
@@ -1065,7 +1141,8 @@ DataHarbor logs can be found in multiple locations depending on your configurati
    tail -f /var/log/dataharbor/dataharbor-backend.log
    ```
 
-3. **Check Log Configuration:**
+1. **Check Log Configuration:**
+
    ```bash
    # Verify log path in your config file
    grep -A 10 "logging:" /path/to/your/config.yaml
@@ -1153,7 +1230,6 @@ tar -czf dataharbor-data-backup-$(date +%Y%m%d).tar.gz \
 - Configure appropriate ulimits
 - Tune kernel parameters for network performance
 - Monitor system resources (CPU, memory, disk I/O)
-- Set up log rotation to prevent disk space issues
 
 ### Need Help?
 
