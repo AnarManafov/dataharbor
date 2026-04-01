@@ -77,7 +77,7 @@ fetch(configPath)
     console.error('Fatal error loading configuration:', error);
     document.body.innerHTML = `<div style="padding: 20px; color: red;">
             <h1>Configuration Error</h1>
-            <p>Failed to load application configuration. Please contact support.</p>
+            <p>Failed to load application configuration. Please <a href="https://github.com/AnarManafov/dataharbor/issues" target="_blank">report an issue</a>.</p>
             <pre>${error.message}</pre>
         </div>`;
   });
