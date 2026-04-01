@@ -37,7 +37,8 @@
                     </div>
 
                     <div class="help-section">
-                        <p>Need help? <a href="#" class="help-link">Contact Support</a></p>
+                        <p>Need help? <a href="https://github.com/AnarManafov/dataharbor/issues" target="_blank"
+                                rel="noopener noreferrer" class="help-link">Report an issue</a></p>
                     </div>
                 </div>
             </el-card>
