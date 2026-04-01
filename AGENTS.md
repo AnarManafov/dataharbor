@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-DataHarbor is a full-stack web application providing secure web access to GSI Lustre cluster data via XROOTD protocol integration. It is a **monorepo** with two main components:
+DataHarbor is a full-stack web application providing secure web access to XRootD-backed storage via XROOTD protocol integration. It is a **monorepo** with two main components:
 
 | Component | Directory | Language/Framework | Port        |
 | --------- | --------- | ------------------ | ----------- |

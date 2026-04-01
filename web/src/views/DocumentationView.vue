@@ -3,7 +3,7 @@
         <div class="page-header">
             <div class="container">
                 <h1 class="page-title">Documentation</h1>
-                <p class="page-subtitle">A quick guide to browsing and downloading your Lustre cluster data</p>
+                <p class="page-subtitle">A quick guide to browsing and downloading your storage data</p>
             </div>
         </div>
 
@@ -14,13 +14,13 @@
                             <Reading />
                         </el-icon> Getting Started</h2>
                     <p>
-                        DataHarbor lets you browse and download files stored on the GSI Lustre cluster
+                        DataHarbor lets you browse and download files on your storage cluster
                         directly from your web browser. No special client software is required.
                     </p>
 
                     <ol class="step-list">
                         <li>
-                            <strong>Sign in</strong> — click <em>Sign in with GSI Account</em> on the
+                            <strong>Sign in</strong> — click <em>{{ branding.loginButtonText }}</em> on the
                             login page. You will be redirected to your institutional identity provider (OIDC/SSO).
                         </li>
                         <li>
@@ -173,6 +173,7 @@
 
 <script>
 import { Reading, FolderOpened, Lock, Download, InfoFilled, House } from '@element-plus/icons-vue';
+import { getConfig } from '@/config/config';
 
 export default {
     name: 'DocumentationView',
@@ -183,6 +184,12 @@ export default {
         Download,
         InfoFilled,
         House,
+    },
+    data() {
+        const config = getConfig();
+        return {
+            branding: config.branding || {},
+        };
     }
 };
 </script>

@@ -11,13 +11,13 @@
 [![Vue Version](https://img.shields.io/badge/Vue.js-3.0+-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
 
 
-DataHarbor is a high-performance, full-stack web application that provides researchers and developers with a secure, intuitive interface to access and manage GSI Lustre cluster data. Built with a Go backend and Vue.js frontend, it delivers seamless file browsing, directory navigation, and secure file operations through direct XROOTD integration.
+DataHarbor is a high-performance, full-stack web application that provides researchers and developers with a secure, intuitive interface to access and manage data on XRootD-backed storage. Built with a Go backend and Vue.js frontend, it delivers seamless file browsing, directory navigation, and secure file operations through direct XROOTD integration.
 
 ## Purpose
 
 DataHarbor empowers users who need to:
 
-- **Browse & Navigate**: Explore GSI Lustre clusters with an intuitive web interface, view metadata, and perform secure file operations
+- **Browse & Navigate**: Explore your storage with an intuitive web interface, view metadata, and perform secure file operations
 - **High-Performance Streaming**: Download files directly from remote storage with zero temporary storage overhead
 - **Secure Access**: Enterprise-grade OIDC authentication with session management
 - **Cross-Platform**: Access HPC storage from any device through a modern web browser

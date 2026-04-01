@@ -26,6 +26,8 @@ RUN apk add --no-cache ca-certificates tzdata
 RUN rm /etc/nginx/conf.d/default.conf
 
 COPY docker/frontend/nginx.conf /etc/nginx/conf.d/dataharbor.conf
+COPY docker/frontend/entrypoint.sh /docker-entrypoint-custom.sh
+RUN chmod +x /docker-entrypoint-custom.sh
 COPY --from=builder /build/web/dist /usr/share/nginx/html
 
 # Ensure nginx user exists (may already exist in base image)
@@ -42,4 +44,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
 
+ENTRYPOINT ["/docker-entrypoint-custom.sh"]
 CMD ["nginx", "-g", "daemon off;"]

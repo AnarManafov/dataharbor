@@ -20,7 +20,7 @@
                 <div v-else class="login-content">
                     <h2>Welcome Back</h2>
                     <p class="login-description">
-                        Please sign in with your GSI account to access the file browser and other protected resources.
+                        {{ branding.loginDescription }}
                     </p>
 
                     <div class="login-form">
@@ -29,7 +29,7 @@
                             <el-icon class="button-icon">
                                 <User />
                             </el-icon>
-                            Sign in with GSI Account
+                            {{ branding.loginButtonText }}
                         </el-button>
 
                         <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon class="error-alert"
@@ -60,6 +60,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import useAuth from '../composables/useAuth';
 import { Loading, User } from '@element-plus/icons-vue';
+import { getConfig } from '@/config/config';
 
 export default {
     name: 'LoginView',
@@ -71,6 +72,8 @@ export default {
         const { login, isAuthenticated, error, isLoading } = useAuth();
         const route = useRoute();
         const router = useRouter();
+        const config = getConfig();
+        const branding = config.branding || {};
 
         // Store intended destination for post-login redirect
         const redirectPath = ref(route.query.redirect || '/');
@@ -104,7 +107,8 @@ export default {
         return {
             handleLogin,
             errorMessage,
-            loading
+            loading,
+            branding
         };
     }
 }

@@ -80,6 +80,11 @@ services:
     container_name: dataharbor-frontend
     restart: unless-stopped
 
+    environment:
+      BRANDING_HERO_SUBTITLE: ${BRANDING_HERO_SUBTITLE:-}
+      BRANDING_LOGIN_BUTTON_TEXT: ${BRANDING_LOGIN_BUTTON_TEXT:-}
+      BRANDING_LOGIN_DESCRIPTION: ${BRANDING_LOGIN_DESCRIPTION:-}
+
     networks:
       - dataharbor-network
 

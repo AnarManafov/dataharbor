@@ -3,7 +3,7 @@
         <div class="page-header">
             <div class="container">
                 <h1 class="page-title">About DataHarbor</h1>
-                <p class="page-subtitle">Secure web access to GSI Lustre cluster data</p>
+                <p class="page-subtitle">Secure, browser-based access to your data</p>
             </div>
         </div>
 
@@ -15,7 +15,7 @@
                             <h2>Our Mission</h2>
                             <p>
                                 DataHarbor bridges the gap between high-performance computing storage and
-                                the web browser. By integrating directly with the GSI Lustre cluster via
+                                the web browser. By integrating directly with your storage via
                                 the XRootD protocol, it gives researchers fast, secure access to their data
                                 from anywhere — without specialized client software.
                             </p>
@@ -36,7 +36,7 @@
                                         <Check />
                                     </el-icon>
                                     <span><strong>XRootD file access</strong> — direct, high-performance access to
-                                        Lustre cluster storage</span>
+                                        cluster storage</span>
                                 </li>
                                 <li>
                                     <el-icon>
