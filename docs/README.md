@@ -2,7 +2,7 @@
 
 [← Back to Main README](../README.md)
 
-Welcome to the complete documentation for DataHarbor - a secure web interface for accessing GSI Lustre cluster data through XROOTD integration.
+Welcome to the complete documentation for DataHarbor - a secure web interface for accessing XRootD-backed storage.
 
 ---
 

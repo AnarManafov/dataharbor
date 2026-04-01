@@ -5,7 +5,7 @@
                 <div class='container'>
                     <h1 class='title'>Welcome to DataHarbor</h1>
                     <h2 class='subtitle'>
-                        Browsing GSI Lustre made easy
+                        {{ branding.heroSubtitle }}
                     </h2>
                     <div class='button-block'>
                         <router-link to="/browse" class='button is-primary is-rounded'>
@@ -62,6 +62,7 @@
 
 <script>
 import { FolderOpened, Download, Lock } from '@element-plus/icons-vue';
+import { getConfig } from '@/config/config';
 
 export default {
     name: 'HomeView',
@@ -69,6 +70,12 @@ export default {
         FolderOpened,
         Download,
         Lock
+    },
+    data() {
+        const config = getConfig();
+        return {
+            branding: config.branding || {},
+        };
     },
 };
 </script>
