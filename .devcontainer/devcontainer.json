@@ -145,7 +145,7 @@
   "features": {
     // Go development with tools (gopls, dlv, staticcheck, etc.)
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.26.1",
+      "version": "1.26.2",
       "golangciLintVersion": "latest"
     },
     // Node.js for Vue.js frontend
