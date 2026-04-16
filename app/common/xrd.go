@@ -39,10 +39,11 @@ func IsAuthError(err error) bool {
 // XRDClient provides a simple, direct XRootD client without connection pooling
 // Based on the successful test programs that work reliably
 type XRDClient struct {
-	address   string
-	username  string
-	logger    *zap.SugaredLogger
-	enableZTN bool
+	address       string
+	username      string
+	logger        *zap.SugaredLogger
+	enableZTN     bool
+	skipTLSVerify bool
 }
 
 var (
@@ -75,10 +76,11 @@ func NewXRDClient() *XRDClient {
 	}
 
 	return &XRDClient{
-		address:   address,
-		username:  username,
-		logger:    logger,
-		enableZTN: cfg.XRD.EnableZTN,
+		address:       address,
+		username:      username,
+		logger:        logger,
+		enableZTN:     cfg.XRD.EnableZTN,
+		skipTLSVerify: cfg.XRD.SkipTLSVerify,
 	}
 }
 
@@ -88,9 +90,9 @@ func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xroot
 
 	if xc.enableZTN {
 		// ZTN protocol enabled: Configure TLS + OAuth token authentication
-		// Use InsecureSkipVerify for now - can be configured properly with real certs later
+		// skip_tls_verify must be explicitly enabled in config (insecure, for development only)
 		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: xc.skipTLSVerify, //#nosec G402 -- controlled by config; defaults to false
 		}
 		opts = append(opts, xrootd.WithTLS(tlsConfig))
 

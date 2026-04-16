@@ -1,6 +1,8 @@
 <template>
-    <el-table v-loading='tableLoading' :data='sortedData' :default-sort='{ prop: "name", order: "ascending" }'
-        @sort-change="handleSortChange">
+    <el-table ref="tableRef" v-loading='tableLoading' :data='sortedData'
+        :default-sort='{ prop: "name", order: "ascending" }' @sort-change="handleSortChange"
+        @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="45" :selectable="isSelectable" />
         <el-table-column prop='name' label='Name' sortable="custom">
             <template #default='scope'>
                 <div style='display: flex; align-items: center'>
@@ -57,6 +59,8 @@ import { useNetworkStats } from '@/composables/useNetworkStats';
 
 const { estimateDownloadTime } = useNetworkStats();
 
+const tableRef = ref(null);
+
 const props = defineProps({
     filteredData: {
         type: Array,
@@ -73,11 +77,26 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['selectDir', 'downloadFile']);
+const emit = defineEmits(['selectDir', 'downloadFile', 'selectionChange']);
 
 // Sorting state
 const sortProp = ref('name');
 const sortOrder = ref('ascending');
+
+// Selection: only files (not dirs or "..") are selectable
+const isSelectable = (row: any) => {
+    return row.type === 'file' && row.name !== '..';
+};
+
+const handleSelectionChange = (selection: any[]) => {
+    emit('selectionChange', selection);
+};
+
+const clearSelection = () => {
+    tableRef.value?.clearSelection();
+};
+
+defineExpose({ clearSelection });
 
 // Handle download action
 const downloadFile = (row: any) => {

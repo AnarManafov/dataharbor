@@ -1,10 +1,13 @@
 package controller
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -615,7 +618,11 @@ func FetchDirItemsByPage(c *gin.Context) {
 	// Enforce minimum page size to prevent performance issues
 	pageSize := max(req.PageSize, minPageSize)
 
-	totalItems := uint32(len(files))
+	if len(files) > math.MaxUint32 {
+		response.FailWithErr(c, *response.SystemErr(fmt.Errorf("directory contains too many items")))
+		return
+	}
+	totalItems := uint32(len(files))                     //#nosec G115 -- overflow guarded by the check above
 	totalPages := (totalItems + pageSize - 1) / pageSize // Ceiling division ensures partial pages are counted
 
 	common.GetLogger().Debug("Pagination info", "page", req.Page, "pageSize", pageSize, "totalItems", totalItems, "totalPages", totalPages)
@@ -1012,4 +1019,398 @@ func sanitizeFilename(filename string) string {
 	}
 
 	return sanitized
+}
+
+// validateBatchFileName validates a single filename for batch download.
+// Rejects names containing path separators, traversal sequences, or control characters.
+func validateBatchFileName(name string) error {
+	if name == "" {
+		return fmt.Errorf("empty filename")
+	}
+	if strings.Contains(name, "/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("filename contains path separator")
+	}
+	if strings.Contains(name, "..") {
+		return fmt.Errorf("filename contains directory traversal")
+	}
+	if strings.ContainsAny(name, "\x00\r\n") {
+		return fmt.Errorf("filename contains invalid characters")
+	}
+	if !utf8.ValidString(name) {
+		return fmt.Errorf("filename contains invalid UTF-8")
+	}
+	return nil
+}
+
+// DownloadMultipleFiles streams multiple files as a tar (optionally gzipped) archive.
+// Each file is read from XRootD and written to the tar stream on-the-fly — no server-side caching.
+func DownloadMultipleFiles(c *gin.Context) {
+	var req request.BatchDownloadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	cfg := config.GetConfig()
+
+	// Validate file count
+	if len(req.Files) == 0 {
+		response.Error(c, http.StatusBadRequest, "No files specified for download")
+		return
+	}
+	maxFiles := cfg.XRD.Download.MaxBatchFiles
+	if maxFiles <= 0 {
+		maxFiles = 100
+	}
+	if len(req.Files) > maxFiles {
+		response.Error(c, http.StatusBadRequest, fmt.Sprintf("Too many files: %d exceeds maximum of %d", len(req.Files), maxFiles))
+		return
+	}
+
+	// Validate base path
+	if err := validateFilePath(req.BasePath); err != nil {
+		response.Error(c, http.StatusBadRequest, "Invalid base path")
+		return
+	}
+
+	// Validate each filename and construct full paths
+	fullPaths := make([]string, len(req.Files))
+	for i, name := range req.Files {
+		if err := validateBatchFileName(name); err != nil {
+			response.Error(c, http.StatusBadRequest, fmt.Sprintf("Invalid filename %q: %s", name, err.Error()))
+			return
+		}
+		fullPath := req.BasePath + "/" + name
+		if err := validateFilePath(fullPath); err != nil {
+			response.Error(c, http.StatusBadRequest, fmt.Sprintf("Invalid file path for %q", name))
+			return
+		}
+		fullPaths[i] = fullPath
+	}
+
+	// Get user token
+	var userToken string
+	if token, exists := middleware.GetUserToken(c); exists {
+		userToken = token
+	}
+
+	// Get single XRD filesystem connection for all files
+	ctx := context.Background()
+	simpleClient := common.GetXRDClient()
+	fs, cleanup, err := simpleClient.GetFileSystem(ctx, userToken)
+	if err != nil {
+		common.GetLogger().Error("Batch download: failed to get filesystem", "error", err)
+		if common.IsAuthError(err) {
+			response.Error(c, http.StatusForbidden, "You are not authorized to access the storage system. Please check your credentials.")
+			return
+		}
+		response.Error(c, http.StatusInternalServerError, "Failed to connect to storage")
+		return
+	}
+	defer cleanup()
+
+	// Stat all files upfront — fail fast if any file is missing or is a directory
+	type fileInfo struct {
+		path    string
+		name    string
+		size    int64
+		modTime time.Time
+	}
+	files := make([]fileInfo, 0, len(fullPaths))
+	var totalRawSize int64
+
+	for i, fp := range fullPaths {
+		info, statErr := fs.Stat(ctx, fp)
+		if statErr != nil {
+			common.GetLogger().Error("Batch download: failed to stat file", "path", fp, "error", statErr)
+			response.Error(c, http.StatusNotFound, fmt.Sprintf("File not found or inaccessible: %s", req.Files[i]))
+			return
+		}
+		if info.IsDir() {
+			response.Error(c, http.StatusBadRequest, fmt.Sprintf("Cannot download directory: %s", req.Files[i]))
+			return
+		}
+		files = append(files, fileInfo{
+			path:    fp,
+			name:    req.Files[i],
+			size:    info.Size(),
+			modTime: info.ModTime(),
+		})
+		totalRawSize += info.Size()
+	}
+
+	// Enforce total size limit
+	maxSizeMB := cfg.XRD.Download.MaxBatchSizeMB
+	if maxSizeMB <= 0 {
+		maxSizeMB = 10240
+	}
+	maxSizeBytes := int64(maxSizeMB) * 1024 * 1024
+	if totalRawSize > maxSizeBytes {
+		response.Error(c, http.StatusBadRequest, fmt.Sprintf("Total download size (%d MB) exceeds maximum allowed (%d MB)",
+			totalRawSize/(1024*1024), maxSizeMB))
+		return
+	}
+
+	// Generate download ID and archive filename
+	downloadID := fmt.Sprintf("batch_%d", time.Now().UnixNano())
+	dirName := sanitizeFilename(filepath.Base(req.BasePath))
+	timestamp := time.Now().Format("20060102-150405")
+
+	useCompression := cfg.XRD.Download.BatchCompression
+	var archiveFilename string
+	var contentType string
+	if useCompression {
+		archiveFilename = fmt.Sprintf("dataharbor-%s-%s.tar.gz", dirName, timestamp)
+		contentType = "application/gzip"
+	} else {
+		archiveFilename = fmt.Sprintf("dataharbor-%s-%s.tar", dirName, timestamp)
+		contentType = "application/x-tar"
+	}
+
+	common.GetLogger().Info("Starting batch download",
+		"downloadID", downloadID,
+		"fileCount", len(files),
+		"totalRawSize", totalRawSize,
+		"compression", useCompression,
+		"user", maskToken(userToken))
+
+	// Set response headers
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", archiveFilename))
+	c.Header("Content-Type", contentType)
+	c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Header("X-Download-Expected-Bytes", fmt.Sprintf("%d", totalRawSize))
+	c.Header("X-Download-File-Count", fmt.Sprintf("%d", len(files)))
+	c.Status(http.StatusOK)
+
+	// Flush headers immediately
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Build writer chain
+	var tarWriter *tar.Writer
+	var gzWriter *gzip.Writer
+
+	if useCompression {
+		gzWriter = gzip.NewWriter(c.Writer)
+		tarWriter = tar.NewWriter(gzWriter)
+	} else {
+		tarWriter = tar.NewWriter(c.Writer)
+	}
+
+	// Stream each file into the tar archive
+	bufferSize := cfg.XRD.Download.BufferSize
+	if bufferSize <= 0 {
+		bufferSize = 2 * 1024 * 1024
+	}
+	flushInterval := int64(cfg.XRD.Download.FlushInterval)
+	if flushInterval <= 0 {
+		flushInterval = 4 * 1024 * 1024
+	}
+
+	startTime := time.Now()
+	var totalWritten int64
+	var failedFiles []string
+
+	for _, fi := range files {
+		// Check for client disconnect between files
+		select {
+		case <-c.Request.Context().Done():
+			common.GetLogger().Warn("Batch download: client disconnected",
+				"downloadID", downloadID,
+				"filesCompleted", len(files)-len(failedFiles),
+				"totalWritten", totalWritten)
+			return
+		default:
+		}
+
+		written, streamErr := streamFileToTar(c, fs, tarWriter, fi.path, fi.name, fi.size, fi.modTime, bufferSize, flushInterval, downloadID)
+		totalWritten += written
+		if streamErr != nil {
+			common.GetLogger().Error("Batch download: failed to stream file",
+				"downloadID", downloadID,
+				"file", fi.name,
+				"error", streamErr)
+			failedFiles = append(failedFiles, fi.name)
+		}
+	}
+
+	// If any files failed, add an error manifest to the archive
+	if len(failedFiles) > 0 {
+		errContent := "The following files could not be fully downloaded:\n"
+		for _, name := range failedFiles {
+			errContent += "  - " + name + "\n"
+		}
+		errHeader := &tar.Header{
+			Name:    "_DOWNLOAD_ERRORS.txt",
+			Size:    int64(len(errContent)),
+			Mode:    0o644,
+			ModTime: time.Now(),
+		}
+		if writeErr := tarWriter.WriteHeader(errHeader); writeErr == nil {
+			_, _ = tarWriter.Write([]byte(errContent))
+		}
+	}
+
+	// Close tar writer (writes end-of-archive marker) before gzip
+	if err := tarWriter.Close(); err != nil {
+		common.GetLogger().Warn("Batch download: failed to close tar writer",
+			"downloadID", downloadID,
+			"error", err)
+	}
+	if gzWriter != nil {
+		if err := gzWriter.Close(); err != nil {
+			common.GetLogger().Warn("Batch download: failed to close gzip writer",
+				"downloadID", downloadID,
+				"error", err)
+		}
+	}
+
+	// Final flush
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	// Log completion
+	duration := time.Since(startTime)
+	speedMBps := float64(totalWritten) / duration.Seconds() / (1024 * 1024)
+
+	common.GetLogger().Info("Batch download finished",
+		"downloadID", downloadID,
+		"fileCount", len(files),
+		"failedFiles", len(failedFiles),
+		"totalBytes", totalWritten,
+		"duration", duration.String(),
+		"speedMBps", fmt.Sprintf("%.2f", speedMBps),
+		"compression", useCompression,
+		"user", maskToken(userToken))
+}
+
+// streamFileToTarTimeout returns a file-size-based context timeout for streaming a single
+// file into a tar archive. Small files keep a 30-minute minimum; larger files get additional
+// time based on a conservative 1 MiB/s minimum transfer rate.
+func streamFileToTarTimeout(fileSize int64) time.Duration {
+	const (
+		minTimeout        = 30 * time.Minute
+		transferOverhead  = 5 * time.Minute
+		minBytesPerSecond = int64(1 << 20) // 1 MiB/s
+	)
+
+	if fileSize <= 0 {
+		return minTimeout
+	}
+
+	sizeBasedTimeout := time.Duration(fileSize/minBytesPerSecond) * time.Second
+	if fileSize%minBytesPerSecond != 0 {
+		sizeBasedTimeout += time.Second
+	}
+
+	timeout := sizeBasedTimeout + transferOverhead
+	if timeout < minTimeout {
+		return minTimeout
+	}
+
+	return timeout
+}
+
+// streamFileToTar writes a single file from XRD into the tar archive.
+// Returns the number of bytes read from the file and any error encountered.
+func streamFileToTar(c *gin.Context, fs xrdfs.FileSystem, tw *tar.Writer, filePath string, fileName string, fileSize int64, modTime time.Time, bufferSize int, flushInterval int64, downloadID string) (int64, error) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), streamFileToTarTimeout(fileSize))
+	defer cancel()
+
+	// Write tar header
+	header := &tar.Header{
+		Name:    fileName,
+		Size:    fileSize,
+		Mode:    0o644,
+		ModTime: modTime,
+	}
+	if err := tw.WriteHeader(header); err != nil {
+		return 0, fmt.Errorf("failed to write tar header for %s: %w", fileName, err)
+	}
+
+	// Open file from XRD
+	file, err := fs.Open(ctx, filePath, xrdfs.OpenModeOtherRead, xrdfs.OpenOptionsNone)
+	if err != nil {
+		// Try fallback mode
+		retryCtx, retryCancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+		defer retryCancel()
+		file, err = fs.Open(retryCtx, filePath, xrdfs.OpenModeOwnerRead, xrdfs.OpenOptionsNone)
+		if err != nil {
+			return 0, fmt.Errorf("failed to open file %s: %w", fileName, err)
+		}
+	}
+	defer func() { _ = file.Close(ctx) }()
+
+	// Stream file content in chunks
+	buffer := make([]byte, bufferSize)
+	offset := int64(0)
+	totalRead := int64(0)
+	lastFlushTime := time.Now()
+	bytesSinceFlush := int64(0)
+
+	var loopErr error
+
+	for totalRead < fileSize {
+		n, readErr := file.ReadAt(buffer, offset)
+		if n > 0 {
+			if _, writeErr := tw.Write(buffer[:n]); writeErr != nil {
+				loopErr = fmt.Errorf("failed to write to tar for %s: %w", fileName, writeErr)
+				break
+			}
+			offset += int64(n)
+			totalRead += int64(n)
+			bytesSinceFlush += int64(n)
+
+			// Adaptive flushing
+			shouldFlush := bytesSinceFlush >= flushInterval || time.Since(lastFlushTime) >= 500*time.Millisecond
+			if shouldFlush {
+				if flusher, ok := c.Writer.(http.Flusher); ok {
+					flusher.Flush()
+					lastFlushTime = time.Now()
+					bytesSinceFlush = 0
+				}
+			}
+		}
+
+		if readErr != nil {
+			if readErr != io.EOF {
+				loopErr = fmt.Errorf("failed to read file %s: %w", fileName, readErr)
+			}
+			break
+		}
+
+		// XRootD may return n=0 without error at EOF
+		if n == 0 {
+			break
+		}
+	}
+
+	// Pad the tar entry to match the declared header size. This is required on all exit
+	// paths (including errors) to keep the tar stream aligned for subsequent entries.
+	if totalRead != fileSize {
+		remaining := fileSize - totalRead
+		padChunkSize := bufferSize
+		if padChunkSize <= 0 {
+			padChunkSize = 32 * 1024
+		}
+		padding := make([]byte, padChunkSize)
+		for remaining > 0 {
+			chunkSize := len(padding)
+			if int64(chunkSize) > remaining {
+				chunkSize = int(remaining)
+			}
+			if _, padErr := tw.Write(padding[:chunkSize]); padErr != nil {
+				return totalRead, fmt.Errorf("file %s ended after %d of %d bytes and failed to pad tar entry: %w", fileName, totalRead, fileSize, padErr)
+			}
+			remaining -= int64(chunkSize)
+		}
+		if loopErr != nil {
+			return totalRead, loopErr
+		}
+		return totalRead, fmt.Errorf("short read for file %s: read %d of %d bytes", fileName, totalRead, fileSize)
+	}
+
+	return totalRead, loopErr
 }

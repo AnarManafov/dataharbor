@@ -28,6 +28,8 @@ GOFMT=$(GOCMD) fmt
 
 # Linting
 GOLANGCI_LINT=golangci-lint
+GOSEC=gosec
+GOVULNCHECK=govulncheck
 
 # Colors for output
 GREEN=\033[0;32m
@@ -41,7 +43,7 @@ NC=\033[0m # No Color
         deps deps-backend deps-frontend deps-all \
         tidy tidy-backend \
         update update-backend update-frontend update-all \
-        fmt vet lint \
+        fmt vet lint security vulncheck \
         dev dev-backend dev-frontend \
         help
 
@@ -73,6 +75,8 @@ help:
 	@echo "    make fmt                 - Format Go code"
 	@echo "    make vet                 - Run go vet"
 	@echo "    make lint                - Run golangci-lint"
+	@echo "    make security            - Run gosec security scanner"
+	@echo "    make vulncheck           - Run govulncheck vulnerability scanner"
 	@echo ""
 	@echo "  $(YELLOW)Testing:$(NC)"
 	@echo "    make test                - Run backend tests with coverage report"
@@ -184,6 +188,22 @@ lint:
 	@echo "$(GREEN)Running golangci-lint...$(NC)"
 	@cd $(APP_DIR) && $(GOLANGCI_LINT) run --timeout=5m $(LINT_OPTS) || ( \
 		echo "$(RED)Linting failed. Install golangci-lint: https://golangci-lint.run/usage/install/$(NC)" && \
+		exit 1 \
+	)
+
+## security: Run gosec security scanner
+security:
+	@echo "$(GREEN)Running gosec security scanner...$(NC)"
+	@cd $(APP_DIR) && $(GOSEC) ./... || ( \
+		echo "$(RED)Security scan failed. Install gosec: go install github.com/securego/gosec/v2/cmd/gosec@latest$(NC)" && \
+		exit 1 \
+	)
+
+## vulncheck: Run govulncheck vulnerability scanner
+vulncheck:
+	@echo "$(GREEN)Running govulncheck...$(NC)"
+	@cd $(APP_DIR) && $(GOVULNCHECK) ./... || ( \
+		echo "$(RED)Vulnerability check failed. Install govulncheck: go install golang.org/x/vuln/cmd/govulncheck@latest$(NC)" && \
 		exit 1 \
 	)
 

@@ -1,8 +1,12 @@
 package controller
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AnarManafov/dataharbor/app/config"
+	"go-hep.org/x/hep/xrootd/xrdfs"
 )
 
 // Helper function to create a mock gin context with user claims
@@ -1030,4 +1035,707 @@ func TestMin(t *testing.T) {
 		result := min(tc.a, tc.b)
 		assert.Equal(t, tc.expected, result)
 	}
+}
+
+// ============================================
+// validateBatchFileName Tests
+// ============================================
+
+func TestValidateBatchFileName(t *testing.T) {
+	testCases := []struct {
+		name        string
+		filename    string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "valid simple filename",
+			filename:    "data.txt",
+			expectError: false,
+		},
+		{
+			name:        "valid filename with spaces",
+			filename:    "my data file.csv",
+			expectError: false,
+		},
+		{
+			name:        "valid filename with unicode",
+			filename:    "données_2024.txt",
+			expectError: false,
+		},
+		{
+			name:        "valid filename with dots",
+			filename:    "archive.tar.gz",
+			expectError: false,
+		},
+		{
+			name:        "empty filename",
+			filename:    "",
+			expectError: true,
+			errorMsg:    "empty filename",
+		},
+		{
+			name:        "filename with forward slash",
+			filename:    "path/file.txt",
+			expectError: true,
+			errorMsg:    "path separator",
+		},
+		{
+			name:        "filename with backslash",
+			filename:    "path\\file.txt",
+			expectError: true,
+			errorMsg:    "path separator",
+		},
+		{
+			name:        "filename with directory traversal",
+			filename:    "..passwd",
+			expectError: true,
+			errorMsg:    "directory traversal",
+		},
+		{
+			name:        "filename with double dots",
+			filename:    "file..txt",
+			expectError: true,
+			errorMsg:    "directory traversal",
+		},
+		{
+			name:        "filename with null byte",
+			filename:    "file\x00.txt",
+			expectError: true,
+			errorMsg:    "invalid characters",
+		},
+		{
+			name:        "filename with newline",
+			filename:    "file\n.txt",
+			expectError: true,
+			errorMsg:    "invalid characters",
+		},
+		{
+			name:        "filename with carriage return",
+			filename:    "file\r.txt",
+			expectError: true,
+			errorMsg:    "invalid characters",
+		},
+		{
+			name:        "filename with invalid UTF-8 bytes",
+			filename:    "file\xff\xfe.txt",
+			expectError: true,
+			errorMsg:    "invalid UTF-8",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateBatchFileName(tc.filename)
+			if tc.expectError {
+				assert.Error(t, err)
+				if tc.errorMsg != "" {
+					assert.Contains(t, err.Error(), tc.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// ============================================
+// DownloadMultipleFiles Tests
+// ============================================
+
+func TestDownloadMultipleFiles_Validation(t *testing.T) {
+	setupTestXRDConfig()
+
+	t.Run("missing request body", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", nil)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Invalid request body")
+	})
+
+	t.Run("empty files list", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data", "files": []}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "No files specified")
+	})
+
+	t.Run("exceeds max file count", func(t *testing.T) {
+		// Set config with low max
+		testConfig := &config.Config{
+			XRD: config.XRDConfig{
+				Download: config.DownloadConfig{
+					MaxBatchFiles:  2,
+					MaxBatchSizeMB: 10240,
+				},
+			},
+		}
+		config.SetConfig(testConfig)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data", "files": ["a.txt", "b.txt", "c.txt"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Too many files")
+		assert.Contains(t, resp["error"], "exceeds maximum of 2")
+	})
+
+	t.Run("invalid base path - relative", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "relative/path", "files": ["file.txt"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Invalid base path")
+	})
+
+	t.Run("invalid base path - directory traversal", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data/../etc", "files": ["passwd"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Invalid base path")
+	})
+
+	t.Run("invalid filename with path separator", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data", "files": ["sub/file.txt"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Invalid filename")
+		assert.Contains(t, resp["error"], "path separator")
+	})
+
+	t.Run("invalid filename with backslash", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data", "files": ["sub\\file.txt"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Invalid filename")
+	})
+
+	t.Run("filename with null byte", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := "{\"basePath\": \"/data\", \"files\": [\"file\\u0000.txt\"]}"
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+
+		var resp map[string]any
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		assert.NoError(t, err)
+		assert.Contains(t, resp["error"], "Invalid filename")
+	})
+
+	t.Run("missing basePath field", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"files": ["file.txt"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("missing files field", func(t *testing.T) {
+		setupTestXRDConfig()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data"}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		DownloadMultipleFiles(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
+// ============================================
+// Mock types for streamFileToTar tests
+// ============================================
+
+// mockXRDFile is a minimal xrdfs.File implementation backed by an in-memory byte slice.
+// readErr, if non-nil, is returned on every ReadAt call (with any bytes that fit).
+type mockXRDFile struct {
+	content []byte
+	readErr error
+}
+
+func (m *mockXRDFile) ReadAt(p []byte, off int64) (int, error) {
+	if off >= int64(len(m.content)) {
+		if m.readErr != nil {
+			return 0, m.readErr
+		}
+		return 0, io.EOF
+	}
+	n := copy(p, m.content[off:])
+	if m.readErr != nil {
+		return n, m.readErr
+	}
+	if off+int64(n) >= int64(len(m.content)) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (m *mockXRDFile) WriteAt(p []byte, off int64) (int, error)          { return 0, nil }
+func (m *mockXRDFile) Compression() *xrdfs.FileCompression               { return nil }
+func (m *mockXRDFile) Info() *xrdfs.EntryStat                            { return nil }
+func (m *mockXRDFile) Handle() xrdfs.FileHandle                          { return xrdfs.FileHandle{} }
+func (m *mockXRDFile) Close(ctx context.Context) error                   { return nil }
+func (m *mockXRDFile) CloseVerify(ctx context.Context, size int64) error { return nil }
+func (m *mockXRDFile) Sync(ctx context.Context) error                    { return nil }
+func (m *mockXRDFile) ReadAtContext(ctx context.Context, p []byte, off int64) (int, error) {
+	return m.ReadAt(p, off)
+}
+func (m *mockXRDFile) WriteAtContext(ctx context.Context, p []byte, off int64) error { return nil }
+func (m *mockXRDFile) Truncate(ctx context.Context, size int64) error                { return nil }
+func (m *mockXRDFile) Stat(ctx context.Context) (xrdfs.EntryStat, error) {
+	return xrdfs.EntryStat{}, nil
+}
+
+func (m *mockXRDFile) StatVirtualFS(ctx context.Context) (xrdfs.VirtualFSStat, error) {
+	return xrdfs.VirtualFSStat{}, nil
+}
+func (m *mockXRDFile) VerifyWriteAt(ctx context.Context, p []byte, off int64) error { return nil }
+
+// mockXRDFileSystem is a minimal xrdfs.FileSystem implementation for testing.
+type mockXRDFileSystem struct {
+	file    xrdfs.File
+	openErr error
+}
+
+func (m *mockXRDFileSystem) Open(ctx context.Context, path string, mode xrdfs.OpenMode, options xrdfs.OpenOptions) (xrdfs.File, error) {
+	if m.openErr != nil {
+		return nil, m.openErr
+	}
+	return m.file, nil
+}
+
+func (m *mockXRDFileSystem) Dirlist(ctx context.Context, path string) ([]xrdfs.EntryStat, error) {
+	return nil, nil
+}
+func (m *mockXRDFileSystem) RemoveFile(ctx context.Context, path string) error { return nil }
+func (m *mockXRDFileSystem) Truncate(ctx context.Context, path string, size int64) error {
+	return nil
+}
+
+func (m *mockXRDFileSystem) Stat(ctx context.Context, path string) (xrdfs.EntryStat, error) {
+	return xrdfs.EntryStat{}, nil
+}
+
+func (m *mockXRDFileSystem) VirtualStat(ctx context.Context, path string) (xrdfs.VirtualFSStat, error) {
+	return xrdfs.VirtualFSStat{}, nil
+}
+
+func (m *mockXRDFileSystem) Mkdir(ctx context.Context, path string, perm xrdfs.OpenMode) error {
+	return nil
+}
+
+func (m *mockXRDFileSystem) MkdirAll(ctx context.Context, path string, perm xrdfs.OpenMode) error {
+	return nil
+}
+func (m *mockXRDFileSystem) RemoveDir(ctx context.Context, path string) error          { return nil }
+func (m *mockXRDFileSystem) RemoveAll(ctx context.Context, path string) error          { return nil }
+func (m *mockXRDFileSystem) Rename(ctx context.Context, oldpath, newpath string) error { return nil }
+func (m *mockXRDFileSystem) Chmod(ctx context.Context, path string, mode xrdfs.OpenMode) error {
+	return nil
+}
+
+func (m *mockXRDFileSystem) Statx(ctx context.Context, paths []string) ([]xrdfs.StatFlags, error) {
+	return nil, nil
+}
+
+// ============================================
+// streamFileToTar Tests
+// ============================================
+
+func TestStreamFileToTar_Success(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	content := []byte("hello world content")
+	fs := &mockXRDFileSystem{file: &mockXRDFile{content: content}}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	n, err := streamFileToTar(c, fs, tw, "/test/file.txt", "file.txt", int64(len(content)), time.Now(), 32*1024, 4*1024*1024, "test-id")
+
+	assert.NoError(t, err)
+	assert.Equal(t, int64(len(content)), n)
+	assert.NoError(t, tw.Close())
+
+	// Verify the tar archive is valid and contains the expected entry
+	tr := tar.NewReader(&buf)
+	hdr, err := tr.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "file.txt", hdr.Name)
+	assert.Equal(t, int64(len(content)), hdr.Size)
+
+	data, err := io.ReadAll(tr)
+	assert.NoError(t, err)
+	assert.Equal(t, content, data)
+
+	_, err = tr.Next()
+	assert.Equal(t, io.EOF, err)
+}
+
+func TestStreamFileToTar_ShortRead(t *testing.T) {
+	// File returns fewer bytes than declared in the header.
+	// streamFileToTar must pad the tar entry to keep the archive valid.
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	content := []byte("short") // 5 bytes
+	declaredSize := int64(20)  // header declares 20 bytes
+	fs := &mockXRDFileSystem{file: &mockXRDFile{content: content}}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	n, err := streamFileToTar(c, fs, tw, "/test/file.txt", "file.txt", declaredSize, time.Now(), 32*1024, 4*1024*1024, "test-id")
+
+	assert.Error(t, err, "expected error on short read")
+	assert.Contains(t, err.Error(), "short read")
+	assert.Equal(t, int64(5), n)
+
+	// The tar writer must still be closeable after padding
+	assert.NoError(t, tw.Close(), "tar writer must remain valid after short read")
+
+	// The archive must be parseable - the short entry should be readable
+	tr := tar.NewReader(&buf)
+	hdr, err := tr.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "file.txt", hdr.Name)
+	assert.Equal(t, declaredSize, hdr.Size)
+
+	// Consume the entry (padded to declaredSize)
+	_, err = io.Copy(io.Discard, tr)
+	assert.NoError(t, err)
+
+	// No more entries; archive is not corrupt
+	_, err = tr.Next()
+	assert.Equal(t, io.EOF, err)
+}
+
+func TestStreamFileToTar_ReadError(t *testing.T) {
+	// File returns a read error after partial data.
+	// streamFileToTar must pad the remaining tar entry bytes and propagate the error.
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	readErr := fmt.Errorf("simulated XRD read error")
+	content := []byte("partial") // 7 bytes then readErr
+	declaredSize := int64(20)
+	fs := &mockXRDFileSystem{file: &mockXRDFile{content: content, readErr: readErr}}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	_, err := streamFileToTar(c, fs, tw, "/test/file.txt", "file.txt", declaredSize, time.Now(), 32*1024, 4*1024*1024, "test-id")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "simulated XRD read error")
+
+	// Tar writer must still be closeable after padding
+	assert.NoError(t, tw.Close(), "tar writer must remain valid after read error")
+}
+
+func TestStreamFileToTar_OpenError(t *testing.T) {
+	// If both Open attempts fail, streamFileToTar returns an error without writing any data.
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	fs := &mockXRDFileSystem{openErr: fmt.Errorf("connection refused")}
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	_, err := streamFileToTar(c, fs, tw, "/test/file.txt", "file.txt", 10, time.Now(), 32*1024, 4*1024*1024, "test-id")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to open file")
+}
+
+// ============================================
+// Tar error manifest tests
+// ============================================
+
+func TestTarErrorManifest(t *testing.T) {
+	// Verify that _DOWNLOAD_ERRORS.txt can be appended after file entries and the archive remains valid.
+	// This mirrors the error manifest logic in DownloadMultipleFiles.
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+
+	// Write a successful file entry
+	fileContent := []byte("good file content")
+	assert.NoError(t, tw.WriteHeader(&tar.Header{
+		Name:    "good_file.txt",
+		Size:    int64(len(fileContent)),
+		Mode:    0o644,
+		ModTime: time.Now(),
+	}))
+	_, err := tw.Write(fileContent)
+	assert.NoError(t, err)
+
+	// Simulate the error manifest written by DownloadMultipleFiles
+	failedFiles := []string{"failed_file1.txt", "failed_file2.txt"}
+	errContent := "The following files could not be fully downloaded:\n"
+	for _, name := range failedFiles {
+		errContent += "  - " + name + "\n"
+	}
+	assert.NoError(t, tw.WriteHeader(&tar.Header{
+		Name:    "_DOWNLOAD_ERRORS.txt",
+		Size:    int64(len(errContent)),
+		Mode:    0o644,
+		ModTime: time.Now(),
+	}))
+	_, err = tw.Write([]byte(errContent))
+	assert.NoError(t, err)
+
+	assert.NoError(t, tw.Close())
+
+	// Verify archive structure
+	tr := tar.NewReader(&buf)
+
+	hdr1, err := tr.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "good_file.txt", hdr1.Name)
+	data1, err := io.ReadAll(tr)
+	assert.NoError(t, err)
+	assert.Equal(t, fileContent, data1)
+
+	hdr2, err := tr.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "_DOWNLOAD_ERRORS.txt", hdr2.Name)
+	data2, err := io.ReadAll(tr)
+	assert.NoError(t, err)
+	assert.Contains(t, string(data2), "failed_file1.txt")
+	assert.Contains(t, string(data2), "failed_file2.txt")
+
+	_, err = tr.Next()
+	assert.Equal(t, io.EOF, err)
+}
+
+// ============================================
+// streamFileToTarTimeout Tests
+// ============================================
+
+func TestStreamFileToTarTimeout(t *testing.T) {
+	const (
+		minTimeout = 30 * time.Minute
+		mib        = int64(1 << 20) // 1 MiB
+	)
+
+	tests := []struct {
+		name        string
+		fileSize    int64
+		wantExact   time.Duration // zero means skip exact check
+		wantAtLeast time.Duration // zero means skip lower-bound check
+	}{
+		{
+			name:      "zero file size returns min timeout",
+			fileSize:  0,
+			wantExact: minTimeout,
+		},
+		{
+			name:      "negative file size returns min timeout",
+			fileSize:  -1,
+			wantExact: minTimeout,
+		},
+		{
+			name:      "small file (1 KB) returns min timeout",
+			fileSize:  1024,
+			wantExact: minTimeout,
+		},
+		{
+			name:      "exact 1 MiB boundary returns min timeout",
+			fileSize:  mib,
+			wantExact: minTimeout, // sizeBasedTimeout=1s, timeout=301s < 30min
+		},
+		{
+			name:        "large file (2 GiB) returns timeout above minimum",
+			fileSize:    2 * 1024 * mib,
+			wantAtLeast: minTimeout + time.Second, // must exceed 30-minute floor
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := streamFileToTarTimeout(tc.fileSize)
+			assert.Positive(t, got, "timeout must be positive")
+			if tc.wantExact != 0 {
+				assert.Equal(t, tc.wantExact, got)
+			}
+			if tc.wantAtLeast != 0 {
+				assert.GreaterOrEqual(t, got, tc.wantAtLeast)
+			}
+		})
+	}
+}
+
+// ============================================
+// streamFileSimple Tests
+// ============================================
+
+func TestStreamFileSimple_Success(t *testing.T) {
+	setupTestXRDConfig()
+	gin.SetMode(gin.TestMode)
+
+	content := []byte("file content for streaming")
+	fs := &mockXRDFileSystem{file: &mockXRDFile{content: content}}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	err := streamFileSimple(c, fs, "/data/test.txt", "token123", time.Now(), int64(len(content)), "dl-001")
+
+	assert.NoError(t, err)
+	assert.Equal(t, content, w.Body.Bytes())
+}
+
+func TestStreamFileSimple_OpenError(t *testing.T) {
+	setupTestXRDConfig()
+	gin.SetMode(gin.TestMode)
+
+	openErr := fmt.Errorf("connection refused")
+	fs := &mockXRDFileSystem{openErr: openErr}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	err := streamFileSimple(c, fs, "/data/test.txt", "token123", time.Now(), 1024, "dl-002")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to open file")
+}
+
+func TestStreamFileSimple_InitialReadError(t *testing.T) {
+	setupTestXRDConfig()
+	gin.SetMode(gin.TestMode)
+
+	readErr := fmt.Errorf("XRD read failure")
+	// File has partial content but returns an error on read
+	fs := &mockXRDFileSystem{file: &mockXRDFile{content: []byte("partial"), readErr: readErr}}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	// Declare a larger fileSize so the initial read error is not masked by EOF
+	err := streamFileSimple(c, fs, "/data/test.txt", "token123", time.Now(), 1024, "dl-003")
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read initial chunk from file")
+}
+
+func TestStreamFileSimple_EmptyFile(t *testing.T) {
+	setupTestXRDConfig()
+	gin.SetMode(gin.TestMode)
+
+	// Empty file: ReadAt immediately returns 0, EOF
+	fs := &mockXRDFileSystem{file: &mockXRDFile{content: []byte{}}}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/", nil)
+
+	err := streamFileSimple(c, fs, "/data/empty.txt", "token123", time.Now(), 0, "dl-004")
+
+	assert.NoError(t, err)
+	assert.Empty(t, w.Body.Bytes())
 }
