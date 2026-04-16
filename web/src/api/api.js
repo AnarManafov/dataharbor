@@ -103,6 +103,14 @@ export function getStreamingDownloadUrl(path) {
 }
 
 /**
+ * Get the batch download endpoint URL for multi-file tar.gz streaming
+ * Used by downloadService.js with fetch() for streaming
+ */
+export function getBatchDownloadUrl() {
+  return `${baseURL}/v1/xrd/download/batch`;
+}
+
+/**
  * Retrieve storage system identification for user context awareness
  * Helps users understand which system they're currently accessing
  */

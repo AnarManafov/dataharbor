@@ -232,3 +232,14 @@ func TestNextUid_UniqueGeneration(t *testing.T) {
 
 	assert.Len(t, ids, numIds, "Should have generated %d unique IDs", numIds)
 }
+
+func TestNextUid_InitializesWhenNodeIsNil(t *testing.T) {
+	// Reset both the node and the sync.Once guard so that NextUid must
+	// run the full initialization path from a nil snowNode.
+	snowNode = nil
+	once = sync.Once{}
+
+	uid := NextUid()
+	assert.NotEmpty(t, uid, "NextUid should return a non-empty ID after self-init")
+	assert.NotNil(t, snowNode, "snowNode must be set after self-initialization")
+}

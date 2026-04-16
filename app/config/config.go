@@ -91,15 +91,16 @@ type FileConfig struct {
 
 // XRDConfig represents the XRootD configuration
 type XRDConfig struct {
-	Host       string         `mapstructure:"host" yaml:"host"`
-	Port       uint           `mapstructure:"port" yaml:"port"`
-	InitialDir string         `mapstructure:"initial_dir" yaml:"initial_dir"`
-	User       string         `mapstructure:"user" yaml:"user"`
-	UserGroup  string         `mapstructure:"usergroup" yaml:"usergroup"`
-	EnableZTN  bool           `mapstructure:"enable_ztn" yaml:"enable_ztn"` // Enable ZTN protocol (TLS + OAuth token authentication)
-	ClientCert string         `mapstructure:"client_cert" yaml:"client_cert"`
-	ClientKey  string         `mapstructure:"client_key" yaml:"client_key"`
-	Download   DownloadConfig `mapstructure:"download" yaml:"download"`
+	Host          string         `mapstructure:"host" yaml:"host"`
+	Port          uint           `mapstructure:"port" yaml:"port"`
+	InitialDir    string         `mapstructure:"initial_dir" yaml:"initial_dir"`
+	User          string         `mapstructure:"user" yaml:"user"`
+	UserGroup     string         `mapstructure:"usergroup" yaml:"usergroup"`
+	EnableZTN     bool           `mapstructure:"enable_ztn" yaml:"enable_ztn"`           // Enable ZTN protocol (TLS + OAuth token authentication)
+	SkipTLSVerify bool           `mapstructure:"skip_tls_verify" yaml:"skip_tls_verify"` // Skip TLS certificate verification (insecure, for development only)
+	ClientCert    string         `mapstructure:"client_cert" yaml:"client_cert"`
+	ClientKey     string         `mapstructure:"client_key" yaml:"client_key"`
+	Download      DownloadConfig `mapstructure:"download" yaml:"download"`
 }
 
 // DownloadConfig represents file download optimization settings
@@ -113,6 +114,15 @@ type DownloadConfig struct {
 	// FlushInterval controls how often the response buffer is flushed to the client (in bytes)
 	// Balances responsiveness with performance - smaller values provide more frequent progress updates
 	FlushInterval int `mapstructure:"flush_interval" yaml:"flush_interval"`
+
+	// MaxBatchFiles is the maximum number of files allowed in a single batch download request
+	MaxBatchFiles int `mapstructure:"max_batch_files" yaml:"max_batch_files"`
+
+	// MaxBatchSizeMB is the maximum total size (in MB) allowed for a batch download
+	MaxBatchSizeMB int `mapstructure:"max_batch_size_mb" yaml:"max_batch_size_mb"`
+
+	// BatchCompression enables gzip compression for batch tar downloads
+	BatchCompression bool `mapstructure:"batch_compression" yaml:"batch_compression"`
 }
 
 // AuthConfig represents the authentication configuration
@@ -209,7 +219,7 @@ func LoadConfig(configFile string) (*Config, error) {
 	// Create config directory if it doesn't exist
 	configDir := filepath.Dir(configFile)
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(configDir, 0o755); err != nil {
+		if err := os.MkdirAll(configDir, 0o750); err != nil {
 			return nil, fmt.Errorf("failed to create config directory: %w", err)
 		}
 	}
@@ -366,8 +376,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("xrd.port", 1094)
 	v.SetDefault("xrd.initial_dir", "/tmp")
 	v.SetDefault("xrd.enable_ztn", false)
+	v.SetDefault("xrd.skip_tls_verify", false)               // Must be explicitly enabled; insecure, for development only
 	v.SetDefault("xrd.download.buffer_size", 2*1024*1024)    // 2MB - optimal for multi-GB files over WAN
 	v.SetDefault("xrd.download.flush_interval", 4*1024*1024) // 4MB - balance between responsiveness and performance
+	v.SetDefault("xrd.download.max_batch_files", 100)        // Max files per batch download
+	v.SetDefault("xrd.download.max_batch_size_mb", 10240)    // 10GB max total batch size
+	v.SetDefault("xrd.download.batch_compression", true)     // Enable gzip compression for batch downloads
 
 	// Auth defaults
 	v.SetDefault("auth.enabled", false)
@@ -430,8 +444,11 @@ func createDefaultConfig(configFile string) error {
 			ClientCert: "",
 			ClientKey:  "",
 			Download: DownloadConfig{
-				BufferSize:    2 * 1024 * 1024, // 2MB - optimal for multi-GB files
-				FlushInterval: 4 * 1024 * 1024, // 4MB - balance responsiveness and performance
+				BufferSize:       2 * 1024 * 1024, // 2MB - optimal for multi-GB files
+				FlushInterval:    4 * 1024 * 1024, // 4MB - balance responsiveness and performance
+				MaxBatchFiles:    100,
+				MaxBatchSizeMB:   10240, // 10GB
+				BatchCompression: true,
 			},
 		},
 		Auth: AuthConfig{
@@ -461,7 +478,7 @@ func createDefaultConfig(configFile string) error {
 		return fmt.Errorf("failed to marshal default config: %w", err)
 	}
 
-	err = os.WriteFile(configFile, data, 0o644)
+	err = os.WriteFile(configFile, data, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write default config file: %w", err)
 	}

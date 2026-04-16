@@ -101,3 +101,45 @@ func TestDirectoryItemsRequest_SpecialCharacters(t *testing.T) {
 
 	assert.Equal(t, req.Path, decoded.Path)
 }
+
+// ============================================
+// BatchDownloadRequest Tests
+// ============================================
+
+func TestBatchDownloadRequest_JSONMarshal(t *testing.T) {
+	req := BatchDownloadRequest{
+		BasePath: "/data/results",
+		Files:    []string{"file1.txt", "file2.csv"},
+	}
+
+	data, err := json.Marshal(req)
+	assert.NoError(t, err)
+
+	expected := `{"basePath":"/data/results","files":["file1.txt","file2.csv"]}`
+	assert.JSONEq(t, expected, string(data))
+}
+
+func TestBatchDownloadRequest_JSONUnmarshal(t *testing.T) {
+	jsonData := `{"basePath":"/tmp/data","files":["a.txt","b.dat","c.root"]}`
+
+	var req BatchDownloadRequest
+	err := json.Unmarshal([]byte(jsonData), &req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "/tmp/data", req.BasePath)
+	assert.Equal(t, 3, len(req.Files))
+	assert.Equal(t, "a.txt", req.Files[0])
+	assert.Equal(t, "b.dat", req.Files[1])
+	assert.Equal(t, "c.root", req.Files[2])
+}
+
+func TestBatchDownloadRequest_EmptyFiles(t *testing.T) {
+	jsonData := `{"basePath":"/data","files":[]}`
+
+	var req BatchDownloadRequest
+	err := json.Unmarshal([]byte(jsonData), &req)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "/data", req.BasePath)
+	assert.Empty(t, req.Files)
+}
