@@ -122,6 +122,35 @@
                             from the Download Manager.
                         </li>
                     </ul>
+
+                    <h3>Batch Download</h3>
+                    <p>
+                        You can select multiple files and download them together as a single
+                        <code>.tar.gz</code> archive.
+                    </p>
+                    <ul class="feature-list">
+                        <li>
+                            <strong>Selecting files</strong> — use the checkboxes that appear next to
+                            each file. Directories cannot be selected. Use the header checkbox to
+                            select all files on the current page.
+                        </li>
+                        <li>
+                            <strong>Starting a batch download</strong> — once files are selected a
+                            floating action bar appears at the bottom of the page showing the number
+                            of selected files and their total size. Click
+                            <em>Download as .tar.gz</em> to begin.
+                        </li>
+                        <li>
+                            <strong>Limits</strong> — the server enforces a maximum number of files
+                            per batch and a total size limit. If either limit is exceeded the download
+                            is rejected with an error message.
+                        </li>
+                        <li>
+                            <strong>Extracting the archive</strong> — on Linux / macOS run
+                            <code>tar -xzf &lt;file&gt;.tar.gz</code>. On Windows use 7-Zip or
+                            WinRAR.
+                        </li>
+                    </ul>
                 </el-card>
 
                 <el-card class="doc-section" shadow="never">

@@ -72,8 +72,10 @@ func SetupRouter(r *gin.Engine) {
 	v1.GET("/xrd/ping", controller.PingXRD)
 	v1.POST("/xrd/ls/paged", controller.FetchDirItemsByPage)
 
-	// Future: Multi-file download endpoints (interface prepared, implementation pending)
-	// v1.POST("/xrd/download/batch", controller.DownloadMultipleFiles)     // Start batch download
+	// Multi-file download endpoint: streams selected files as a tar (optionally gzipped) archive
+	v1.POST("/xrd/download/batch", controller.DownloadMultipleFiles)
+
+	// Future: Batch download management endpoints (not yet implemented)
 	// v1.GET("/xrd/download/status/:id", controller.GetDownloadStatus)     // Check batch progress
 	// v1.DELETE("/xrd/download/:id", controller.CancelDownload)            // Cancel download
 
@@ -275,9 +277,10 @@ func logFrontendNotFound(logger *zap.SugaredLogger, attemptedPaths []string) {
 	logger.Error("The UI will not be available.")
 }
 
-// hasIndexFile checks if the given directory contains an index.html file
+// hasIndexFile checks if the given directory contains an index.html file.
+// dir is always a server-controlled configuration path, never user-supplied input.
 func hasIndexFile(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, IndexHTML))
+	_, err := os.Stat(filepath.Join(dir, IndexHTML)) //#nosec G703 -- dir is from server config, not user input
 	return err == nil
 }
 

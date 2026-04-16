@@ -43,7 +43,7 @@
                                         <Check />
                                     </el-icon>
                                     <span><strong>Streaming downloads</strong> — transfer large files without browser
-                                        memory limits</span>
+                                        memory limits, or batch-download multiple files as a .tar.gz archive</span>
                                 </li>
                                 <li>
                                     <el-icon>

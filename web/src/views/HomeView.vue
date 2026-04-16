@@ -40,8 +40,8 @@
                             </el-icon>
                         </div>
                         <h3>Efficient Large File Downloads</h3>
-                        <p>Stream multi-gigabyte files directly to your browser with chunked transfer and adaptive
-                            buffering</p>
+                        <p>Stream multi-gigabyte files directly to your browser, or select multiple files and
+                            download them as a single .tar.gz archive</p>
                     </el-card>
 
                     <el-card class="feature-card" shadow="hover">
