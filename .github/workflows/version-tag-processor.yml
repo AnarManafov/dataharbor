@@ -297,6 +297,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: master # Explicitly checkout the master branch
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }} # Deploy key required to push directly to master (bypasses branch ruleset)
 
       # Download all the prepared changes
       - name: Download package file changes
