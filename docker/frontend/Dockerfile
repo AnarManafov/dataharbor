@@ -19,7 +19,7 @@ COPY web/ ./web/
 # Build the frontend
 RUN npm run build --workspace=web
 
-FROM nginx:1.28-alpine
+FROM nginx:1.29-alpine
 
 RUN apk add --no-cache ca-certificates tzdata
 
