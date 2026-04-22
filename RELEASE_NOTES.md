@@ -1,18 +1,23 @@
 # Release Notes
 
-## v1.0.18 (2026-03-31)
+## v1.0.19 (2026-04-22)
 
 Changelog:
 ### Added
-- unify logging to stdout-only with JSON format and rotation (docker) [GH-45] (d7a0778)
+- update branding (1457649)
+- add multi-file batch download as tar.gz archive (backend,frontend) [GH-11] (38a35f4)
 
 ### Fixed
-- update healthcheck command for XRootD service (docker) (4cdb181)
-- update health check for XRootD service (docker) [GH-46] (00a56ae)
-- preserve directory listing on access denied navigation (frontend) [GH-44] (4221fde)
+- update help section links for issue reporting (2a78a7b)
 
 ### Maintenance
-- bump XRootD to 5.9.2 and add PB tier to storage formatter (e5930e6)
-- add Makefile, update docs, and clean up tooling (b83ecb6)
-- Updated coverage badge. (49c31f9)
+- remove GSI local environment configuration (2aa0235)
+- add CODEOWNERS file for repository ownership (9d2313d)
+
+### Build
+- update dependencies for web package (deps) (b16a415)
+- update base images and dependencies (docker) [GH-11] (9f3e161)
+
+### CI
+- add SSH key for direct master branch deployment (32071fa)
 
