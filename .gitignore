@@ -39,6 +39,9 @@ docker/xrootd-data/
 log/
 *.log
 
+# Bin directory
+/bin
+
 # Ignore test data directories
 /amanafov
 /testuser1

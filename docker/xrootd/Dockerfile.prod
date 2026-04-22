@@ -31,25 +31,25 @@ FROM rockylinux:9 AS builder
 # Install XRootD repository and base dependencies
 # Using BuildKit cache mount for faster rebuilds
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    dnf install -y epel-release && \
-    curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
-    dnf install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
-    dnf config-manager --set-enabled crb && \
-    dnf clean all
+	dnf install -y epel-release && \
+	curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
+	dnf install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
+	dnf config-manager --set-enabled crb && \
+	dnf clean all
 
 # Install XRootD and required plugins
 # Pinned version for reproducible builds
 ARG XROOTD_VERSION
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-    dnf install -y \
-    xrootd-${XROOTD_VERSION} \
-    xrootd-server-${XROOTD_VERSION} \
-    xrootd-libs-${XROOTD_VERSION} \
-    xrootd-scitokens-${XROOTD_VERSION} \
-    xrootd-multiuser \
-    openssl \
-    libcap \
-    && dnf clean all
+	dnf install -y \
+	xrootd-${XROOTD_VERSION} \
+	xrootd-server-${XROOTD_VERSION} \
+	xrootd-libs-${XROOTD_VERSION} \
+	xrootd-scitokens-${XROOTD_VERSION} \
+	xrootd-multiuser \
+	openssl \
+	libcap \
+	&& dnf clean all
 
 # xrootd RPM now uses systemd-sysusers instead of RPM scriptlets to create
 # the xrootd user/group. Run it explicitly so the user exists in /etc/passwd
@@ -73,25 +73,25 @@ ARG XROOTD_VERSION
 
 # Labels for container identification
 LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Production)" \
-    org.opencontainers.image.description="XRootD server optimized for production with external mounts" \
-    org.opencontainers.image.version="${XROOTD_VERSION}" \
-    org.opencontainers.image.vendor="DataHarbor" \
-    xrootd.version="${XROOTD_VERSION}" \
-    xrootd.features="ztn,tls,scitokens,multiuser" \
-    xrootd.mode="production"
+	org.opencontainers.image.description="XRootD server optimized for production with external mounts" \
+	org.opencontainers.image.version="${XROOTD_VERSION}" \
+	org.opencontainers.image.vendor="DataHarbor" \
+	xrootd.version="${XROOTD_VERSION}" \
+	xrootd.features="ztn,tls,scitokens,multiuser" \
+	xrootd.mode="production"
 
 # Install minimal runtime dependencies
 # Using microdnf for smaller footprint in -minimal image
 # sssd-client provides libnss_sss.so — required for resolving LDAP/SSSD users
 # via the host's SSSD daemon (socket bind-mounted at runtime)
 RUN microdnf install -y \
-    openssl \
-    ca-certificates \
-    shadow-utils \
-    procps-ng \
-    gettext \
-    sssd-client \
-    && microdnf clean all
+	openssl \
+	ca-certificates \
+	shadow-utils \
+	procps-ng \
+	gettext \
+	sssd-client \
+	&& microdnf clean all
 
 # Copy XRootD binaries and libraries from builder
 COPY --from=builder /usr/bin/xrootd /usr/bin/xrootd
@@ -121,22 +121,22 @@ ARG XROOTD_GID=993
 # Create required directories with proper permissions
 # Note: /data is expected to be a bind mount from host
 RUN mkdir -p \
-    /etc/xrootd \
-    /etc/grid-security/certificates \
-    /var/log/xrootd \
-    /var/spool/xrootd \
-    /var/run/xrootd/certs \
-    /data \
-    && chown -R ${XROOTD_UID}:${XROOTD_GID} \
-    /var/log/xrootd \
-    /var/spool/xrootd \
-    /var/run/xrootd \
-    && chmod 755 \
-    /var/log/xrootd \
-    /var/spool/xrootd \
-    /var/run/xrootd \
-    /data \
-    && chmod 700 /var/run/xrootd/certs
+	/etc/xrootd \
+	/etc/grid-security/certificates \
+	/var/log/xrootd \
+	/var/spool/xrootd \
+	/var/run/xrootd/certs \
+	/data \
+	&& chown -R ${XROOTD_UID}:${XROOTD_GID} \
+	/var/log/xrootd \
+	/var/spool/xrootd \
+	/var/run/xrootd \
+	&& chmod 755 \
+	/var/log/xrootd \
+	/var/spool/xrootd \
+	/var/run/xrootd \
+	/data \
+	&& chmod 700 /var/run/xrootd/certs
 
 # Copy production configuration
 # Note: mapfile is expected to be mounted from host, not baked in
@@ -149,7 +149,7 @@ RUN echo '[]' > /etc/xrootd/mapfile
 
 # Set proper permissions on configs
 RUN chown -R ${XROOTD_UID}:${XROOTD_GID} /etc/xrootd && \
-    chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
+	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
 
 # Copy production entrypoint
 COPY docker/xrootd/scripts/docker-entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh
@@ -165,7 +165,7 @@ WORKDIR /var/spool/xrootd
 # A simple TCP probe avoids the need for authenticated xrdfs queries
 # (production enforces ztn auth and TLS, making xrdfs health checks fail)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD bash -c 'echo > /dev/tcp/127.0.0.1/1094' 2>/dev/null || exit 1
+	CMD bash -c 'echo > /dev/tcp/127.0.0.1/1094' 2>/dev/null || exit 1
 
 # Use production entrypoint
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint-prod.sh"]
