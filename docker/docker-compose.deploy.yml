@@ -174,9 +174,14 @@ services:
     pull_policy: ${PULL_POLICY:-missing}
     container_name: dataharbor-xrootd-prod
     restart: unless-stopped
+    # Give the container a fully-qualified hostname so XRootD does not warn about
+    # a missing domain qualification (gethostname() would otherwise return the Docker
+    # container ID). Override via .env to match the host TLS cert SAN if needed.
+    hostname: ${XROOTD_HOSTNAME:-xrootd}
+    domainname: ${XROOTD_DOMAIN:-local}
 
     environment:
-      XROOTD_HOSTNAME: ${XRD_HOST:-xrootd}
+      XROOTD_HOSTNAME: ${XROOTD_HOSTNAME:-xrootd}
       TZ: ${TZ:-UTC}
       # SciTokens: OIDC issuer and audience for token validation
       SCITOKENS_ISSUER: ${OIDC_ISSUER}
