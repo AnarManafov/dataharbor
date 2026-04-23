@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -90,8 +91,19 @@ func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xroot
 
 	if xc.enableZTN {
 		// ZTN protocol enabled: Configure TLS + OAuth token authentication
-		// skip_tls_verify must be explicitly enabled in config (insecure, for development only)
+		// skip_tls_verify must be explicitly enabled in config (insecure, for development only).
+		// ServerName is required by Go's TLS stack whenever InsecureSkipVerify is false, so the
+		// peer certificate can be validated against the XRootD host. We derive it from the
+		// configured address (stripping the port); this is what the server cert's SAN is
+		// expected to match.
+		serverName, _, err := net.SplitHostPort(xc.address)
+		if err != nil {
+			// address didn't contain a port; fall back to the raw value
+			serverName = xc.address
+		}
 		tlsConfig := &tls.Config{
+			ServerName:         serverName,
+			MinVersion:         tls.VersionTLS12,
 			InsecureSkipVerify: xc.skipTLSVerify, //#nosec G402 -- controlled by config; defaults to false
 		}
 		opts = append(opts, xrootd.WithTLS(tlsConfig))

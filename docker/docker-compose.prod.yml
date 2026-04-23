@@ -167,12 +167,16 @@ services:
     image: dataharbor-xrootd:latest
     container_name: dataharbor-xrootd-prod
     restart: unless-stopped
+    # Give the container a fully-qualified hostname so XRootD does not warn about
+    # a missing domain qualification (gethostname() would otherwise return the Docker
+    # container ID). These can be overridden via .env to match the host TLS cert SAN.
+    hostname: ${XROOTD_HOSTNAME:-xrootd}
+    domainname: ${XROOTD_DOMAIN:-local}
     # Production entrypoint validates mounts and starts XRootD
-    command:
-      ["/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-prod.cfg", "-n", "xrootd"]
+    command: [ "/usr/bin/xrootd", "-c", "/etc/xrootd/xrootd-prod.cfg", "-n", "xrootd" ]
 
     environment:
-      XROOTD_HOSTNAME: ${XRD_HOST:-xrootd}
+      XROOTD_HOSTNAME: ${XROOTD_HOSTNAME:-xrootd}
       TZ: ${TZ:-UTC}
       # SciTokens: OIDC issuer and audience for token validation
       SCITOKENS_ISSUER: ${OIDC_ISSUER}
@@ -193,11 +197,11 @@ services:
           propagation: rslave # Required for Lustre/NFS - ensures mount changes propagate
         # read_only: false  # Set to true for read-only XRootD export
 
-      # ==========================================
-      # TLS CERTIFICATES - From host system
-      # ==========================================
-      # User-provided certs mounted to certs-user, entrypoint copies with fixed permissions
-      # This handles Docker Desktop (macOS/Windows) not preserving Unix file permissions
+        # ==========================================
+        # TLS CERTIFICATES - From host system
+        # ==========================================
+        # User-provided certs mounted to certs-user, entrypoint copies with fixed permissions
+        # This handles Docker Desktop (macOS/Windows) not preserving Unix file permissions
       - ${XRD_CERT_PATH}:/var/run/xrootd/certs-user/hostcert.pem:ro
       - ${XRD_KEY_PATH}:/var/run/xrootd/certs-user/hostkey.pem:ro
 
