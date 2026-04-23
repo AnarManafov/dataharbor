@@ -193,9 +193,12 @@ services:
     image: dataharbor-xrootd:dev
     container_name: dataharbor-xrootd-dev
     restart: unless-stopped
+    # FQDN avoids the "registered without a domain qualification" warning from XRootD
+    hostname: ${XROOTD_HOSTNAME:-xrootd}
+    domainname: ${XROOTD_DOMAIN:-local}
 
     environment:
-      XROOTD_HOSTNAME: xrootd
+      XROOTD_HOSTNAME: ${XROOTD_HOSTNAME:-xrootd}
       TZ: Europe/Berlin
 
     volumes:
