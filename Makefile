@@ -165,6 +165,10 @@ update-backend:
 update-frontend:
 	@echo "$(GREEN)Updating frontend npm dependencies...$(NC)"
 	@cd $(WEB_DIR) && npx npm-check-updates -u && npm install
+	@echo "$(GREEN)Updating transitive dependencies to latest semver...$(NC)"
+	@npm update
+	@echo "$(GREEN)Fixing any remaining audit vulnerabilities...$(NC)"
+	@npm audit fix
 
 ## update-all: Alias for update
 update-all: update
