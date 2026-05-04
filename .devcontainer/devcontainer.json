@@ -179,11 +179,15 @@
     "ghcr.io/szkiba/devcontainer-features/govulncheck:1": {}
   },
   // Commands to run after container is created
-  "postCreateCommand": "npm install -g npm@latest && cd app && go mod download && cd .. && npm install",
+  "postCreateCommand": "npm install -g npm@latest opencode-ai && cd app && go mod download && cd .. && npm install",
   // Commands to run when container starts
   "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder} || true && git config --global core.editor 'code --wait'",
   // Comment out to connect as root instead
   "remoteUser": "vscode",
+  // Mount host opencode config so credentials and provider settings are shared
+  "mounts": [
+    "source=${localEnv:HOME}/.config/opencode,target=/home/vscode/.config/opencode,type=bind,consistency=cached"
+  ],
   // Set environment variables
   "remoteEnv": {
     "GOPATH": "/home/vscode/go",
