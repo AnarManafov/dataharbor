@@ -9,536 +9,536 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- fix TLS handshake failure and XRootD hostname warning (backend,docker) (93686cd)
+- fix TLS handshake failure and XRootD hostname warning (backend,docker) (c9171af)
 
 ## [1.0.19] - 2026-04-22
 
 ### Added
 
-- update branding (1457649)
-- add multi-file batch download as tar.gz archive (backend,frontend) [GH-11] (38a35f4)
+- update branding (8972706)
+- add multi-file batch download as tar.gz archive (backend,frontend) [GH-11] (f1392d9)
 
 ### Fixed
 
-- update help section links for issue reporting (2a78a7b)
+- update help section links for issue reporting (ec93b1f)
 
 ### Maintenance
 
-- remove GSI local environment configuration (2aa0235)
-- add CODEOWNERS file for repository ownership (9d2313d)
+- remove GSI local environment configuration (1931b94)
+- add CODEOWNERS file for repository ownership (d28785b)
 
 ### Build
 
-- update dependencies for web package (deps) (b16a415)
-- update base images and dependencies (docker) [GH-11] (9f3e161)
+- update dependencies for web package (deps) (710a2a0)
+- update base images and dependencies (docker) [GH-11] (33fea7a)
 
 ### CI
 
-- add SSH key for direct master branch deployment (32071fa)
+- add SSH key for direct master branch deployment (ef3061a)
 
 ## [1.0.18] - 2026-03-31
 
 ### Added
 
-- unify logging to stdout-only with JSON format and rotation (docker) [GH-45] (d7a0778)
+- unify logging to stdout-only with JSON format and rotation (docker) [GH-45] (e214807)
 
 ### Fixed
 
-- update healthcheck command for XRootD service (docker) (4cdb181)
-- update health check for XRootD service (docker) [GH-46] (00a56ae)
-- preserve directory listing on access denied navigation (frontend) [GH-44] (4221fde)
+- update healthcheck command for XRootD service (docker) (1a7861f)
+- update health check for XRootD service (docker) [GH-46] (aa1b158)
+- preserve directory listing on access denied navigation (frontend) [GH-44] (53e9572)
 
 ### Maintenance
 
-- bump XRootD to 5.9.2 and add PB tier to storage formatter (e5930e6)
-- add Makefile, update docs, and clean up tooling (b83ecb6)
-- Updated coverage badge. (49c31f9)
+- bump XRootD to 5.9.2 and add PB tier to storage formatter (2af2a8b)
+- add Makefile, update docs, and clean up tooling (9ca954c)
+- Updated coverage badge. (be66a9d)
 
 ## [1.0.17] - 2026-03-28
 
 ### Fixed
 
-- mount host SSSD socket for LDAP/AD user resolution in XRootD container (docker) (17b3a02)
+- mount host SSSD socket for LDAP/AD user resolution in XRootD container (docker) (958aad8)
 
 ## [1.0.16] - 2026-03-28
 
 ### Fixed
 
-- update xrootd user/group creation instructions (docker) (a6c86ac)
+- update xrootd user/group creation instructions (docker) (f988351)
 
 ## [1.0.15] - 2026-03-28
 
 ### Fixed
 
-- fix XRootD multiuser plugin failing to resolve mapped usernames (docker) (ecc04a2)
+- fix XRootD multiuser plugin failing to resolve mapped usernames (docker) (b1a2f55)
 
 ## [1.0.14] - 2026-03-28
 
 ### Fixed
 
-- ensure xrootd user/group creation in Dockerfile (docker) (7f97a3f)
+- ensure xrootd user/group creation in Dockerfile (docker) (4e3a6a9)
 
 ## [1.0.13] - 2026-03-28
 
 ### Fixed
 
-- update XRootD version and TLS configuration (docker) (fe4fd9d)
+- update XRootD version and TLS configuration (docker) (a25673d)
 
 ## [1.0.12] - 2026-03-28
 
 ### Maintenance
 
-- disable RPM packaging in workflows and update docs (1531c2b)
+- disable RPM packaging in workflows and update docs (82c456f)
 
 ## [1.0.11] - 2026-03-28
 
 ### Fixed
 
-- update SciTokens logging level (xrootd-prod.cfg) (82a300b)
+- update SciTokens logging level (xrootd-prod.cfg) (95e59aa)
 
 ## [1.0.10] - 2026-03-28
 
 ### Fixed
 
-- update security library path (xrootd-prod.cfg) (24107bf)
+- update security library path (xrootd-prod.cfg) (02db4b5)
 
 ## [1.0.9] - 2026-03-28
 
 ### Added
 
-- centralize session cookie options for security (auth) (80e3637)
-- enhance token and user info caching mechanisms (auth) (be78164)
+- centralize session cookie options for security (auth) (f12b6c5)
+- enhance token and user info caching mechanisms (auth) (40fd00c)
 
 ## [1.0.8] - 2026-03-28
 
 ### Added
 
-- add XRD ping endpoint and network stats tracking (backend,frontend) (8a5c998)
+- add XRD ping endpoint and network stats tracking (backend,frontend) (f808f9e)
 
 ## [1.0.7] - 2026-03-28
 
 ### Added
 
-- add XRootD virtual filesystem statistics (backend,frontend) (f7f6343)
+- add XRootD virtual filesystem statistics (backend,frontend) (478a1e0)
 
 ## [1.0.6] - 2026-03-27
 
 ### Changed
 
-- reorganize TLS and security settings (xrootd-prod.cfg) (5c72e24)
+- reorganize TLS and security settings (xrootd-prod.cfg) (7460a6e)
 
 ## [1.0.5] - 2026-03-27
 
 ### Fixed
 
-- adjust SameSite cookie settings for OIDC flows (auth) (a23cc7d)
+- adjust SameSite cookie settings for OIDC flows (auth) (63b34e0)
 
 ### Maintenance
 
-- Updated coverage badge. (4d67ccc)
+- Updated coverage badge. (3cfed60)
 
 ## [1.0.4] - 2026-03-26
 
 ### Added
 
-- update backend Dockerfile and entrypoint script (docker) (fbe2f09)
+- update backend Dockerfile and entrypoint script (docker) (7b90751)
 
 ## [1.0.3] - 2026-03-26
 
 ### Fixed
 
-- use configured frontend URL for OIDC redirect URI and improve Docker volume mounts (backend,docker) (5489813)
+- use configured frontend URL for OIDC redirect URI and improve Docker volume mounts (backend,docker) (e154cbc)
 
 ## [1.0.2] - 2026-03-25
 
 ### Added
 
-- add cleanup option for unreferenced layers (build-docker) (6e60179)
-- use devcontainer features rather than Go base image (devcontainer) (00d4a71)
-- enhance feature descriptions and icons (HomeView) (70008d3)
-- update icon sizes for better visibility (HomeView) (9abc23a)
-- add workspace mount for git worktrees (devcontainer) (59902d9)
-- enhance deployment configuration and health checks (docker) (bdb00ea)
+- add cleanup option for unreferenced layers (build-docker) (96c7267)
+- use devcontainer features rather than Go base image (devcontainer) (c421fbb)
+- enhance feature descriptions and icons (HomeView) (b3119d8)
+- update icon sizes for better visibility (HomeView) (159854b)
+- add workspace mount for git worktrees (devcontainer) (06c5b1f)
+- enhance deployment configuration and health checks (docker) (12b8811)
 
 ### Changed
 
-- streamline image handling functions (build-docker) (9565800)
+- streamline image handling functions (build-docker) (a9d828b)
 
 ### Documentation
 
-- add coverage report commands to backend guide (cc4b0af)
+- add coverage report commands to backend guide (06c9088)
 
 ### Maintenance
 
 - Updated coverage badge. (6 commits)
-- remove unused CMake and Go test files (a4cefb9)
-- remove sandbox-related scripts and configurations (077960f)
-- modernize Go idioms and update base image versions (e1a58cd)
+- remove unused CMake and Go test files (613ba7e)
+- remove sandbox-related scripts and configurations (bc920a7)
+- modernize Go idioms and update base image versions (a016edb)
 
 ### Tests
 
-- add comprehensive tests for middleware and requests [GH-42] (6e7ecaa)
+- add comprehensive tests for middleware and requests [GH-42] (f32b8b5)
 
 ### Build
 
-- update package versions (dependencies) (80e08cd)
-- update dependencies (dependencies) (cc740fd)
-- update package versions for stability (dependencies) (a1f8666)
-- update dependencies for improved stability (deps) (49fd62b)
+- update package versions (dependencies) (02d24de)
+- update dependencies (dependencies) (96e1930)
+- update package versions for stability (dependencies) (1202c30)
+- update dependencies for improved stability (deps) (5828b4f)
 
 ### CI
 
-- update GitHub Actions to use latest action versions (90d0fa8)
+- update GitHub Actions to use latest action versions (98ddf07)
 
 ## [1.0.1] - 2025-12-08
 
 ### Fixed
 
-- resolve all CI/CD workflow issues (6ae0105)
+- resolve all CI/CD workflow issues (5f1c9ab)
 
 ## [1.0.0] - 2025-12-08
 
 ### Added
 
-- add Docker Compose deployment and ZTN/TLS XRootD support (63b6089)
-- add Dockerfile and configuration files (devcontainer) (c275b69)
-- add Go configuration settings (vscode) (48a2eb2)
-- add comprehensive configuration tests (tests) (d2cb35b)
+- add Docker Compose deployment and ZTN/TLS XRootD support (39dbb41)
+- add Dockerfile and configuration files (devcontainer) (ea18af2)
+- add Go configuration settings (vscode) (901d1fb)
+- add comprehensive configuration tests (tests) (48ee3f0)
 
 ### Fixed
 
-- update dependencies to latest versions (go.mod) (a591164)
+- update dependencies to latest versions (go.mod) (399b193)
 
 ### Maintenance
 
-- Updated coverage badge. (773debb, 8c3d60d, 45dfec4, 5bbbbd3)
-- update VSCode settings exclusion (.gitignore) (4023018)
+- Updated coverage badge. (5da6495, d3f4d3f, 1367f03, 8adc71a)
+- update VSCode settings exclusion (.gitignore) (d735405)
 
 ### Build
 
-- add dos2unix for line ending normalization (docker) (d9a7e5c)
+- add dos2unix for line ending normalization (docker) (490a814)
 
 ### Other
 
-- feat(docker)!: add production Docker deployment (06dd378)
+- feat(docker)!: add production Docker deployment (406555a)
 
 ## [0.15.0] - 2025-10-16
 
 ### Added
 
-- add ZTN protocol support for OAuth token authentication (xrootd) (a703d7c)
-- enhance ZTN protocol configuration guide (docs) (e7dee77)
-- Update RPM packaging for DataHarbor backend and frontend (packaging) (299166a)
+- add ZTN protocol support for OAuth token authentication (xrootd) (039cdb8)
+- enhance ZTN protocol configuration guide (docs) (1b06f18)
+- Update RPM packaging for DataHarbor backend and frontend (packaging) (80a3c3e)
 
 ### Fixed
 
-- handle error when setting BEARER_TOKEN (xrd) (405aafc)
+- handle error when setting BEARER_TOKEN (xrd) (f5c4ced)
 
 ### Documentation
 
-- update README for improved clarity and formatting (02e87b6)
+- update README for improved clarity and formatting (f29d4ea)
 
 ### Maintenance
 
-- Updated coverage badge. (9be86b3, ee885ea, a7145a8, 7b00abf)
+- Updated coverage badge. (fa732b9, be85bdd, f5dd8c6, df796d3)
 
 ### Style
 
-- reorder XRDConfig fields for consistency (tests) (c401b1f)
+- reorder XRDConfig fields for consistency (tests) (6f82807)
 
 ### CI
 
-- update workflow triggers for packaging changes (8fd3933)
+- update workflow triggers for packaging changes (cda599e)
 
 ### Other
 
-- Add GSI Deployment Guide for DataHarbor (fe8e1c1)
-- Update hep fork dependency with TLS/ZTN connection logging (05abd9f)
+- Add GSI Deployment Guide for DataHarbor (1d9e201)
+- Update hep fork dependency with TLS/ZTN connection logging (c1c2a57)
 
 ## [0.14.6] - 2025-10-08
 
 ### Added
 
-- Add multi-architecture support for builds (ci) (65c0d93)
+- Add multi-architecture support for builds (ci) (1997c79)
 
 ### Maintenance
 
-- Updated coverage badge. (57ed1bd, e64acad)
+- Updated coverage badge. (0967c7f, 6808352)
 
 ### Other
 
-- doc: improve documentation (4b292a3)
+- doc: improve documentation (35345a8)
 
 ## [0.14.5] - 2025-08-11
 
 ### Fixed
 
-- Update sync-versions script and CI workflow to handle package-lock.json files (ci) (5898100)
+- Update sync-versions script and CI workflow to handle package-lock.json files (ci) (863a3e2)
 
 ### Maintenance
 
-- Update changelog header and generation logic (5e74af8)
-- update dependency management instructions (docs) (a032a7e)
+- Update changelog header and generation logic (5fa2386)
+- update dependency management instructions (docs) (d7aed72)
 
 ## [0.14.4] - 2025-08-07
 
 ### Maintenance
 
-- clean up release notes formatting (d31fde9)
+- clean up release notes formatting (60ab64a)
 
 ## [0.14.3] - 2025-08-07
 
 ### Maintenance
 
-- update changelog formatting and release notes output (3d2075a)
+- update changelog formatting and release notes output (d7d9746)
 
 ## [0.14.2] - 2025-08-07
 
 ### Added
 
-- enhance changelog and release notes generation (ci) (e1dfcd7)
+- enhance changelog and release notes generation (ci) (2b753b7)
 
 ### Maintenance
 
-- update dependencies (eb72acc)
-- Updated coverage badge. (c13e4e6)
-- update release workflows (e090393)
+- update dependencies (47781c1)
+- Updated coverage badge. (859f1b0)
+- update release workflows (96b3c4c)
 
 ## [0.14.1] - 2025-08-07
 
 ### Maintenance
 
-- update dependencies (eb72acc)
-- Updated coverage badge. (c13e4e6)
-- update release workflows (e090393)
+- update dependencies (47781c1)
+- Updated coverage badge. (859f1b0)
+- update release workflows (96b3c4c)
 
 ## [0.14.0] - 2025-08-05
 
 ### Added
 
-- enhance user authentication display in navbar (nav) (c4b50fe)
-- backend to support HTTPS for Keycloak [GH-34] (108357d)
-- enhance directory listing response structure (api) (652dffb)
-- native XRD client with streaming downloads [GH-10] (0efbf27)
+- enhance user authentication display in navbar (nav) (5ddf6ae)
+- backend to support HTTPS for Keycloak [GH-34] (fe7681f)
+- enhance directory listing response structure (api) (629c86b)
+- native XRD client with streaming downloads [GH-10] (0724747)
 
 ### Changed
 
-- migrate from viper to config package (config) (5c13038)
+- migrate from viper to config package (config) (a2d64dc)
 
 ### Documentation
 
-- Update README and add detailed dev doc (4c17380)
+- Update README and add detailed dev doc (c527d88)
 
 ### Maintenance
 
-- Rename from data-lake-ui to dataharbor [GH-36] (342996a)
-- Updated coverage badge. (d91ade9, de78671, cf87325, 0aff3de, 0a7b63a)
-- Update dependencies for improved stability (577d7de)
+- Rename from data-lake-ui to dataharbor [GH-36] (7130c50)
+- Updated coverage badge. (16941f3, 86756d6, 9f860ff, 9624b92, af03d43)
+- Update dependencies for improved stability (f659980)
 
 ### Style
 
-- Adjust component sizes and spacing (e0497ac)
-- update font sizes and remove Bulma dependency (cd257d9)
-- unify typography across components and styles (664d782)
-- enhance layout and structure of file browser (5983dff)
-- adjust sidebar width and improve table sorting (4bd70b5)
+- Adjust component sizes and spacing (4a424a7)
+- update font sizes and remove Bulma dependency (e9a865f)
+- unify typography across components and styles (3ab3273)
+- enhance layout and structure of file browser (8014eca)
+- adjust sidebar width and improve table sorting (4a233cc)
 
 ### Build
 
-- update vue and babel dependencies to latest (deps) (c07b2e0)
+- update vue and babel dependencies to latest (deps) (477cf89)
 
 ### Other
 
-- Refactor views for improved layout and styling (0573f31)
-- doc: Refactor project documentation (fd6f7ae)
+- Refactor views for improved layout and styling (9a12373)
+- doc: Refactor project documentation (645c9c7)
 
 ## [0.13.13] - 2025-05-19
 
 ### Added
 
-- enhance logout process for improved security (auth) [GH-27] (83194d0)
+- enhance logout process for improved security (auth) [GH-27] (ffbfd02)
 
 ### Documentation
 
-- update changelog and release notes for v0.13.12 (8051ee9)
+- update changelog and release notes for v0.13.12 (594e821)
 
 ### Maintenance
 
-- update dependencies in package.json (3481244)
-- Updated coverage badge. (fcd7dea, 4098de7)
-- update npm scripts for cross-platform (7035c45)
+- update dependencies in package.json (87d57c7)
+- Updated coverage badge. (834f420, 1b866ed)
+- update npm scripts for cross-platform (a54f1ca)
 
 ## [0.13.12] - 2025-05-05
 
 ### Added
 
-- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (562099f)
-- switch to Python script for changelog generation (changelog) (845afa1)
-- automate CHANGELOG and RELEASE_NOTES updates (changelog) (0b1858a)
+- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (38b3074)
+- switch to Python script for changelog generation (changelog) (762d352)
+- automate CHANGELOG and RELEASE_NOTES updates (changelog) (836b9da)
 
 ### Documentation
 
-- Update release notes for v0.13.9 [skip ci] (60f002a)
-- Update changelog for v0.13.10 [skip ci] (4f4d0a8)
+- Update release notes for v0.13.9 [skip ci] (36560d7)
+- Update changelog for v0.13.10 [skip ci] (e85f2ec)
 
 ### Maintenance
 
-- Update package versions to v0.13.8 [skip ci] (0e32a04)
-- refactor version tag processing jobs (workflow) (2fbcb47)
+- Update package versions to v0.13.8 [skip ci] (158e81d)
+- refactor version tag processing jobs (workflow) (843e1d5)
 
 ## [0.13.11] - 2025-05-05
 
 ### Maintenance
 
-- refactor version tag processing jobs (workflow) (ace4d8c)
+- refactor version tag processing jobs (workflow) (2ecbf86)
 
 ## [0.13.10] - 2025-05-05
 
 ### Added
 
-- automate CHANGELOG and RELEASE_NOTES updates (changelog) (2d841e1)
+- automate CHANGELOG and RELEASE_NOTES updates (changelog) (51ce2f1)
 
 ## [0.13.9] - 2025-05-05
 
 ### Added
 
-- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (fe53bd4)
-- switch to Python script for changelog generation (changelog) (795cddf)
+- enhance RPM build process, CI workflows, and release notes generation (build) [GH-26] (d999931)
+- switch to Python script for changelog generation (changelog) (7fdf81a)
 
 ### Documentation
 
-- Update release notes for v0.13.7 [skip ci] (638ddcb)
+- Update release notes for v0.13.7 [skip ci] (be83f32)
 
 ### Maintenance
 
-- Update package versions to v0.13.7 [skip ci] (576f74d)
+- Update package versions to v0.13.7 [skip ci] (63e7b58)
 
 ## [0.13.7] - 2025-04-25
 
 ### Fixed
 
-- update job dependencies and output delimiters (workflow) (68c665a)
+- update job dependencies and output delimiters (workflow) (8022ce2)
 
 ### Documentation
 
-- Update release notes for v0.13.6 [skip ci] (0f5959f)
+- Update release notes for v0.13.6 [skip ci] (dd8deac)
 
 ### Maintenance
 
-- Update package versions to v0.13.6 [skip ci] (60925e6)
+- Update package versions to v0.13.6 [skip ci] (bb4692c)
 
 ## [0.13.6] - 2025-04-25
 
 ### Documentation
 
-- Update release notes for v0.13.5 [skip ci] (b9562f6)
+- Update release notes for v0.13.5 [skip ci] (554bb54)
 
 ### Maintenance
 
-- Update package versions to v0.13.5 [skip ci] (050c79f)
-- remove branch restriction for tag processing (workflow) (e35e030)
+- Update package versions to v0.13.5 [skip ci] (33eca89)
+- remove branch restriction for tag processing (workflow) (28a0846)
 
 ## [0.13.5] - 2025-04-25
 
 ### Maintenance
 
-- refactor version tag processing and permissions (workflow) (4058f8a)
+- refactor version tag processing and permissions (workflow) (ea06434)
 
 ## [0.13.4] - 2025-04-25
 
 ### Maintenance
 
-- update permissions and token usage for tag creation (workflow) (931ce11)
+- update permissions and token usage for tag creation (workflow) (38e9bb4)
 
 ## [0.13.3] - 2025-04-25
 
 ### Maintenance
 
-- enhance permissions for tag creation (workflow) (c259a1c)
+- enhance permissions for tag creation (workflow) (d3b7e96)
 
 ## [0.13.2] - 2025-04-25
 
 ### Maintenance
 
-- explicitly checkout and push to master branch (workflow) (9b76137)
+- explicitly checkout and push to master branch (workflow) (cba1d9a)
 
 ## [0.13.1] - 2025-04-25
 
 ### Maintenance
 
-- Update version to v0.13.0 in package.json files (7c97110)
-- Update release notes for v0.13.0 (e299a2e)
-- update CI workflows for versioning (workflow) (40a03ab)
-- Updated coverage badge. (aef0155)
-- refine CI workflows for consistency (workflow) (22cb104)
-- standardize quotes in version tag processor (workflow) (58d6828)
+- Update version to v0.13.0 in package.json files (441893f)
+- Update release notes for v0.13.0 (466d569)
+- update CI workflows for versioning (workflow) (b5e77f8)
+- Updated coverage badge. (b5db503)
+- refine CI workflows for consistency (workflow) (2051166)
+- standardize quotes in version tag processor (workflow) (ac63deb)
 
 ## [0.13.0] - 2025-04-24
 
 ### Maintenance
 
-- improve git pull process in auto-version (workflow) (952cf21)
+- improve git pull process in auto-version (workflow) (dbbe468)
 
 ## [0.12.0] - 2025-04-24
 
 ### Maintenance
 
-- Update version to v0.11.0 in package.json files (763bce3)
-- improve versioning and release notes process (workflow) (e2e7f20)
+- Update version to v0.11.0 in package.json files (f144fa6)
+- improve versioning and release notes process (workflow) (665e7e6)
 
 ## [0.11.0] - 2025-04-24
 
 ### Maintenance
 
-- Update version to v0.10.0 and release notes (2af751d)
-- update auto-version and frontend workflows (workflow) (3feaa56)
+- Update version to v0.10.0 and release notes (89c6771)
+- update auto-version and frontend workflows (workflow) (8ea5320)
 
 ## [0.10.0] - 2025-04-24
 
 ### Added
 
-- update changelog generation process (build) (b9506dc)
+- update changelog generation process (build) (2c8480e)
 
 ### Maintenance
 
-- Update version to v0.9.0 and release notes (bab99fb)
+- Update version to v0.9.0 and release notes (059803c)
 
 ## [0.9.0] - 2025-04-24
 
 ### Added
 
-- enhance RPM packaging process and changelog generation (build) (c0d997f)
+- enhance RPM packaging process and changelog generation (build) (2045756)
 
 ### Maintenance
 
-- Update version to v0.8.0 and release notes (eb1c686)
+- Update version to v0.8.0 and release notes (0d80f89)
 
 ## [0.8.0] - 2025-04-24
 
 ### Added
 
-- streamline auto versioning and release process (ci) (19cc1af)
+- streamline auto versioning and release process (ci) (1403f64)
 
 ### Maintenance
 
-- Update version to v0.7.0 and release notes (82fcc95)
+- Update version to v0.7.0 and release notes (957b72b)
 
 ## [0.7.0] - 2025-04-24
 
 ### Added
 
-- enhance publish release workflow (ci) (158ed93)
+- enhance publish release workflow (ci) (8db8576)
 
 ### Maintenance
 
-- Update version to v0.6.0 and release notes (48195f8)
+- Update version to v0.6.0 and release notes (eae32b0)
 
 ## [0.6.0] - 2025-04-24
 
 ### Added
 
-- enhance auth UI and logout handling (Nav) [GH-19] (cb0490d)
-- Add release publishing workflow & version management (9d9e7dc)
+- enhance auth UI and logout handling (Nav) [GH-19] (475779c)
+- Add release publishing workflow & version management (22f68c6)
 
 ### Maintenance
 
@@ -546,29 +546,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
-- RPM packaging for backend [GH-20] (b9b7d58)
-- Add debug log to RPM build (bd75f25)
-- Fix backend CI (f672ef3)
-- CI fix for RPM artifacts (b9482fb)
-- RPM packaging for frontend [GH-21] (8f5dcaf)
-- RPM: generate change log at build time (729faa8)
-- RPM changelog fix (3a20710)
-- RPM packaging improvment (503a892)
-- Fix backend packaging (8314038)
-- Update backend dependencies (756df39)
-- Add ngingx for RPM spec of frontend (b6b156e)
-- Fix RPM build with nginx (6bc6515, 6dcd9c7)
-- Fix nginx package conflict. (82f4d4f)
-- Update documentation (671d7ba)
-- backend RPM to use host arch as target (efacc0d)
-- Update dependencies (638f99e, 0dcba13, c6ce6a7, 08f4555)
-- Update frontend package (98d94e8)
-- Fix frontend packaging (be1c9a4)
-- Relocate asset files to work on prod and dev env (b5a1c3f)
-- update dependencies (cd7f739)
-- Update doc (5d6615c)
-- Improve UI components and error handling (b3cbce7)
-- Implement Keycloak OIDC authentication [GH-19] (8ef3d07)
+- RPM packaging for backend [GH-20] (50d5554)
+- Add debug log to RPM build (c953cb1)
+- Fix backend CI (17086a6)
+- CI fix for RPM artifacts (0d00654)
+- RPM packaging for frontend [GH-21] (74e4081)
+- RPM: generate change log at build time (701c33f)
+- RPM changelog fix (f7558b5)
+- RPM packaging improvment (714914a)
+- Fix backend packaging (67c0721)
+- Update backend dependencies (ca92af3)
+- Add ngingx for RPM spec of frontend (eae6c1e)
+- Fix RPM build with nginx (f90bb00, fb1b866)
+- Fix nginx package conflict. (c4ac430)
+- Update documentation (5e55c76)
+- backend RPM to use host arch as target (cfb7fb5)
+- Update dependencies (89e995b, 50b4a9d, 9b3df4f, 01f411a)
+- Update frontend package (026a2cc)
+- Fix frontend packaging (06fe279)
+- Relocate asset files to work on prod and dev env (ab8badd)
+- update dependencies (0eebaaf)
+- Update doc (5f566a9)
+- Improve UI components and error handling (22b74c3)
+- Implement Keycloak OIDC authentication [GH-19] (07aaa19)
 
 ## [0.5.0] - 2024-10-02
 
@@ -578,122 +578,122 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
-- Update main doc (cc7fa0e)
-- Update .gitignore (b3a168c)
-- Refactor project structure (6a5e303)
-- Route handling and navigation in File Browser. (26aafd6)
-- Update README.md (b86133e, 4d09ff4, 3f38861, e9d0a5d)
-- Update dependencies (3c706cc)
-- Split BrowserXrd vue on components (fc11578)
-- Display Initial Path on file browser toolbar (b5cf5cf)
-- Refactor BrowseXrdView.vue (1149ba1)
-- Add npm workspace (14d56d7)
-- Removed unused files (03b39e3, 23a80a7)
-- Add script to generate test files (4d49417)
-- Process directory listing in pages [GH-15] (5f8206c)
-- Add Loading feedback [GH-17] (2b06ab5)
-- Remove unused file (2dd3ff3)
-- Fix release notes date. (d45bb15)
+- Update main doc (fc39ccd)
+- Update .gitignore (3544ffa)
+- Refactor project structure (8eba04f)
+- Route handling and navigation in File Browser. (4d51fe6)
+- Update README.md (bb50bbb, 2b38cb3, 03040b0, d550f62)
+- Update dependencies (b2ad280)
+- Split BrowserXrd vue on components (6a852bf)
+- Display Initial Path on file browser toolbar (02f654b)
+- Refactor BrowseXrdView.vue (dd8fca6)
+- Add npm workspace (53351d0)
+- Removed unused files (e68ffcd, ae19273)
+- Add script to generate test files (1511aa1)
+- Process directory listing in pages [GH-15] (a52182a)
+- Add Loading feedback [GH-17] (d249c03)
+- Remove unused file (712b888)
+- Fix release notes date. (40bf012)
 - Add unit-tests (7 commits)
-- Improve code base and test coverege (2d64e06)
-- Revise backend CI Actions (15ae21d, 8c1860f, 1859f67)
-- Add unit tests (b712ff3, 5a185e5, 4b5c279)
-- CI: update upload artifact action version (4ea270d)
-- CI: Update action versions (1cad5cd)
-- Improve naming in code (4fec6cf)
-- Add unit-tests + bug fixes (4f8e5f7)
-- Minor fix (af75d17)
-- Update API doc (c6222fb)
-- Fix error handling in tests (de02d3e)
-- CI: Merge backend and lint actions (2bf3417)
-- CI: Fix backend action name (087cb35)
-- CI: Add Go Vet (281d00f)
-- CI: minor fixes (4e086ff)
-- Frontend: Use color consts (d69ba17)
-- Minor docs update (1091bcf)
-- Backend code cleanning (5b5959f)
-- Fix lint error (c0989c4)
-- Removed unused argument (2ce25b5)
-- Add a back to top button. (c259828)
-- Add a rout for Auth token (f092d80)
-- Add Auth with JWT (897427b)
-- Fix navbar burger menu (c554798)
-- Prevent unauth users access the browse route (4db5388)
-- Update frontend dependencies (655e02d)
-- Set user name on login (90b379e)
-- Update release notes (0270cc3)
+- Improve code base and test coverege (fe41655)
+- Revise backend CI Actions (7f05dbd, 35565cc, bd64519)
+- Add unit tests (f63c46a, 9c343be, 2e5bdb8)
+- CI: update upload artifact action version (7afa17f)
+- CI: Update action versions (2c83839)
+- Improve naming in code (75e126c)
+- Add unit-tests + bug fixes (3adac4c)
+- Minor fix (d50b1ac)
+- Update API doc (144be35)
+- Fix error handling in tests (f424cda)
+- CI: Merge backend and lint actions (ab8396b)
+- CI: Fix backend action name (9814117)
+- CI: Add Go Vet (494b4d8)
+- CI: minor fixes (6001c87)
+- Frontend: Use color consts (5c1731a)
+- Minor docs update (bcd2adc)
+- Backend code cleanning (807ec37)
+- Fix lint error (a513a8e)
+- Removed unused argument (503d3f6)
+- Add a back to top button. (6ee2576)
+- Add a rout for Auth token (48e1f1c)
+- Add Auth with JWT (a736ab1)
+- Fix navbar burger menu (bee23f5)
+- Prevent unauth users access the browse route (22a9994)
+- Update frontend dependencies (5fd6ed9)
+- Set user name on login (15f4225)
+- Update release notes (63e64b9)
 
 ## [0.4.0] - 2024-09-09
 
 ### Other
 
-- Vue project skeleton (a52994a)
-- Add the backend skeleton (e686bac)
-- Update app skeleton (90ddd2a)
-- WiP (c3752da, 2f9e654, 323c4b5)
-- Update README.md (a97c97c, ee44fd9)
-- Updated build instructions (4a81e87)
-- Add ReleaseNotes (eed7d4f)
-- Update Release notes format (ef7c7f0)
-- Add xrd references (17ce3e6)
-- Add backend with xrd client (b0c8b5d)
-- Update release notes (2b048ab, 57988da, e8c85f7, 0c5d42d)
-- Revamped frontend UI (8d49503)
-- Most xrd settings to config (26c9d14)
-- Add file download (7dabaca)
-- Update docs (25d280d)
-- Add sanitation job (a6457bc)
-- Move sanitation code into a separate module (b67a4a9)
-- Add missing implementation (de821f1)
-- Simplify range expression (5035d12)
-- Create go.yml (7864ae7)
-- Update go.yml (e854a81)
-- Add github actions (a8dc258)
-- Update github actions (176f221, b1e76a6)
-- Default wrk dir in Actions (4dad977)
-- Actions: setup go cache issue (0d8d07b)
-- Fix Navbar burger menu (d43c855)
-- Minor Navbar changes (2640e22, 1b8afc6)
-- Update Navbar (614ebc2)
-- Add golangci-lint static checker (bac0be3)
-- Adjust golangci-lint action (6970de2, 38d5700)
-- Add first backend unit-test (3bb7c43)
-- Call SanitationJob before the first tick (4179f04)
-- Update .gitignore (c80a789)
-- Update dependencies (92c9542)
-- Minor fixes (a453c51)
-- File names are clickable (ca3681b)
-- Make breadcrumb path navi clickable (e450e12)
-- Major refactor of the Browser view (d65a0c3)
-- Refactored the Browse Files view. (b8e6c51)
-- Show icons for files/folder. (ee49240)
-- Dirs use bold font in Browser (1af7f30)
-- Multiple cosmetic changes (31a9363)
-- Fix style of Browser toolbar (26d60a8)
-- Improve path element on Browser (a9b6035)
-- Show server host on GUI (ef1326c)
-- Fix file names with spaces (daf3290)
-- Use session storage for File Browser states (89dabfc)
-- Frontend containerization. (8796b4a)
-- Containerization (adab47d)
-- REST API doc (5e71608)
-- Minor changes (34ce49b, 25a6d15)
-- Update REST API doc (f03d8e9)
-- Detailed error response. [GH-5] (281c599)
-- pings the health status of backend [GH-7] (6d7b3e7)
-- Add proper error logging. [GH-6] (4da972a)
-- Update frontend dependencies (092548b)
-- Update backend dependencies (43db7a2)
-- Start using js plug-ins (f22f15e)
-- Pretty format for file sizes. (5fa448d)
-- Code and doc improvments (fe3c41d)
-- Fix single quotes usage in Vue templates (ce74c9c, 99046a3)
-- Use arrow functions for event handlers. (223c6ee)
-- Use computed property for table data (fe3125e)
-- File Browser view code minor fixes (c2fe133)
-- Prevent adding failed dir to current path [GH-14] (2ee90c8)
-- Add runtime config file. (07ccca1)
-- Fix double dir load at startup (8bb7bee)
-- Introduce project wide dev mode (b4d7810)
-- Refactor the project source tree (9f8cf30)
+- Vue project skeleton (ddcfa09)
+- Add the backend skeleton (c3863ce)
+- Update app skeleton (c5fd75a)
+- WiP (64c1fc5, e8e1217, 970df49)
+- Update README.md (350e75c, 26a04c7)
+- Updated build instructions (9def7a1)
+- Add ReleaseNotes (3724679)
+- Update Release notes format (bef59a0)
+- Add xrd references (4ce453c)
+- Add backend with xrd client (fbb1396)
+- Update release notes (d54e3c4, 2ed63c6, f037b19, 014c5b5)
+- Revamped frontend UI (20aff9b)
+- Most xrd settings to config (d743941)
+- Add file download (5ca69bd)
+- Update docs (40a6446)
+- Add sanitation job (a0e1efb)
+- Move sanitation code into a separate module (1e48970)
+- Add missing implementation (8667248)
+- Simplify range expression (90ccac9)
+- Create go.yml (e360ed9)
+- Update go.yml (954278e)
+- Add github actions (584f24f)
+- Update github actions (74b4149, bf8bc61)
+- Default wrk dir in Actions (7aaf575)
+- Actions: setup go cache issue (92d3ab4)
+- Fix Navbar burger menu (d673c62)
+- Minor Navbar changes (988e095, 08e3311)
+- Update Navbar (21e3abc)
+- Add golangci-lint static checker (d1d1989)
+- Adjust golangci-lint action (92e673a, c751610)
+- Add first backend unit-test (35e4371)
+- Call SanitationJob before the first tick (a41ac5d)
+- Update .gitignore (4b90153)
+- Update dependencies (5956b44)
+- Minor fixes (529f840)
+- File names are clickable (df87df1)
+- Make breadcrumb path navi clickable (475eaa5)
+- Major refactor of the Browser view (0457bc3)
+- Refactored the Browse Files view. (2e3b91c)
+- Show icons for files/folder. (eb33ea4)
+- Dirs use bold font in Browser (b5c630b)
+- Multiple cosmetic changes (b40eb8d)
+- Fix style of Browser toolbar (f87e545)
+- Improve path element on Browser (02ea02a)
+- Show server host on GUI (e3c1e0f)
+- Fix file names with spaces (a0dfa5b)
+- Use session storage for File Browser states (4829e9b)
+- Frontend containerization. (534cec7)
+- Containerization (afd2f63)
+- REST API doc (0f30113)
+- Minor changes (cb66fb0, a2755d3)
+- Update REST API doc (76ebbe7)
+- Detailed error response. [GH-5] (c24eb53)
+- pings the health status of backend [GH-7] (b6f3485)
+- Add proper error logging. [GH-6] (a13e8f9)
+- Update frontend dependencies (32a94d2)
+- Update backend dependencies (fe8f871)
+- Start using js plug-ins (3b97be7)
+- Pretty format for file sizes. (e356585)
+- Code and doc improvments (919992d)
+- Fix single quotes usage in Vue templates (89d9482, 7f4201b)
+- Use arrow functions for event handlers. (608fa4d)
+- Use computed property for table data (f60da9f)
+- File Browser view code minor fixes (386e326)
+- Prevent adding failed dir to current path [GH-14] (8acf7f8)
+- Add runtime config file. (3048990)
+- Fix double dir load at startup (833134e)
+- Introduce project wide dev mode (ea89178)
+- Refactor the project source tree (ae85e9b)
 
