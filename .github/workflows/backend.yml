@@ -83,6 +83,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # Use the deploy key so the badge push can bypass the master
+          # ruleset (Deploy keys are an "Always allow" bypass actor).
+          ssh-key: ${{ secrets.COVERAGE_DEPLOY_KEY }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -134,7 +138,10 @@ jobs:
         if: steps.verify-changed-files.outputs.files_changed == 'true'
         uses: ad-m/github-push-action@master # Use master branch
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Push over SSH using the deploy key (set on checkout above) so the
+          # commit bypasses the "Changes must be made through a pull request"
+          # ruleset on master.
+          ssh: true
           branch: ${{ github.ref_name }}
 
   lint:
