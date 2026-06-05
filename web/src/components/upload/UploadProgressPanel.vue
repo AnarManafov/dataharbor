@@ -83,7 +83,7 @@
             <el-icon class="file-icon"><component :is="iconFor(f.state)" /></el-icon>
             <span class="file-name" :title="f.relPath">{{ f.relPath }}</span>
             <span class="file-size">{{ formatSize(f.size) }}</span>
-            <span class="file-state">{{ labelFor(f) }}</span>
+            <span class="file-state" :title="f.error || ''">{{ labelFor(f) }}</span>
           </div>
         </div>
       </div>
@@ -191,7 +191,14 @@ function iconFor(s) {
 }
 
 function labelFor(f) {
-  if (f.state === 'error') return f.error || 'error'
+  if (f.state === 'error') {
+    // For a batch-wide failure (e.g. a 403 when the token lacks write
+    // permission) the full reason is already shown once in the banner above, so
+    // the per-row label is kept short to avoid repeating the same sentence on
+    // every file. Per-file-specific errors (chunk/verify) still show in full.
+    if (props.state.errorMessage && f.error === props.state.errorMessage) return 'Failed'
+    return f.error || 'error'
+  }
   if (f.state === 'skipped') return f.error || 'skipped'
   if (f.state === 'uploading') {
     const pct = f.size > 0 ? Math.round((f.bytesSent / f.size) * 100) : 0

@@ -16,28 +16,36 @@
 # ============================================
 
 # Global build argument for XRootD version
-ARG XROOTD_VERSION=5.9.2
+ARG XROOTD_VERSION=6.0.3
 
 # ---------------------------------------------
 # Build stage: Install XRootD and dependencies
 # ---------------------------------------------
-FROM rockylinux:9 AS builder
+FROM rockylinux/rockylinux:10 AS builder
 
 # Install XRootD repository and base dependencies
 # Using BuildKit cache mount for faster rebuilds
+# - dnf-plugins-core provides `dnf config-manager` (not preinstalled on EL10)
+# - CERN repo provides the core xrootd 6.x packages (xrootd, server, libs, scitokens)
+# - OSG repo provides xrootd-multiuser; the 6.x-ABI build currently lives in the
+#   `osg-upcoming-development` channel (enabled per-install below)
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-	dnf install -y epel-release && \
+	dnf install -y epel-release dnf-plugins-core && \
 	curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
-	dnf install -y https://repo.opensciencegrid.org/osg/24-main/osg-24-main-el9-release-latest.rpm && \
+	dnf install -y https://repo.opensciencegrid.org/osg/25-main/osg-25-main-el10-release-latest.rpm && \
 	dnf config-manager --set-enabled crb && \
 	dnf clean all
 
 # Install XRootD and plugins
 # Pinned version for reproducible builds
-# Note: xrootd-multiuser comes from OSG repo, others from official XRootD repo
+# Note: xrootd-multiuser comes from the OSG `osg-upcoming-development` channel,
+# which carries the build linked against the XRootD 6.x plugin ABI
+# (libXrdMultiuser-6.so -> libXrdUtils.so.6). The OSG stable/main channels still
+# ship the 5.x-ABI build, which will not load under XRootD 6.x. The core xrootd
+# packages still resolve from the higher-priority CERN repo.
 ARG XROOTD_VERSION
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-	dnf install -y \
+	dnf install -y --enablerepo=osg-upcoming-development \
 	xrootd-${XROOTD_VERSION} \
 	xrootd-server-${XROOTD_VERSION} \
 	xrootd-libs-${XROOTD_VERSION} \
@@ -60,7 +68,7 @@ RUN mkdir -p /usr/lib64/xrootd /usr/share/xrootd
 # ---------------------------------------------
 # Runtime stage: Development image
 # ---------------------------------------------
-FROM rockylinux:9
+FROM rockylinux/rockylinux:10
 
 # Re-declare ARG for use in this stage
 ARG XROOTD_VERSION
@@ -89,7 +97,8 @@ COPY --from=builder /usr/lib64/xrootd /usr/lib64/
 COPY --from=builder /usr/share/xrootd /usr/share/
 
 # Create unversioned symlink for plugin loading (config references libXrdAccSciTokens.so)
-RUN ln -s /usr/lib64/libXrdAccSciTokens-5.so /usr/lib64/libXrdAccSciTokens.so
+# XRootD 6.x bumped the plugin ABI suffix from -5 to -6.
+RUN ln -s /usr/lib64/libXrdAccSciTokens-6.so /usr/lib64/libXrdAccSciTokens.so
 
 # Copy system users (xrootd user created by package install)
 COPY --from=builder /etc/passwd /etc/passwd
