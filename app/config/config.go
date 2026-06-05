@@ -101,6 +101,57 @@ type XRDConfig struct {
 	ClientCert    string         `mapstructure:"client_cert" yaml:"client_cert"`
 	ClientKey     string         `mapstructure:"client_key" yaml:"client_key"`
 	Download      DownloadConfig `mapstructure:"download" yaml:"download"`
+	Upload        UploadConfig   `mapstructure:"upload" yaml:"upload"`
+}
+
+// UploadConfig represents file upload settings
+type UploadConfig struct {
+	// Enabled is the server-level kill switch for the upload feature.
+	Enabled bool `mapstructure:"enabled" yaml:"enabled"`
+
+	// MaxFileSize is the maximum size in bytes allowed for a single uploaded file.
+	MaxFileSize int64 `mapstructure:"max_file_size" yaml:"max_file_size"`
+
+	// MaxBatchSize is the maximum total size in bytes allowed for all files in a
+	// single upload session (sum of declared file sizes).
+	MaxBatchSize int64 `mapstructure:"max_batch_size" yaml:"max_batch_size"`
+
+	// MaxFilesPerBatch is the maximum number of files allowed in one upload session.
+	MaxFilesPerBatch int `mapstructure:"max_files_per_batch" yaml:"max_files_per_batch"`
+
+	// MaxConcurrentPerUser is the maximum number of concurrently active upload
+	// sessions per user. 0 disables the limit.
+	MaxConcurrentPerUser int `mapstructure:"max_concurrent_per_user" yaml:"max_concurrent_per_user"`
+
+	// ChunkSize is the server-preferred (and enforced maximum) size of a single
+	// upload chunk in bytes.
+	ChunkSize int `mapstructure:"chunk_size" yaml:"chunk_size"`
+
+	// SessionTTL is the absolute maximum lifetime of an upload session (Go
+	// duration string). Sessions not completed or aborted within this window are
+	// reaped and their temporary files deleted, regardless of activity.
+	SessionTTL string `mapstructure:"session_ttl" yaml:"session_ttl"`
+
+	// IdleTTL is the maximum time an upload session may go without any committed
+	// chunk before it is reaped (Go duration string). This bounds the resources
+	// an opened-but-abandoned session can pin (concurrency slot, open XRootD
+	// handle, temp file) to minutes rather than the full SessionTTL. 0 disables
+	// idle reaping (only the absolute SessionTTL applies).
+	IdleTTL string `mapstructure:"idle_ttl" yaml:"idle_ttl"`
+
+	// TempSuffix is appended to the destination filename while the upload is in
+	// progress. The temp file is atomically renamed over the destination on
+	// successful completion.
+	TempSuffix string `mapstructure:"temp_suffix" yaml:"temp_suffix"`
+
+	// AllowOverwrite is a server-level switch that must be true for any
+	// "overwrite" conflict resolution to be honored. When false the server
+	// rejects overwrite regardless of client request.
+	AllowOverwrite bool `mapstructure:"allow_overwrite" yaml:"allow_overwrite"`
+
+	// ChecksumAlgo is the integrity algorithm the client must provide and the
+	// server verifies. Currently only "sha256" is supported.
+	ChecksumAlgo string `mapstructure:"checksum_algo" yaml:"checksum_algo"`
 }
 
 // DownloadConfig represents file download optimization settings
@@ -123,6 +174,10 @@ type DownloadConfig struct {
 
 	// BatchCompression enables gzip compression for batch tar downloads
 	BatchCompression bool `mapstructure:"batch_compression" yaml:"batch_compression"`
+
+	// MaxConcurrentPerUser is the maximum number of concurrent download streams
+	// (single-file or batch) a single user may run at once. 0 disables the limit.
+	MaxConcurrentPerUser int `mapstructure:"max_concurrent_per_user" yaml:"max_concurrent_per_user"`
 }
 
 // AuthConfig represents the authentication configuration
@@ -158,6 +213,25 @@ func ValidateConfig(cfg *Config) error {
 	}
 	if cfg.XRD.Port == 0 {
 		return fmt.Errorf("xrd.port must be greater than 0")
+	}
+
+	// Validate upload configuration (only when enabled)
+	if cfg.XRD.Upload.Enabled {
+		if cfg.XRD.Upload.MaxFileSize <= 0 {
+			return fmt.Errorf("xrd.upload.max_file_size must be greater than 0")
+		}
+		if cfg.XRD.Upload.MaxBatchSize <= 0 {
+			return fmt.Errorf("xrd.upload.max_batch_size must be greater than 0")
+		}
+		if cfg.XRD.Upload.MaxFilesPerBatch <= 0 {
+			return fmt.Errorf("xrd.upload.max_files_per_batch must be greater than 0")
+		}
+		if cfg.XRD.Upload.ChunkSize <= 0 {
+			return fmt.Errorf("xrd.upload.chunk_size must be greater than 0")
+		}
+		if cfg.XRD.Upload.ChecksumAlgo != "" && cfg.XRD.Upload.ChecksumAlgo != "sha256" {
+			return fmt.Errorf("xrd.upload.checksum_algo must be \"sha256\" (got %q)", cfg.XRD.Upload.ChecksumAlgo)
+		}
 	}
 
 	// Validate auth configuration
@@ -382,6 +456,20 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("xrd.download.max_batch_files", 100)        // Max files per batch download
 	v.SetDefault("xrd.download.max_batch_size_mb", 10240)    // 10GB max total batch size
 	v.SetDefault("xrd.download.batch_compression", true)     // Enable gzip compression for batch downloads
+	v.SetDefault("xrd.download.max_concurrent_per_user", 2)  // Max concurrent download streams per user
+
+	// Upload defaults
+	v.SetDefault("xrd.upload.enabled", true)
+	v.SetDefault("xrd.upload.max_file_size", int64(10)*1024*1024*1024)  // 10 GiB per file
+	v.SetDefault("xrd.upload.max_batch_size", int64(50)*1024*1024*1024) // 50 GiB per session
+	v.SetDefault("xrd.upload.max_files_per_batch", 100)
+	v.SetDefault("xrd.upload.max_concurrent_per_user", 2)
+	v.SetDefault("xrd.upload.chunk_size", 8*1024*1024) // 8 MiB
+	v.SetDefault("xrd.upload.session_ttl", "2h")
+	v.SetDefault("xrd.upload.idle_ttl", "10m")
+	v.SetDefault("xrd.upload.temp_suffix", ".dh-upload")
+	v.SetDefault("xrd.upload.allow_overwrite", false)
+	v.SetDefault("xrd.upload.checksum_algo", "sha256")
 
 	// Auth defaults
 	v.SetDefault("auth.enabled", false)

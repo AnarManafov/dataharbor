@@ -152,6 +152,25 @@ flowchart TD
 | `xrd.client_cert`   | string | `""`          | Path to client certificate for XRootD TLS |
 | `xrd.client_key`    | string | `""`          | Path to client key for XRootD TLS         |
 
+#### Upload Settings (`xrd.upload`)
+
+Controls the server-side multi-file chunked upload feature. See
+[UPLOAD.md](./UPLOAD.md) for the end-to-end flow.
+
+| Key                                  | Type   | Default        | Description                                                     |
+| ------------------------------------ | ------ | -------------- | --------------------------------------------------------------- |
+| `xrd.upload.enabled`                 | bool   | `true`         | Master switch for the upload feature.                           |
+| `xrd.upload.max_file_size`           | int64  | `10737418240`  | Maximum per-file size in bytes (default 10 GiB).                |
+| `xrd.upload.max_batch_size`          | int64  | `53687091200`  | Maximum aggregate batch size in bytes (default 50 GiB).         |
+| `xrd.upload.max_files_per_batch`     | int    | `100`          | Maximum number of files in a single batch.                      |
+| `xrd.upload.max_concurrent_per_user` | int    | `2`            | Concurrent upload **sessions** allowed per user (`0` disables cap). One slot is taken per session and shared by all files in that batch, so a batch may contain far more files than this cap. |
+| `xrd.upload.chunk_size`              | int64  | `8388608`      | Maximum chunk size accepted by the server (default 8 MiB).      |
+| `xrd.upload.session_ttl`             | string | `"2h"`         | Absolute maximum session lifetime; sessions older than this are reaped regardless of activity. |
+| `xrd.upload.idle_ttl`                | string | `"10m"`        | Maximum time a session may go without a committed chunk before being reaped. Bounds resources held by abandoned sessions. `0` disables idle reaping. |
+| `xrd.upload.temp_suffix`             | string | `".dh-upload"` | Suffix for the server-side temp file during upload. A unique per-session id is appended so concurrent uploads never collide. |
+| `xrd.upload.allow_overwrite`         | bool   | `false`        | Whether the `overwrite` conflict action is permitted.           |
+| `xrd.upload.checksum_algo`           | string | `"sha256"`     | Client-supplied checksum algorithm; only `sha256` is supported. |
+
 ### Authentication Configuration (`auth`)
 
 | Key                    | Type     | Default       | Description                      |

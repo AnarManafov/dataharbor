@@ -35,13 +35,23 @@ const (
 // Download buffer settings are now configured via config.XRD.Download
 // Default: 2MB buffer, 4MB flush interval (optimal for multi-GB files over WAN)
 
-// Download slot management prevents resource exhaustion from concurrent downloads
-// Global state is necessary because XRootD connections are expensive resources
-// that must be limited across the entire application instance to prevent server overload
+// Download slot management prevents resource exhaustion from concurrent
+// downloads. It uses the shared per-user SlotManager (see common/slots.go),
+// the same mechanism uploads use — the release handle is idempotent, which
+// fixes the double-release bug that previously forced this limit to be disabled.
 var (
-	userDownloadSlots = make(map[string]bool)
-	downloadSlotMutex sync.Mutex
+	downloadSlotsOnce sync.Once
+	downloadSlots     *common.SlotManager
 )
+
+// getDownloadSlots returns the lazily-initialized per-user concurrency limiter
+// for downloads. The per-user cap comes from xrd.download.max_concurrent_per_user.
+func getDownloadSlots() *common.SlotManager {
+	downloadSlotsOnce.Do(func() {
+		downloadSlots = common.NewSlotManager("download", config.GetConfig().XRD.Download.MaxConcurrentPerUser)
+	})
+	return downloadSlots
+}
 
 // DownloadFile streams files directly from XRootD using native client
 // Single-client approach ensures reliability before adding complexity like connection pooling
@@ -65,17 +75,16 @@ func DownloadFile(c *gin.Context) {
 		userToken = token
 	}
 
-	// TODO: TEMPORARILY DISABLED - Rate limiting needs investigation
-	// The slot management logic appears to have issues where slots are not being released properly
-	// when downloads complete, causing subsequent downloads to be blocked incorrectly.
-	// This needs to be investigated and fixed before re-enabling.
-
-	// Enforce one download per user to prevent resource abuse
-	// if !acquireDownloadSlot(c) {
-	// 	response.Error(c, http.StatusTooManyRequests, "Download already in progress. Please wait for current download to complete.")
-	// 	return
-	// }
-	// Note: We release the slot explicitly after streaming completes
+	// Enforce the per-user concurrency limit. The release handle is idempotent
+	// and deferred, so the slot is freed on every return path (including after
+	// streaming completes or fails).
+	slotRelease, slotErr := getDownloadSlots().Acquire(getUserKey(c))
+	if slotErr != nil {
+		response.Error(c, http.StatusTooManyRequests,
+			"Too many concurrent downloads. Please wait for a current download to complete.")
+		return
+	}
+	defer slotRelease()
 
 	// Use simple client
 	simpleClient := common.GetXRDClient()
@@ -85,7 +94,6 @@ func DownloadFile(c *gin.Context) {
 	fs, cleanup, err := simpleClient.GetFileSystem(ctx, userToken)
 	if err != nil {
 		common.GetLogger().Error("Failed to get filesystem client", "error", err)
-		// releaseDownloadSlot(c) // Release slot on error - DISABLED while rate limiting is disabled
 
 		// Check if this is an authorization error
 		if common.IsAuthError(err) {
@@ -102,7 +110,6 @@ func DownloadFile(c *gin.Context) {
 	fileInfo, err := fs.Stat(ctx, filePath)
 	if err != nil {
 		common.GetLogger().Error("Failed to get file info", "error", err, "path", filePath)
-		// releaseDownloadSlot(c) // Release slot on error - DISABLED while rate limiting is disabled
 		response.Error(c, http.StatusNotFound, "File not found or inaccessible")
 		return
 	}
@@ -141,10 +148,8 @@ func DownloadFile(c *gin.Context) {
 
 	// Start streaming file using native client
 	streamErr := streamFileSimple(c, fs, filePath, userToken, downloadStartTime, fileInfo.Size(), downloadID)
-
-	// Release the download slot immediately after streaming, regardless of success/failure
-	// releaseDownloadSlot(c) // DISABLED while rate limiting is disabled
-	// common.GetLogger().Info("Download slot released after streaming", "downloadID", downloadID, "user", maskToken(userToken))
+	// The concurrency slot is released by the deferred slotRelease() above,
+	// regardless of success or failure.
 
 	if streamErr != nil {
 		common.GetLogger().Error("Failed to stream file", "downloadID", downloadID, "error", streamErr, "path", filePath)
@@ -749,58 +754,6 @@ func GetHostName(c *gin.Context) {
 	})
 }
 
-// GetDownloadSlotStatus returns the current download slot status for debugging
-func GetDownloadSlotStatus(c *gin.Context) {
-	downloadSlotMutex.Lock()
-	defer downloadSlotMutex.Unlock()
-
-	// Get current user key
-	userKey := getUserKey(c)
-
-	// Build response with slot information
-	slotInfo := make(map[string]any)
-	slotInfo["userKey"] = userKey
-	slotInfo["hasActiveSlot"] = userDownloadSlots[userKey]
-	slotInfo["totalActiveSlots"] = len(userDownloadSlots)
-
-	// List all active slots (for debugging)
-	activeSlots := make([]string, 0, len(userDownloadSlots))
-	for key := range userDownloadSlots {
-		activeSlots = append(activeSlots, key)
-	}
-	slotInfo["activeSlots"] = activeSlots
-
-	response.JSON(c, http.StatusOK, slotInfo)
-}
-
-// ForceReleaseDownloadSlot forcefully releases a download slot for the current user
-// This is a debugging/admin endpoint to help with stuck slots
-func ForceReleaseDownloadSlot(c *gin.Context) {
-	downloadSlotMutex.Lock()
-	defer downloadSlotMutex.Unlock()
-
-	userKey := getUserKey(c)
-
-	if !userDownloadSlots[userKey] {
-		response.JSON(c, http.StatusOK, gin.H{
-			"message": "No active download slot found for user",
-			"userKey": userKey,
-		})
-		return
-	}
-
-	// Force release the slot
-	delete(userDownloadSlots, userKey)
-
-	common.GetLogger().Warn("Forcefully released download slot", "userKey", userKey)
-
-	response.JSON(c, http.StatusOK, gin.H{
-		"message":        "Download slot forcefully released",
-		"userKey":        userKey,
-		"remainingSlots": len(userDownloadSlots),
-	})
-}
-
 // Utility types and functions
 
 // xrdDirEntry represents a directory entry
@@ -924,35 +877,6 @@ func validateFilePath(filePath string) error {
 	}
 
 	return nil
-}
-
-// acquireDownloadSlot enforces one-download-per-user limit to prevent resource exhaustion
-func acquireDownloadSlot(c *gin.Context) bool {
-	downloadSlotMutex.Lock()
-	defer downloadSlotMutex.Unlock()
-
-	// Use stable user identifier from JWT claims instead of token hash
-	userKey := getUserKey(c)
-	common.GetLogger().Debug("Attempting to acquire download slot", "userKey", userKey, "activeSlots", len(userDownloadSlots))
-
-	if userDownloadSlots[userKey] {
-		common.GetLogger().Info("Download slot already in use", "userKey", userKey, "activeSlots", len(userDownloadSlots))
-		return false // User already has an active download
-	}
-
-	userDownloadSlots[userKey] = true
-	common.GetLogger().Info("Download slot acquired", "userKey", userKey, "activeSlots", len(userDownloadSlots))
-	return true
-}
-
-// releaseDownloadSlot frees up download capacity for the user
-func releaseDownloadSlot(c *gin.Context) {
-	downloadSlotMutex.Lock()
-	defer downloadSlotMutex.Unlock()
-
-	userKey := getUserKey(c)
-	delete(userDownloadSlots, userKey)
-	common.GetLogger().Info("Download slot released", "userKey", userKey, "activeSlots", len(userDownloadSlots))
 }
 
 // getUserKey creates stable identifier using user's JWT subject claim
@@ -1093,6 +1017,15 @@ func DownloadMultipleFiles(c *gin.Context) {
 	if token, exists := middleware.GetUserToken(c); exists {
 		userToken = token
 	}
+
+	// Enforce the per-user concurrency limit (shared with single-file downloads).
+	slotRelease, slotErr := getDownloadSlots().Acquire(getUserKey(c))
+	if slotErr != nil {
+		response.Error(c, http.StatusTooManyRequests,
+			"Too many concurrent downloads. Please wait for a current download to complete.")
+		return
+	}
+	defer slotRelease()
 
 	// Get single XRD filesystem connection for all files
 	ctx := context.Background()

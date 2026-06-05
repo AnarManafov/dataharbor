@@ -110,6 +110,82 @@ export function getBatchDownloadUrl() {
   return `${baseURL}/v1/xrd/download/batch`;
 }
 
+// -----------------------------------------------------------------------
+// Upload API
+// -----------------------------------------------------------------------
+
+/**
+ * Fetch configured transfer limits (upload + download).
+ * Populates the Transfer Limits info popover in the toolbar.
+ */
+export function getTransferLimits() {
+  return apiClient.get('/v1/xrd/upload/limits').catch(handleApiError);
+}
+
+/**
+ * Create a multi-file upload session. The server allocates one uploadId per
+ * accepted file and returns conflict status for each.
+ *
+ * @param {{destDir:string, files:Array<{relPath:string,size:number,sha256:string,onConflict?:string}>}} payload
+ */
+export function createUploadSession(payload) {
+  return apiClient.post('/v1/xrd/upload/session', payload).catch(handleApiError);
+}
+
+/**
+ * Upload a single chunk of bytes for a given uploadId.
+ *
+ * Uses a longer timeout than the default apiClient timeout because chunks can
+ * be up to ~8 MiB and travel over WAN. A per-request AbortController signal
+ * must be supplied so the uploadService can pause/cancel in-flight transfers.
+ *
+ * @param {string} uploadId
+ * @param {number} offset
+ * @param {Blob|ArrayBuffer} chunk
+ * @param {{signal?:AbortSignal, onUploadProgress?:Function}} [opts]
+ */
+export function uploadChunk(uploadId, offset, chunk, opts = {}) {
+  return apiClient.put(
+    `/v1/xrd/upload/${encodeURIComponent(uploadId)}/chunk`,
+    chunk,
+    {
+      params: { offset },
+      headers: { 'Content-Type': 'application/octet-stream' },
+      // Chunks can be large; disable the short default timeout.
+      timeout: 0,
+      signal: opts.signal,
+      onUploadProgress: opts.onUploadProgress,
+      // Let the browser set Content-Length from the Blob/ArrayBuffer.
+      transformRequest: [(data) => data],
+    }
+  ).catch(handleApiError);
+}
+
+/**
+ * Finalize an upload: the server verifies SHA-256 and atomically publishes the
+ * file under its destination path.
+ */
+export function completeUpload(uploadId) {
+  return apiClient.post(
+    `/v1/xrd/upload/${encodeURIComponent(uploadId)}/complete`,
+    {}
+  ).catch(handleApiError);
+}
+
+/** Abort a single in-progress upload (cleans up temp file and slot). */
+export function abortUpload(uploadId) {
+  return apiClient.delete(
+    `/v1/xrd/upload/${encodeURIComponent(uploadId)}`
+  ).catch(handleApiError);
+}
+
+/** Query the server-committed byte offset. Used by the resume flow. */
+export function getUploadStatus(uploadId) {
+  return apiClient.get(
+    `/v1/xrd/upload/${encodeURIComponent(uploadId)}/status`
+  ).catch(handleApiError);
+}
+
 /**
  * Retrieve storage system identification for user context awareness
  * Helps users understand which system they're currently accessing

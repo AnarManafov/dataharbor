@@ -46,3 +46,7 @@ log/
 /amanafov
 /testuser1
 /testuser2
+
+
+# Ignore local settings for Claude
+.claude/settings.local.json

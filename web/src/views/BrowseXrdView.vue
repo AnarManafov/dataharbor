@@ -1,5 +1,20 @@
 <template>
 	<div class="browse-view">
+		<!-- Hidden input, triggered by the toolbar's Upload button, used for the
+			 "browse files" affordance. -->
+		<input
+			ref="fileInputRef"
+			type="file"
+			multiple
+			style="display:none"
+			@change="onFilesChosen"
+		/>
+
+		<UploadDropZone
+			:destDir="currentDirectory"
+			:enabled="isBackendOnline"
+			@files="onFilesDropped"
+		>
 		<div class="file-browser-container">
 			<!-- Sticky header section that contains toolbar and pagination -->
 			<div class="sticky-header-section">
@@ -8,7 +23,10 @@
 						:currentDirectory="currentDirectory" :initialPath="initialPath" :folderCount="folderCount"
 						:fileCount="fileCount" :totalOnPageFileSize="totalOnPageFileSize" :totalFolderCount="totalFolderCount"
 						:totalFileCount="totalFileCount" :totalFileSize="cumulativeFileSize" :vfsStat="vfsStat"
-						@changeDirToInitialPath="changeDirToInitialPath" @changeDir="changeDir" />
+						:uploadEnabled="uploadLimits?.upload?.enabled"
+						:transferLimits="uploadLimits"
+						@changeDirToInitialPath="changeDirToInitialPath" @changeDir="changeDir"
+						@uploadClick="openFilePicker" />
 				</div>
 				<div class="pagination-header">
 					<el-pagination background layout="prev, pager, next, jumper" size="small" :page-size="pageSize"
@@ -51,21 +69,43 @@
 				</div>
 			</transition>
 		</div>
+		</UploadDropZone>
+
+		<UploadConfirmDialog
+			v-model="uploadDialogVisible"
+			:destDir="currentDirectory"
+			:files="uploadCandidates"
+			:limits="uploadLimits?.upload"
+			@confirm="onUploadConfirm"
+			@cancel="onUploadCancel"
+		/>
+
+		<UploadProgressPanel
+			:state="uploadService.state"
+			@pause="uploadService.pauseAll"
+			@resume="() => uploadService.resumeAll(currentDirectory)"
+			@abort="uploadService.abortAll"
+			@dismiss="onDismissUploadPanel"
+		/>
 	</div>
 </template>
 
 <script lang="ts" setup>
-import { getInitialDirPath, getItemsInDir, getBackendHealth, getPagedItemsInDir, getVirtualFSStat, pingXrd } from '@/api/api';
+import { getInitialDirPath, getItemsInDir, getBackendHealth, getPagedItemsInDir, getVirtualFSStat, pingXrd, getTransferLimits } from '@/api/api';
 import { onMounted, onBeforeUnmount, ref, watch, getCurrentInstance, computed } from 'vue';
 import { useRouter, onBeforeRouteUpdate } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Folder, Document, Download } from '@element-plus/icons-vue';
+import { Folder, Document, Download, Upload as UploadIcon } from '@element-plus/icons-vue';
 import { useStorage } from '@vueuse/core'
 import { displayErrorMessage, joinPaths } from '@/utils/utils';
 import Toolbar from '../components/partials/BrowserXrdToolbar.vue';
 import FileTable from '../components/partials/BrowserXrdFileTable.vue';
 import { DownloadService } from '@/services/downloadService';
 import { useNetworkStats } from '@/composables/useNetworkStats';
+import UploadDropZone from '@/components/upload/UploadDropZone.vue';
+import UploadConfirmDialog from '@/components/upload/UploadConfirmDialog.vue';
+import UploadProgressPanel from '@/components/upload/UploadProgressPanel.vue';
+import { uploadService } from '@/services/uploadService';
 
 // Define props
 const props = defineProps({
@@ -789,6 +829,117 @@ onBeforeUnmount(() => {
 		clearInterval(interval);
 	}
 });
+
+// ------------------------------------------------------------------
+// Upload flow
+// ------------------------------------------------------------------
+
+// Hidden <input type="file"> reference; triggered by the Upload button in
+// the toolbar via openFilePicker().
+const fileInputRef = ref(null);
+
+// Dialog visibility and the files the user intends to upload (after
+// enumeration). Each item is shaped for UploadConfirmDialog.
+const uploadDialogVisible = ref(false);
+const uploadCandidates = ref([]);
+
+// Raw File/FileSystemEntry source held between drop/picker and the dialog
+// confirmation so we can feed it to the uploadService.prepare() later.
+// Currently we call prepare() eagerly so the panel reflects the right list;
+// kept as a placeholder should the flow ever change to deferred preparation.
+// let pendingSource = null;
+
+// Cached server-side transfer limits (fetched once at mount).
+const uploadLimits = ref(null);
+
+// Fetch transfer limits once at mount. Intentionally not awaited from
+// onMounted — failure is non-fatal (dialog just won't show hints).
+getTransferLimits()
+	.then((resp) => { uploadLimits.value = resp.data?.data ?? resp.data; })
+	.catch(() => { /* limits unavailable; dialog will still work */ });
+
+function openFilePicker() {
+	if (fileInputRef.value) {
+		fileInputRef.value.value = '';
+		fileInputRef.value.click();
+	}
+}
+
+async function onFilesChosen(evt) {
+	const files = evt.target?.files;
+	if (!files || !files.length) return;
+	await prepareUploadCandidates({ kind: 'files', files });
+}
+
+async function onFilesDropped(payload) {
+	await prepareUploadCandidates(payload);
+}
+
+async function prepareUploadCandidates(payload) {
+	if (!currentDirectory.value) {
+		ElMessage.warning('Please select a destination directory first');
+		return;
+	}
+	let items;
+	try {
+		items = await uploadService.enumerate(
+			payload.kind === 'items' ? payload.items : payload.files
+		);
+	} catch (err) {
+		displayErrorMessage('Failed to read selection', err);
+		return;
+	}
+	if (!items.length) return;
+
+	// Probe current-dir listing for conflict detection. We rely on the
+	// already-loaded tableData so no extra round-trip is needed for the
+	// common case where the user uploads into the current view.
+	const existing = new Set();
+	for (const it of (tableData.value || [])) {
+		if (it && it.name) existing.add(it.name);
+	}
+	uploadCandidates.value = items.map((it) => ({
+		relPath: it.relPath,
+		size: it.file.size,
+		// Heuristic: a top-level-only match counts as a conflict. Subdir
+		// conflicts are resolved authoritatively by the server on session
+		// creation; we just surface the obvious cases in the dialog.
+		conflict: existing.has(it.relPath.split('/')[0]) ? 'exists' : 'none',
+	}));
+
+	// Initialize the service's file list up-front so the dialog and panel
+	// reflect the same data structure.
+	uploadService.prepare(items);
+	uploadDialogVisible.value = true;
+}
+
+function onUploadCancel() {
+	uploadDialogVisible.value = false;
+	uploadCandidates.value = [];
+}
+
+async function onUploadConfirm(decisions) {
+	uploadDialogVisible.value = false;
+	const destDir = currentDirectory.value;
+	try {
+		await uploadService.start(destDir, decisions);
+	} catch (err) {
+		displayErrorMessage('Upload failed', err);
+		return;
+	}
+	// Refresh directory listing so newly uploaded files appear.
+	if (uploadService.state.files.some((f) => f.state === 'done')) {
+		await listDir();
+	}
+}
+
+function onDismissUploadPanel() {
+	// Dismissing just clears the panel state (keeps uploadService in idle).
+	uploadService.state.files = [];
+	uploadService.state.status = 'idle';
+	uploadService.state.overall.totalBytes = 0;
+	uploadService.state.overall.transferredBytes = 0;
+}
 </script>
 
 <style scoped>

@@ -3,7 +3,7 @@
         <div class="page-header">
             <div class="container">
                 <h1 class="page-title">Documentation</h1>
-                <p class="page-subtitle">A quick guide to browsing and downloading your storage data</p>
+                <p class="page-subtitle">A quick guide to browsing, uploading and downloading your storage data</p>
             </div>
         </div>
 
@@ -14,7 +14,7 @@
                             <Reading />
                         </el-icon> Getting Started</h2>
                     <p>
-                        DataHarbor lets you browse and download files on your storage cluster
+                        DataHarbor lets you browse, upload and download files on your storage cluster
                         directly from your web browser. No special client software is required.
                     </p>
 
@@ -34,6 +34,11 @@
                         <li>
                             <strong>Download</strong> — click the download button next to a file. A
                             confirmation dialog appears, then the file streams directly to your disk.
+                        </li>
+                        <li>
+                            <strong>Upload</strong> — click <em>Upload</em> in the toolbar, or drag files
+                            onto the browser, to add data to the current directory. Uploads are chunked
+                            and resumable.
                         </li>
                     </ol>
                 </el-card>
@@ -155,6 +160,48 @@
 
                 <el-card class="doc-section" shadow="never">
                     <h2><el-icon>
+                            <Upload />
+                        </el-icon> Uploads</h2>
+                    <p>
+                        You can upload files from your computer straight into the directory you are
+                        viewing. Uploads are split into chunks, verified end-to-end with an SHA-256
+                        checksum, and are fully resumable — if a transfer is paused or interrupted it
+                        continues from the last completed chunk rather than starting over.
+                    </p>
+
+                    <ul class="feature-list">
+                        <li>
+                            <strong>Starting an upload</strong> — click <em>Upload</em> in the toolbar to
+                            open the system file picker, or drag one or more files (and folders, where
+                            your browser supports it) onto the File Browser.
+                        </li>
+                        <li>
+                            <strong>Confirmation dialog</strong> — before transferring, review each
+                            file's size, the batch total, and any conflicts. The dialog also shows
+                            whether the selection fits within the server's transfer limits.
+                        </li>
+                        <li>
+                            <strong>Handling conflicts</strong> — if a file already exists in the
+                            destination, pick a per-file action: <em>fail</em>, <em>skip</em>,
+                            <em>rename</em>, or <em>overwrite</em> (when the server allows it). An
+                            overwrite is performed safely — your existing file is restored if publishing
+                            the new one fails.
+                        </li>
+                        <li>
+                            <strong>Progress &amp; control</strong> — a progress panel docks to the
+                            bottom-right showing per-file and overall progress. You can pause, resume, or
+                            cancel the upload at any time.
+                        </li>
+                        <li>
+                            <strong>Limits</strong> — the server enforces per-file size, total batch
+                            size, and maximum files-per-batch limits. The current values are shown in the
+                            <em>Transfer limits</em> popover in the toolbar.
+                        </li>
+                    </ul>
+                </el-card>
+
+                <el-card class="doc-section" shadow="never">
+                    <h2><el-icon>
                             <Lock />
                         </el-icon> Authentication</h2>
                     <p>
@@ -201,7 +248,7 @@
 </template>
 
 <script>
-import { Reading, FolderOpened, Lock, Download, InfoFilled, House } from '@element-plus/icons-vue';
+import { Reading, FolderOpened, Lock, Download, Upload, InfoFilled, House } from '@element-plus/icons-vue';
 import { getConfig } from '@/config/config';
 
 export default {
@@ -211,6 +258,7 @@ export default {
         FolderOpened,
         Lock,
         Download,
+        Upload,
         InfoFilled,
         House,
     },

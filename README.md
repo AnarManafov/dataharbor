@@ -19,6 +19,7 @@ DataHarbor empowers users who need to:
 
 - **Browse & Navigate**: Explore your storage with an intuitive web interface, view metadata, and perform secure file operations
 - **High-Performance Streaming**: Download files directly from remote storage with zero temporary storage overhead
+- **Multi-File Upload**: Drag-and-drop or select multiple files; chunked, resumable uploads with SHA-256 integrity verification and per-user concurrency control
 - **Secure Access**: Enterprise-grade OIDC authentication with session management
 - **Cross-Platform**: Access HPC storage from any device through a modern web browser
 - **Observability**: Comprehensive logging and performance metrics for file operations
