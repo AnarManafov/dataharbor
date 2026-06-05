@@ -46,6 +46,17 @@
 
                     <el-card class="feature-card" shadow="hover">
                         <div class="feature-icon">
+                            <el-icon size="large" color="var(--el-color-primary)">
+                                <Upload />
+                            </el-icon>
+                        </div>
+                        <h3>Resumable Uploads</h3>
+                        <p>Drag and drop multiple files into any directory. Chunked, SHA-256 verified, and resumable —
+                            pause, resume, or recover interrupted transfers without starting over</p>
+                    </el-card>
+
+                    <el-card class="feature-card" shadow="hover">
+                        <div class="feature-icon">
                             <el-icon size="large" color="var(--el-color-warning)">
                                 <Lock />
                             </el-icon>
@@ -61,7 +72,7 @@
 </template>
 
 <script>
-import { FolderOpened, Download, Lock } from '@element-plus/icons-vue';
+import { FolderOpened, Download, Upload, Lock } from '@element-plus/icons-vue';
 import { getConfig } from '@/config/config';
 
 export default {
@@ -69,6 +80,7 @@ export default {
     components: {
         FolderOpened,
         Download,
+        Upload,
         Lock
     },
     data() {

@@ -15,7 +15,7 @@
 # ============================================
 # Base stage - common setup for both dev/prod
 # ============================================
-FROM nginx:1.29-alpine AS base
+FROM nginx:1.31-alpine AS base
 
 RUN apk add --no-cache \
     ca-certificates \

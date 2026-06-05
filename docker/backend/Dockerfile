@@ -7,7 +7,7 @@ ARG TARGETARCH
 ARG BUILDPLATFORM
 
 # Use the native build platform for faster compilation with cross-compilation
-FROM --platform=${BUILDPLATFORM} golang:1.26.2-alpine AS builder
+FROM --platform=${BUILDPLATFORM} golang:1.26.4-alpine AS builder
 
 # Re-declare ARGs after FROM to make them available in this stage
 ARG TARGETOS
@@ -22,7 +22,7 @@ COPY app/go.mod app/go.sum ./
 
 # Download dependencies with cache mount for faster rebuilds
 RUN --mount=type=cache,target=/go/pkg/mod \
-	go mod download
+    go mod download
 
 COPY app/ ./
 
@@ -30,11 +30,11 @@ COPY app/ ./
 # CGO_ENABLED=0 for portability, -ldflags="-s -w" strips debug info
 # Cross-compile using TARGETOS and TARGETARCH on the native platform (much faster than QEMU)
 RUN --mount=type=cache,target=/go/pkg/mod \
-	--mount=type=cache,target=/root/.cache/go-build \
-	CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
-	-ldflags="-s -w" \
-	-o dataharbor-backend \
-	.
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags="-s -w" \
+    -o dataharbor-backend \
+    .
 
 FROM alpine:3.23
 
@@ -42,14 +42,14 @@ FROM alpine:3.23
 # Note: xrootd-client is NOT needed - the Go backend uses native Go XRD client library
 # su-exec is used by the entrypoint to drop from root to dataharbor user
 RUN apk add --no-cache \
-	ca-certificates \
-	tzdata \
-	su-exec \
-	&& rm -rf /var/cache/apk/*
+    ca-certificates \
+    tzdata \
+    su-exec \
+    && rm -rf /var/cache/apk/*
 
 # Create non-root user for runtime
 RUN addgroup -g 1000 dataharbor && \
-	adduser -D -u 1000 -G dataharbor dataharbor
+    adduser -D -u 1000 -G dataharbor dataharbor
 
 WORKDIR /app
 
@@ -58,13 +58,13 @@ COPY docker/config/application.yaml /app/config/application.yaml
 COPY docker/backend/entrypoint.sh /app/entrypoint.sh
 
 RUN chmod +x /app/entrypoint.sh && \
-	chown -R dataharbor:dataharbor /app
+    chown -R dataharbor:dataharbor /app
 
 # Start as root so entrypoint can fix bind-mount ownership, then drop to dataharbor
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-	CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["-config", "/app/config/application.yaml"]

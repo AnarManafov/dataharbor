@@ -17,6 +17,8 @@ Dev container: ports 5173 (frontend) and 8081 (backend). Use `forwardPorts` mapp
 
 ## Commands
 
+> **Run inside the devcontainer.** All `make`, build, and test commands (`make build`, `make test`, `go build`, `go test`, `npm` workspace installs, etc.) must be executed inside the project devcontainer. The toolchain (Go, Node, golangci-lint, the XRootD fork) is provisioned there; the host shell does not have it on `PATH`. Open the repo in the devcontainer (or `exec` into it) before running any of the commands below.
+
 Run everything from the **repo root** unless noted.
 
 ```bash
@@ -182,4 +184,4 @@ Upload writes require SciToken scopes presented to XRootD server. See `docs/UPLO
 
 11. **File path traversal protection**: `validateFilePath()` in `controller/xrd.go` guards all path inputs. Replicate this pattern for new endpoints accepting path parameters.
 
-12. **Download rate limiting temporarily disabled**: Per-user slot logic in `controller/xrd.go` is commented out (slot release bug). Code present with TODO markers.
+12. **Per-user concurrency limits**: Both uploads and downloads use the shared `common.SlotManager` (`common/slots.go`), which returns an idempotent release handle. Caps come from `xrd.upload.max_concurrent_per_user` and `xrd.download.max_concurrent_per_user`. Uploads take one slot per *session* (batch), shared across all files in that batch.

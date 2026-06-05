@@ -656,3 +656,95 @@ func TestLoadConfig_DirectoryCreationError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create config directory")
 }
+
+// TestSetDefaults_UploadConfig verifies that all xrd.upload.* keys get the
+// documented defaults. Regression guard for the upload feature shipped under
+// GH-56 — docs/BACKEND_CONFIGURATION.md lists these values.
+func TestSetDefaults_UploadConfig(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+
+	assert.True(t, v.GetBool("xrd.upload.enabled"))
+	assert.Equal(t, int64(10)*1024*1024*1024, v.GetInt64("xrd.upload.max_file_size"))
+	assert.Equal(t, int64(50)*1024*1024*1024, v.GetInt64("xrd.upload.max_batch_size"))
+	assert.Equal(t, 100, v.GetInt("xrd.upload.max_files_per_batch"))
+	assert.Equal(t, 2, v.GetInt("xrd.upload.max_concurrent_per_user"))
+	assert.Equal(t, 8*1024*1024, v.GetInt("xrd.upload.chunk_size"))
+	assert.Equal(t, "2h", v.GetString("xrd.upload.session_ttl"))
+	assert.Equal(t, "10m", v.GetString("xrd.upload.idle_ttl"))
+	assert.Equal(t, ".dh-upload", v.GetString("xrd.upload.temp_suffix"))
+	assert.False(t, v.GetBool("xrd.upload.allow_overwrite"))
+	assert.Equal(t, "sha256", v.GetString("xrd.upload.checksum_algo"))
+}
+
+// TestSetDefaults_DownloadConcurrency guards the per-user download concurrency
+// cap default added when download rate limiting was re-enabled (GH-56).
+func TestSetDefaults_DownloadConcurrency(t *testing.T) {
+	v := viper.New()
+	setDefaults(v)
+	assert.Equal(t, 2, v.GetInt("xrd.download.max_concurrent_per_user"))
+}
+
+// TestValidateConfig_Upload exercises the upload-specific validation branches.
+func TestValidateConfig_Upload(t *testing.T) {
+	base := func() *Config {
+		return &Config{
+			Server:  ServerConfig{Address: ":8080"},
+			XRD:     XRDConfig{Host: "localhost", Port: 1094},
+			Logging: LoggingConfig{Level: "info"},
+			Auth:    AuthConfig{Enabled: false},
+		}
+	}
+
+	t.Run("disabled upload bypasses validation", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: false, MaxFileSize: -1}
+		assert.NoError(t, ValidateConfig(cfg))
+	})
+
+	t.Run("enabled requires positive MaxFileSize", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 0, MaxBatchSize: 1, MaxFilesPerBatch: 1, ChunkSize: 1}
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_file_size")
+	})
+
+	t.Run("enabled requires positive MaxBatchSize", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 1, MaxBatchSize: 0, MaxFilesPerBatch: 1, ChunkSize: 1}
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_batch_size")
+	})
+
+	t.Run("enabled requires positive MaxFilesPerBatch", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 1, MaxBatchSize: 1, MaxFilesPerBatch: 0, ChunkSize: 1}
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "max_files_per_batch")
+	})
+
+	t.Run("enabled requires positive ChunkSize", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 1, MaxBatchSize: 1, MaxFilesPerBatch: 1, ChunkSize: 0}
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "chunk_size")
+	})
+
+	t.Run("rejects unsupported checksum algorithm", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 1, MaxBatchSize: 1, MaxFilesPerBatch: 1, ChunkSize: 1, ChecksumAlgo: "md5"}
+		err := ValidateConfig(cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "checksum_algo")
+	})
+
+	t.Run("accepts sha256", func(t *testing.T) {
+		cfg := base()
+		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 1, MaxBatchSize: 1, MaxFilesPerBatch: 1, ChunkSize: 1, ChecksumAlgo: "sha256"}
+		assert.NoError(t, ValidateConfig(cfg))
+	})
+}

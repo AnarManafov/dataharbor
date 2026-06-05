@@ -8,7 +8,7 @@
 *.so
 *.dylib
 # default output name for golang binaries
-app
+!app/
 dataharbor-backend
 dataharbor
 

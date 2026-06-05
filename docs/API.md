@@ -435,6 +435,32 @@ Measures the round-trip latency to the XRootD storage server by performing a lig
 curl "http://localhost:8081/api/v1/xrd/ping"
 ```
 
+### Upload Endpoints
+
+DataHarbor exposes a multi-file, chunked, resumable upload protocol under
+`/api/v1/xrd/upload/*`. All endpoints require a valid session cookie.
+
+See [UPLOAD.md](./UPLOAD.md) for the user-facing flow and the full protocol
+description.
+
+| Method   | Path                                          | Purpose                                                         |
+| -------- | --------------------------------------------- | --------------------------------------------------------------- |
+| `GET`    | `/api/v1/xrd/upload/limits`                   | Return the server-configured upload + download limits.          |
+| `POST`   | `/api/v1/xrd/upload/session`                  | Create a batch upload session; returns one `uploadId` per file. |
+| `PUT`    | `/api/v1/xrd/upload/:uploadId/chunk?offset=N` | Append raw bytes at strict-sequential offset `N`.               |
+| `POST`   | `/api/v1/xrd/upload/:uploadId/complete`       | Verify SHA-256 and atomically publish the file.                 |
+| `DELETE` | `/api/v1/xrd/upload/:uploadId`                | Cancel an in-progress upload and remove the temp file.          |
+| `GET`    | `/api/v1/xrd/upload/:uploadId/status`         | Query server-known offset and state.                            |
+
+Common error codes:
+
+- `400` – validation failed (bad path, bad SHA-256, bytes exceed declared size).
+- `403` – user not authorized, or overwrite forbidden by server configuration.
+- `404` – unknown `uploadId`.
+- `409` – offset mismatch (client must re-sync via the `status` endpoint).
+- `413` – chunk larger than `chunkSize`.
+- `429` – per-user concurrent-upload slot limit reached.
+
 ## Server Information Endpoints
 
 ### Health Check

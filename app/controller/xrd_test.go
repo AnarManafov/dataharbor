@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -203,177 +204,6 @@ func TestGetUserKey(t *testing.T) {
 	assert.NotEqual(t, key3, key4, "Different tokens should produce different keys when no sub claim")
 	assert.NotEqual(t, "anonymous", key3, "Should not be anonymous when token is available")
 	assert.NotEqual(t, "anonymous", key4, "Should not be anonymous when token is available")
-}
-
-// Test download slot acquisition and release
-func TestDownloadSlotManagement(t *testing.T) {
-	// Clean slate for testing
-	userDownloadSlots = make(map[string]bool)
-
-	// Create contexts for different users
-	c1 := createMockContext("user1", "token1")
-	c2 := createMockContext("user2", "token2")
-	c3 := createMockContext("user1", "new-token-after-refresh") // Same user, refreshed token
-
-	// First user should be able to acquire slot
-	assert.True(t, acquireDownloadSlot(c1), "First user should acquire slot successfully")
-
-	// Same user should not be able to acquire another slot
-	assert.False(t, acquireDownloadSlot(c1), "Same user should not acquire multiple slots")
-
-	// Same user with refreshed token should still not be able to acquire slot
-	assert.False(t, acquireDownloadSlot(c3), "Same user with refreshed token should not acquire multiple slots")
-
-	// Different user should be able to acquire slot
-	assert.True(t, acquireDownloadSlot(c2), "Different user should acquire slot successfully")
-
-	// Release first user's slot
-	releaseDownloadSlot(c1)
-
-	// First user should be able to acquire slot again
-	assert.True(t, acquireDownloadSlot(c1), "User should be able to reacquire slot after release")
-
-	// First user with refreshed token should also be able to acquire slot (since they're the same user)
-	releaseDownloadSlot(c1)
-	assert.True(t, acquireDownloadSlot(c3), "User with refreshed token should be able to acquire slot")
-
-	// Clean up
-	releaseDownloadSlot(c3)
-	releaseDownloadSlot(c2)
-
-	// Verify slots are cleaned up
-	assert.Empty(t, userDownloadSlots, "All slots should be cleaned up")
-}
-
-// Test that demonstrates the fix for token refresh issue
-func TestTokenRefreshRateLimiting(t *testing.T) {
-	// Clean slate for testing
-	userDownloadSlots = make(map[string]bool)
-
-	// Simulate the same user with different tokens (token refresh scenario)
-	userSub := "a.manafov"
-	originalToken := "eyJh...GCPQ"
-	refreshedToken := "eyJh...PEpg"
-
-	// Create contexts representing the same user with different tokens
-	c1 := createMockContext(userSub, originalToken)
-	c2 := createMockContext(userSub, refreshedToken)
-
-	// Verify that both contexts produce the same user key
-	key1 := getUserKey(c1)
-	key2 := getUserKey(c2)
-	assert.Equal(t, key1, key2, "Same user should have same key regardless of token refresh")
-
-	// First download should succeed
-	assert.True(t, acquireDownloadSlot(c1), "First download should succeed")
-
-	// Second download with refreshed token should fail (same user)
-	assert.False(t, acquireDownloadSlot(c2), "Second download with refreshed token should fail - same user")
-
-	// Release the slot
-	releaseDownloadSlot(c1)
-
-	// Now the user with refreshed token should be able to download
-	assert.True(t, acquireDownloadSlot(c2), "User with refreshed token should be able to download after releasing slot")
-
-	// Clean up
-	releaseDownloadSlot(c2)
-	assert.Empty(t, userDownloadSlots, "All slots should be cleaned up")
-}
-
-// TestDownloadSlotReleaseAfterCompletion verifies that download slots are properly released
-// after a download completes, even when the HTTP request context is cancelled
-func TestDownloadSlotReleaseAfterCompletion(t *testing.T) {
-	// Create a test HTTP request context
-	req, _ := http.NewRequest("GET", "/test", nil)
-
-	// Create a context that will be cancelled to simulate normal HTTP completion
-	ctx, cancel := context.WithCancel(req.Context())
-	req = req.WithContext(ctx)
-
-	// Create a gin context
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-
-	// Set up user claims for stable user identification
-	claims := map[string]any{
-		"sub": "test.user@example.com",
-		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(time.Hour).Unix(),
-	}
-	c.Set("user_claims", claims)
-
-	// Test that slot can be acquired
-	assert.True(t, acquireDownloadSlot(c), "Should be able to acquire download slot")
-
-	// Verify slot is marked as in use
-	assert.False(t, acquireDownloadSlot(c), "Should not be able to acquire second slot")
-
-	// Cancel the context to simulate normal HTTP completion
-	cancel()
-
-	// Release the slot (this would normally happen via defer)
-	releaseDownloadSlot(c)
-
-	// Verify slot is released and can be acquired again
-	assert.True(t, acquireDownloadSlot(c), "Should be able to acquire slot after release")
-
-	// Clean up
-	releaseDownloadSlot(c)
-}
-
-// TestDownloadSlotWithContextCancellation tests the scenario where the HTTP request
-// context is cancelled (normal completion) and ensures the slot is still released
-func TestDownloadSlotWithContextCancellation(t *testing.T) {
-	// Create a test HTTP request context
-	req, _ := http.NewRequest("GET", "/test", nil)
-
-	// Create a cancellable context
-	ctx, cancel := context.WithCancel(req.Context())
-	req = req.WithContext(ctx)
-
-	// Create a gin context
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = req
-
-	// Set up user claims for stable user identification
-	claims := map[string]any{
-		"sub": "test.user2@example.com",
-		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(time.Hour).Unix(),
-	}
-	c.Set("user_claims", claims)
-
-	// Simulate the download flow
-	func() {
-		// This simulates the defer releaseDownloadSlot(c) pattern
-		defer releaseDownloadSlot(c)
-
-		// Acquire slot
-		assert.True(t, acquireDownloadSlot(c), "Should be able to acquire download slot")
-
-		// Cancel context to simulate normal completion
-		cancel()
-
-		// Check that context is cancelled (this would happen in the streaming loop)
-		select {
-		case <-ctx.Done():
-			// This is normal - the context is cancelled when the download completes
-			t.Log("Context cancelled as expected (normal completion)")
-		default:
-			t.Error("Context should be cancelled")
-		}
-
-		// At this point, the function would return, and defer would release the slot
-	}()
-
-	// Verify slot is released after the function completes
-	assert.True(t, acquireDownloadSlot(c), "Should be able to acquire slot after function completes")
-
-	// Clean up
-	releaseDownloadSlot(c)
 }
 
 // ============================================
@@ -602,176 +432,6 @@ func TestGetHostName(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "test-xrd-server.example.com", response["hostname"])
-}
-
-// ============================================
-// GetDownloadSlotStatus Tests
-// ============================================
-
-func TestGetDownloadSlotStatus(t *testing.T) {
-	// Clear slots for clean test
-	userDownloadSlots = make(map[string]bool)
-
-	t.Run("no active slots", func(t *testing.T) {
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
-		c.Set("user_claims", map[string]any{"sub": "user1"})
-		c.Set("access_token", "token1")
-
-		GetDownloadSlotStatus(c)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		assert.NoError(t, err)
-		assert.Equal(t, false, response["hasActiveSlot"])
-		assert.Equal(t, float64(0), response["totalActiveSlots"])
-	})
-
-	t.Run("with active slot for current user", func(t *testing.T) {
-		// Clear and acquire a slot
-		userDownloadSlots = make(map[string]bool)
-		c1 := createMockContext("user1", "token1")
-		acquireDownloadSlot(c1)
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
-		c.Set("user_claims", map[string]any{"sub": "user1"})
-		c.Set("access_token", "token1")
-
-		GetDownloadSlotStatus(c)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		assert.NoError(t, err)
-		assert.Equal(t, true, response["hasActiveSlot"])
-		assert.Equal(t, float64(1), response["totalActiveSlots"])
-
-		// Clean up
-		releaseDownloadSlot(c1)
-	})
-
-	t.Run("with active slots for other users", func(t *testing.T) {
-		// Clear and acquire slots for other users
-		userDownloadSlots = make(map[string]bool)
-		c1 := createMockContext("user1", "token1")
-		c2 := createMockContext("user2", "token2")
-		acquireDownloadSlot(c1)
-		acquireDownloadSlot(c2)
-
-		// Check status for a different user
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("GET", "/api/xrd/download-status", nil)
-		c.Set("user_claims", map[string]any{"sub": "user3"})
-		c.Set("access_token", "token3")
-
-		GetDownloadSlotStatus(c)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		assert.NoError(t, err)
-		assert.Equal(t, false, response["hasActiveSlot"])
-		assert.Equal(t, float64(2), response["totalActiveSlots"])
-
-		// Clean up
-		releaseDownloadSlot(c1)
-		releaseDownloadSlot(c2)
-	})
-}
-
-// ============================================
-// ForceReleaseDownloadSlot Tests
-// ============================================
-
-func TestForceReleaseDownloadSlot(t *testing.T) {
-	t.Run("no active slot to release", func(t *testing.T) {
-		userDownloadSlots = make(map[string]bool)
-
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
-		c.Set("user_claims", map[string]any{"sub": "user1"})
-		c.Set("access_token", "token1")
-
-		ForceReleaseDownloadSlot(c)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		assert.NoError(t, err)
-		assert.Contains(t, response["message"], "No active download slot found")
-	})
-
-	t.Run("force release active slot", func(t *testing.T) {
-		// Clear and acquire a slot
-		userDownloadSlots = make(map[string]bool)
-		c1 := createMockContext("user1", "token1")
-		acquireDownloadSlot(c1)
-
-		// Verify slot is acquired
-		assert.True(t, userDownloadSlots[getUserKey(c1)])
-
-		// Force release
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
-		c.Set("user_claims", map[string]any{"sub": "user1"})
-		c.Set("access_token", "token1")
-
-		ForceReleaseDownloadSlot(c)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		assert.NoError(t, err)
-		assert.Contains(t, response["message"], "Download slot forcefully released")
-		assert.Equal(t, float64(0), response["remainingSlots"])
-
-		// Verify slot is released
-		assert.False(t, userDownloadSlots[getUserKey(c1)])
-	})
-
-	t.Run("force release only affects current user", func(t *testing.T) {
-		// Clear and acquire slots for multiple users
-		userDownloadSlots = make(map[string]bool)
-		c1 := createMockContext("user1", "token1")
-		c2 := createMockContext("user2", "token2")
-		acquireDownloadSlot(c1)
-		acquireDownloadSlot(c2)
-
-		// Force release user1's slot
-		w := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest("POST", "/api/xrd/force-release", nil)
-		c.Set("user_claims", map[string]any{"sub": "user1"})
-		c.Set("access_token", "token1")
-
-		ForceReleaseDownloadSlot(c)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-
-		var response map[string]any
-		err := json.Unmarshal(w.Body.Bytes(), &response)
-		assert.NoError(t, err)
-		assert.Equal(t, float64(1), response["remainingSlots"])
-
-		// Verify user1's slot is released but user2's remains
-		assert.False(t, userDownloadSlots[getUserKey(c1)])
-		assert.True(t, userDownloadSlots[getUserKey(c2)])
-
-		// Clean up
-		releaseDownloadSlot(c2)
-	})
 }
 
 // ============================================
@@ -1738,4 +1398,37 @@ func TestStreamFileSimple_EmptyFile(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Empty(t, w.Body.Bytes())
+}
+
+// ============================================
+// Download concurrency-slot Tests
+// ============================================
+
+// TestGetDownloadSlots_EnforcesPerUserCap verifies downloads are now gated by
+// the shared SlotManager (the limit that was previously disabled), using the
+// configured per-user cap.
+func TestGetDownloadSlots_EnforcesPerUserCap(t *testing.T) {
+	downloadSlotsOnce = sync.Once{}
+	downloadSlots = nil
+	cfg := config.GetConfig()
+	prev := cfg.XRD.Download.MaxConcurrentPerUser
+	cfg.XRD.Download.MaxConcurrentPerUser = 1
+	config.SetConfig(cfg)
+	t.Cleanup(func() {
+		downloadSlotsOnce = sync.Once{}
+		downloadSlots = nil
+		c := config.GetConfig()
+		c.XRD.Download.MaxConcurrentPerUser = prev
+		config.SetConfig(c)
+	})
+
+	slots := getDownloadSlots()
+	rel, err := slots.Acquire("user_bob")
+	assert.NoError(t, err)
+	_, err = slots.Acquire("user_bob")
+	assert.Error(t, err, "second concurrent download for the same user must be rejected")
+	rel()
+	rel2, err := slots.Acquire("user_bob")
+	assert.NoError(t, err, "slot is reusable after release")
+	rel2()
 }

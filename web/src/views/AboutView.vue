@@ -49,6 +49,14 @@
                                     <el-icon>
                                         <Check />
                                     </el-icon>
+                                    <span><strong>Resumable uploads</strong> — drag-and-drop multi-file uploads, chunked
+                                        and SHA-256 verified, that you can pause, resume and cancel — interrupted
+                                        transfers pick up where they left off</span>
+                                </li>
+                                <li>
+                                    <el-icon>
+                                        <Check />
+                                    </el-icon>
                                     <span><strong>Paginated directory listing</strong> — navigate deep file hierarchies
                                         with ease</span>
                                 </li>

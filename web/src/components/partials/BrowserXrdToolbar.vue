@@ -25,6 +25,17 @@
                 </div>
             </el-col>
             <el-col :span='5' class='toolbar-right-content'>
+                <div v-if='uploadEnabled' class='toolbar-upload-btn'>
+                    <el-tooltip effect='dark' content='Upload files to the current directory' placement='bottom'>
+                        <el-button size='small' type='primary' :icon='UploadFilled'
+                            @click='emit("uploadClick")'>
+                            Upload
+                        </el-button>
+                    </el-tooltip>
+                </div>
+                <div v-if='transferLimits' class='toolbar-limits-info'>
+                    <TransferLimitsInfo :limits='transferLimits' />
+                </div>
                 <div class='storage-stats' v-if='vfsStat'>
                     <el-tooltip effect='dark' placement='bottom'
                         :content='`${vfsStat.nodesRW} R/W node(s), ${vfsStat.nodesStaging} staging node(s)`'>
@@ -113,8 +124,9 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { HomeFilled } from '@element-plus/icons-vue';
+import { HomeFilled, UploadFilled } from '@element-plus/icons-vue';
 import { useNetworkStats } from '@/composables/useNetworkStats';
+import TransferLimitsInfo from './TransferLimitsInfo.vue';
 
 const { latencyMs, connectMs, latencyQuality, avgSpeedFormatted, queryTimeMs, downloadSpeeds } = useNetworkStats();
 
@@ -129,10 +141,17 @@ const props = defineProps({
     totalFolderCount: Number,
     totalFileCount: Number,
     totalFileSize: String,
-    vfsStat: Object
+    vfsStat: Object,
+    // Whether the server reports upload support as enabled. When false the
+    // Upload button is hidden rather than just disabled, because the feature
+    // requires the scitokens `storage.create` scope and a backend opt-in.
+    uploadEnabled: { type: Boolean, default: false },
+    // Full transfer-limits payload ({ upload, download }) from
+    // GET /api/v1/xrd/upload/limits, surfaced via the TransferLimitsInfo popover.
+    transferLimits: { type: Object, default: null },
 });
 
-const emit = defineEmits(['changeDirToInitialPath', 'changeDir']);
+const emit = defineEmits(['changeDirToInitialPath', 'changeDir', 'uploadClick']);
 
 const changeDirToInitialPath = () => {
     emit('changeDirToInitialPath');

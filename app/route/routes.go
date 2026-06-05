@@ -75,6 +75,18 @@ func SetupRouter(r *gin.Engine) {
 	// Multi-file download endpoint: streams selected files as a tar (optionally gzipped) archive
 	v1.POST("/xrd/download/batch", controller.DownloadMultipleFiles)
 
+	// Upload endpoints (see docs/UPLOAD.md). Chunked, resumable, with
+	// server-side SHA-256 verification. All endpoints require an authenticated
+	// session; write authorization is further gated by the SciToken scopes
+	// presented to the XRootD server.
+	v1.GET("/xrd/upload/limits", controller.GetTransferLimits)
+	v1.POST("/xrd/upload/session", controller.CreateUploadSession)
+	v1.PUT("/xrd/upload/:uploadId/chunk", controller.UploadChunk)
+	v1.POST("/xrd/upload/:uploadId/complete", controller.CompleteUpload)
+	v1.DELETE("/xrd/upload/:uploadId", controller.AbortUpload)
+	v1.GET("/xrd/upload/:uploadId/status", controller.GetUploadStatus)
+	controller.StartUploadJanitor()
+
 	// Future: Batch download management endpoints (not yet implemented)
 	// v1.GET("/xrd/download/status/:id", controller.GetDownloadStatus)     // Check batch progress
 	// v1.DELETE("/xrd/download/:id", controller.CancelDownload)            // Cancel download

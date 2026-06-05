@@ -199,7 +199,8 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 		// Check if this is an authorization error
 		if isAuthorizationError(err) {
 			return nil, &XRootDAuthError{
-				message: "Access denied - user is not authorized to access this directory",
+				message: "You don't have permission to view this directory. Your access does not include " +
+					"read permission for this path — contact your administrator if you believe this is an error.",
 				cause:   err,
 			}
 		}
