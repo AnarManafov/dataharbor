@@ -302,6 +302,25 @@ scitokens.trace all
 xrootd.trace auth login debug
 ```
 
+## Versions & Package Sources
+
+| Component         | Version / Source                                                      |
+| ----------------- | -------------------------------------------------------------------- |
+| Base image        | `rockylinux/rockylinux:10` (builder), `:10-minimal` (prod runtime)   |
+| XRootD            | `6.0.3` — CERN stable repo (`xrootd.web.cern.ch`, el10)              |
+| xrootd-multiuser  | `2.2.1` (osg25up) — OSG `osg-upcoming-development` channel, el10     |
+
+Pin a different XRootD version with `--build-arg XROOTD_VERSION=<x.y.z>`.
+
+> **Why the OSG `osg-upcoming-development` channel?** XRootD 6.0 bumped the
+> plugin ABI suffix from `-5` to `-6` (`libXrd*.so.3` → `.so.6`). The
+> `xrootd-multiuser` plugin is only distributed by OSG, and at the time of this
+> upgrade the 6.x-ABI build (`libXrdMultiuser-6.so`) ships **only** in OSG's
+> pre-release `osg-upcoming-development` channel — the stable `osg-*-main`
+> channels still carry the 5.x-ABI build, which will not load under XRootD 6.x.
+> Once OSG promotes the 6.x multiuser build to a `main`/`release` channel, drop
+> the `--enablerepo=osg-upcoming-development` flag in the Dockerfiles.
+
 ## Building Images
 
 ### Development
