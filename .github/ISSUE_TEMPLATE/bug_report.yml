@@ -1,0 +1,67 @@
+name: 🐞 Bug report
+description: Report a problem with DataHarbor
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug. The details below help us reproduce and fix it faster.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See the error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Web UI / Frontend
+        - File upload
+        - File download
+        - File browsing / navigation
+        - Authentication / Sign-in (OIDC)
+        - Backend / API
+        - Other / Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: DataHarbor version
+      description: Shown at the bottom of the sidebar (e.g. v1.0.21).
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser & OS
+      placeholder: e.g. Chrome 120 on macOS 14
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste relevant browser console / network errors, or attach screenshots. Please remove any access tokens or personal data first.
+      render: shell
+    validations:
+      required: false
