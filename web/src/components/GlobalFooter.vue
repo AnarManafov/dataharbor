@@ -32,7 +32,7 @@ const issuesUrl = 'https://github.com/AnarManafov/dataharbor/issues/new/choose';
     justify-content: center;
     padding: 1rem 1.5rem;
     text-align: center;
-    font-size: 0.75rem;
+    font-size: var(--dh-font-size-xs);
     color: var(--el-text-color-placeholder);
     flex-shrink: 0;
 }

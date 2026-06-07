@@ -223,7 +223,7 @@ watch(isCollapsed, (newValue) => {
 }
 
 .version-label {
-    font-size: 10px;
+    font-size: var(--dh-font-size-2xs);
     color: var(--el-text-color-placeholder);
 }
 
