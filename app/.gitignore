@@ -8,7 +8,11 @@
 *.so
 *.dylib
 # default output name for golang binaries
-!app/
+# `go build` here emits an executable named `app` (the module dir name).
+# Ignore that file, but never a directory named `app` (the trailing-slash
+# negation keeps `app/` dirs tracked and visible in editors like VS Code).
+/app
+!/app/
 dataharbor-backend
 dataharbor
 
