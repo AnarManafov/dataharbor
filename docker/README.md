@@ -235,50 +235,85 @@ docker logs dataharbor-xrootd-prod
 
 ### Apple Silicon (ARM64) Users - QEMU Setup
 
-The XRootD container requires `linux/amd64` (x86_64) architecture. On Apple Silicon Macs, you need **QEMU emulation** to run x86_64 containers.
+The XRootD container is built on **Rocky Linux 10**, which is compiled for the
+**x86-64-v3** micro-architecture (AVX2 / BMI / FMA). Running it on Apple Silicon
+needs x86_64 emulation **that supports x86-64-v3** — a sharper requirement than
+"amd64 emulation works at all". The other four services (backend, frontend,
+nginx, cert-init) are Alpine/Go/Node based and run **natively** on arm64.
 
-#### Checking QEMU Support
+> **Symptom of the wrong emulator** — the xrootd build (or any `docker run` of an
+> EL10 image) aborts immediately with:
+>
+> ```text
+> Fatal glibc error: CPU does not support x86-64-v3
+> ```
+>
+> This hits **both build and runtime** — a pre-built amd64 image fails the same
+> way. `docker-compose.yml` already pins the xrootd service to
+> `platform: linux/amd64`, so this is **not** a "missing platform" problem; the
+> emulator's virtual CPU simply lacks AVX2.
 
-Docker supports QEMU natively via the `tonistiigi/binfmt` image. First, check if QEMU is already configured:
+#### Why the default often fails (Colima)
 
-```bash
-# Check current emulation support
-docker run --privileged --rm tonistiigi/binfmt
+Apple Silicon dev here uses [Colima](https://github.com/abiosoft/colima). Colima
+ships a bundled `qemu-user` **7.0.0**, whose TCG (software) engine has **no AVX
+support at all** — so Rocky 10's `glibc` startup check fails even with
+`QEMU_CPU=max`. QEMU added AVX/AVX2 to its TCG engine in **7.1**, so a newer
+`qemu-user` is required.
 
-# Expected output shows supported platforms and emulators:
-# {
-#   "supported": ["linux/arm64", "linux/amd64", ...],
-#   "emulators": ["qemu-x86_64", ...]
-# }
-```
+#### Fix — use a v3-capable QEMU (8.2) in the Colima VM
 
-#### Installing QEMU Support
-
-If QEMU is not configured or you need to reinstall it:
-
-```bash
-# Install QEMU emulators for all architectures
-docker run --privileged --rm tonistiigi/binfmt --install all
-
-# Or install only x86_64 support (sufficient for XRootD)
-docker run --privileged --rm tonistiigi/binfmt --install amd64
-```
-
-This registers QEMU handlers in the Linux kernel's `binfmt_misc` system, enabling automatic emulation of foreign binaries.
-
-#### Verifying QEMU Setup
-
-After installation, verify x86_64 emulation works:
+Ubuntu 24.04 (Colima's guest OS) ships `qemu-user-static` **8.2**, which is
+v3-capable. Install it inside the VM:
 
 ```bash
-# Test running an x86_64 container on ARM64 host
-docker run --rm --platform linux/amd64 alpine uname -m
-# Should output: x86_64
-
-# Check buildx supported platforms
-docker buildx ls
-# Should show: linux/amd64, linux/arm64, etc.
+colima ssh -- sudo apt-get update -qq
+colima ssh -- sudo apt-get install -y qemu-user-static
 ```
+
+`qemu-user-static` registers its handler via `/usr/lib/binfmt.d/` on the VM's
+persistent disk, so it **survives reboots** automatically. To also survive a full
+VM recreation (`colima delete`), add an idempotent provision block to
+`~/.colima/<profile>/colima.yaml` (default profile is `default`), then
+`colima stop && colima start`:
+
+```yaml
+provision:
+  - mode: system
+    script: |
+      #!/bin/sh
+      set -eu
+      if ! dpkg -s qemu-user-static >/dev/null 2>&1; then
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq
+        apt-get install -y qemu-user-static
+      fi
+      # Re-apply the v3-capable qemu-user-static binfmt handlers on every boot.
+      systemctl restart systemd-binfmt 2>/dev/null || true
+```
+
+> **On Rosetta:** Colima's `vz` VM type can also emulate amd64 via Apple Rosetta
+> (`rosetta: true`), which is v3-capable. We avoid it because Apple has signalled
+> Rosetta's deprecation; the QEMU path above is the durable choice. Docker Desktop
+> users get a recent QEMU/Rosetta automatically and usually do not hit this issue.
+
+#### Verifying the setup
+
+```bash
+# Active amd64 emulator should be qemu 8.x (NOT 7.0.0)
+colima ssh -- /usr/bin/qemu-x86_64-static --version
+
+# Rocky 10 (x86-64-v3) must run without the glibc abort
+docker run --rm --platform linux/amd64 rockylinux/rockylinux:10 uname -m
+# -> x86_64
+
+# Full xrootd build through the dev compose
+cd docker && docker compose build xrootd
+```
+
+> ⚠️ **Emulated AVX2 is slow.** The xrootd dev container is fine for functional
+> testing, but do not benchmark throughput on it. For native speed, run xrootd on
+> an x86_64 Linux host, or build XRootD from source for arm64.
 
 ### Installing Docker Buildx
 

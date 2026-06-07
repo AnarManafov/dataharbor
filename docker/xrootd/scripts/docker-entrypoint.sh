@@ -93,8 +93,22 @@ if ! id -u xrootd >/dev/null 2>&1; then
     useradd -r -s /bin/bash -d /var/spool/xrootd xrootd
 fi
 
-# CRITICAL: Switch to xrootd user but PRESERVE capabilities
-# The multiuser plugin requires CAP_SETUID and CAP_SETGID to change filesystem UIDs
-# Using 'runuser' with '--' preserves capabilities set by setcap
-echo "Starting XRootD as user xrootd with preserved capabilities..."
-exec runuser -u xrootd -- "$@"
+# Start XRootD as the unprivileged 'xrootd' user while keeping CAP_SETUID and
+# CAP_SETGID, which the multiuser plugin needs to seteuid() to the mapped Unix
+# user for each request.
+#
+# The production image relies on file capabilities (setcap on /usr/bin/xrootd)
+# preserved across `runuser`. That does NOT work under QEMU user-mode emulation
+# (the linux/amd64 image on Apple Silicon): the kernel applies file capabilities
+# to the QEMU interpreter, not to the emulated xrootd binary, so after dropping
+# root the caps are gone and the plugin aborts with
+# "multiuser_check_caps: CAP_SETUID not in daemon's permitted set".
+#
+# Ambient capabilities live on the process credentials rather than the binary's
+# xattrs, so they survive the uid switch and are visible through QEMU. xrootd
+# also refuses to run as a superuser, so we must drop to the xrootd user here
+# rather than running as root.
+echo "Starting XRootD as user xrootd with ambient CAP_SETUID/CAP_SETGID..."
+exec setpriv --reuid xrootd --regid xrootd --init-groups \
+	--inh-caps +setuid,+setgid --ambient-caps +setuid,+setgid \
+	-- "$@"
