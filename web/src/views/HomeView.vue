@@ -1,137 +1,153 @@
 <template>
     <div class='home'>
-        <section class='hero is-dark'>
+        <section class='hero'>
             <div class='hero-body'>
                 <div class='container'>
-                    <h1 class='title'>Welcome to DataHarbor</h1>
+                    <h1 class='title'>
+                        {{ isAuthenticated ? `Welcome back, ${greetingName}` : 'Welcome to DataHarbor' }}
+                    </h1>
                     <h2 class='subtitle'>
                         {{ branding.heroSubtitle }}
                     </h2>
                     <div class='button-block'>
-                        <router-link to="/browse" class='button is-primary is-rounded'>
-                            <el-icon class="mr-2" size="large">
+                        <router-link to="/browse" class='cta-button'>
+                            <el-icon class="mr-2" aria-hidden="true">
                                 <FolderOpened />
                             </el-icon>
-                            Start Browsing Files
+                            {{ isAuthenticated ? 'Open File Browser' : 'Start Browsing Files' }}
                         </router-link>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Feature Cards Section -->
+        <!-- Feature highlights -->
         <div class="features-section">
             <div class="container">
-                <div class="features-grid">
-                    <el-card class="feature-card" shadow="hover">
+                <!-- Security spans the full width on top -->
+                <div class="security-card">
+                    <div class="security-header">
                         <div class="feature-icon">
-                            <el-icon size="large" color="var(--el-color-primary)">
-                                <FolderOpened />
-                            </el-icon>
-                        </div>
-                        <h3>Intuitive File Browser</h3>
-                        <p>Navigate directories, inspect metadata, and explore large-scale datasets with ease</p>
-                    </el-card>
-
-                    <el-card class="feature-card" shadow="hover">
-                        <div class="feature-icon">
-                            <el-icon size="large" color="var(--el-color-success)">
-                                <Download />
-                            </el-icon>
-                        </div>
-                        <h3>Efficient Large File Downloads</h3>
-                        <p>Stream multi-gigabyte files directly to your browser, or select multiple files and
-                            download them as a single .tar.gz archive</p>
-                    </el-card>
-
-                    <el-card class="feature-card" shadow="hover">
-                        <div class="feature-icon">
-                            <el-icon size="large" color="var(--el-color-primary)">
-                                <Upload />
-                            </el-icon>
-                        </div>
-                        <h3>Resumable Uploads</h3>
-                        <p>Drag and drop multiple files into any directory. Chunked, SHA-256 verified, and resumable —
-                            pause, resume, or recover interrupted transfers without starting over</p>
-                    </el-card>
-
-                    <el-card class="feature-card" shadow="hover">
-                        <div class="feature-icon">
-                            <el-icon size="large" color="var(--el-color-warning)">
+                            <el-icon size="large" color="var(--el-color-info)" aria-hidden="true">
                                 <Lock />
                             </el-icon>
                         </div>
                         <h3>Enterprise-Grade Security</h3>
-                        <p>OpenID Connect authentication with server-side token management and TLS-encrypted XRootD
-                            connections</p>
-                    </el-card>
+                    </div>
+                    <p class="security-intro">
+                        Your identity and your data are protected at every step, so you can focus on your
+                        research instead of security.
+                    </p>
+                    <div class="security-points">
+                        <div class="security-point">
+                            <el-icon aria-hidden="true">
+                                <UserFilled />
+                            </el-icon>
+                            <div>
+                                <strong>Sign in you can trust</strong>
+                                <span>Login is handled by your own institution. DataHarbor never sees or stores your
+                                    password.</span>
+                            </div>
+                        </div>
+                        <div class="security-point">
+                            <el-icon aria-hidden="true">
+                                <Key />
+                            </el-icon>
+                            <div>
+                                <strong>Your session stays private</strong>
+                                <span>Your access keys are kept safely on the server, never in your browser, and your
+                                    sign-in can't be read by other sites or scripts.</span>
+                            </div>
+                        </div>
+                        <div class="security-point">
+                            <el-icon aria-hidden="true">
+                                <Connection />
+                            </el-icon>
+                            <div>
+                                <strong>Encrypted in transit</strong>
+                                <span>Every connection is protected with TLS encryption, from your browser to
+                                    DataHarbor and on to the storage system.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <el-icon size="large" color="var(--el-color-primary)" aria-hidden="true">
+                                <FolderOpened />
+                            </el-icon>
+                        </div>
+                        <h3>Browse</h3>
+                        <p>Navigate directories, inspect metadata, and explore large-scale datasets with ease</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <el-icon size="large" color="var(--el-color-success)" aria-hidden="true">
+                                <Upload />
+                            </el-icon>
+                        </div>
+                        <h3>Upload</h3>
+                        <p>Drag and drop files into any directory. Chunked, SHA-256 verified, and resumable, so
+                            interrupted transfers pick up where they left off</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <el-icon size="large" color="var(--el-color-warning)" aria-hidden="true">
+                                <Download />
+                            </el-icon>
+                        </div>
+                        <h3>Download</h3>
+                        <p>Stream multi-gigabyte files straight to your browser, or grab several at once as a single
+                            .tar.gz archive</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </template>
 
-<script>
-import { FolderOpened, Download, Upload, Lock } from '@element-plus/icons-vue';
+<script setup>
+import { computed } from 'vue';
+import { FolderOpened, Download, Upload, Lock, UserFilled, Key, Connection } from '@element-plus/icons-vue';
 import { getConfig } from '@/config/config';
+import useAuth from '@/composables/useAuth';
 
-export default {
-    name: 'HomeView',
-    components: {
-        FolderOpened,
-        Download,
-        Upload,
-        Lock
-    },
-    data() {
-        const config = getConfig();
-        return {
-            branding: config.branding || {},
-        };
-    },
-};
+const branding = getConfig().branding || {};
+const { isAuthenticated, user } = useAuth();
+
+// Short, friendly first name for the personalized greeting.
+// Mirrors the name-resolution order used in TopBar.vue.
+const greetingName = computed(() => {
+    const u = user.value;
+    if (!u) return 'there';
+    return u.given_name ||
+        u.name?.split(' ')[0] ||
+        u.preferred_username ||
+        u.email?.split('@')[0] ||
+        'there';
+});
 </script>
 
 
 <style lang="scss" scoped>
 .home {
     min-height: 100%;
+    background: var(--el-bg-color-page);
 }
 
 .hero {
     text-align: center;
-    background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
-    min-height: 35vh;
+    background: var(--el-bg-color-page);
+    min-height: 30vh;
     display: flex;
     align-items: center;
-    position: relative;
-    overflow: hidden;
-
-    &::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
-        opacity: 0.3;
-    }
-
-    &::after {
-        content: '';
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 100px;
-        background: linear-gradient(to bottom, transparent, rgba(248, 249, 250, 0.1));
-    }
 
     .hero-body {
-        position: relative;
-        z-index: 1;
-        padding: 3rem 1.5rem;
+        padding: 3rem 1.5rem 1rem;
         width: 100%;
 
         .container {
@@ -142,115 +158,208 @@ export default {
 }
 
 .title {
-    color: white;
+    color: var(--el-text-color-primary);
     font-size: 3rem;
     font-weight: 700;
     margin-bottom: 1rem;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
     line-height: 1.2;
 }
 
 .subtitle {
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--el-text-color-regular);
     font-size: 1.3rem;
     font-weight: 400;
     margin-bottom: 2.5rem;
-    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
     line-height: 1.4;
 }
 
 .button-block {
     margin-top: 2.5rem;
 
-    .button {
+    // Blue gradient drawn from the app's primary palette so it tracks the
+    // active theme (light/dark) once a theme toggle is added.
+    .cta-button {
         display: inline-flex;
         align-items: center;
         padding: 1rem 2.5rem;
         font-size: 1.1rem;
         font-weight: 600;
         border-radius: 50px;
-        background: rgba(255, 255, 255, 0.95);
-        color: var(--el-color-primary);
-        border: 2px solid rgba(255, 255, 255, 0.2);
+        background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
+        color: var(--el-color-white);
+        border: none;
         transition: all 0.3s ease;
         text-decoration: none;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--dh-shadow-md);
 
         &:hover {
             transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-            background: white;
-            color: var(--el-color-primary-dark-2);
+            box-shadow: var(--dh-shadow-lg);
         }
     }
 }
 
 .features-section {
-    padding: 4rem 0;
+    padding: 2rem 0 4rem;
     background: var(--el-bg-color-page);
 
     .container {
-        max-width: 1200px;
+        max-width: 1100px;
         margin: 0 auto;
         padding: 0 2rem;
     }
 }
 
-.features-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 2rem;
-}
-
-.feature-card {
-    text-align: center;
-    padding: 2rem 1.5rem;
+/* ── Security card (full width, centered header) ───────────── */
+.security-card {
+    padding: 2rem;
     border-radius: 12px;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-light);
+    box-shadow: var(--dh-shadow-sm);
     transition: all 0.3s ease;
-    border: none;
 
     &:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        box-shadow: var(--dh-shadow-lg);
+        border-color: var(--el-color-primary-light-5);
     }
+}
+
+.security-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
 
     .feature-icon {
-        margin-bottom: 1.5rem;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: var(--el-color-primary-light-9);
-        margin: 0 auto 1.5rem;
+        width: 48px;
+        height: 48px;
+        margin: 0;
     }
 
     h3 {
         font-size: 1.5rem;
         font-weight: 600;
-        margin-bottom: 1rem;
+        margin: 0;
+        color: var(--el-text-color-primary);
+    }
+}
+
+.security-intro {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto 2rem;
+    color: var(--el-text-color-regular);
+    line-height: 1.6;
+}
+
+.security-points {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+}
+
+.security-point {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+
+    .el-icon {
+        color: var(--el-color-primary);
+        font-size: 1.25rem;
+        flex-shrink: 0;
+        margin-top: 0.15rem;
+    }
+
+    strong {
+        display: block;
+        color: var(--el-text-color-primary);
+        font-weight: 600;
+        font-size: 0.975rem;
+        margin-bottom: 0.25rem;
+    }
+
+    span {
+        color: var(--el-text-color-regular);
+        font-size: 0.9rem;
+        line-height: 1.55;
+    }
+}
+
+/* ── Action cards ──────────────────────────────────────────── */
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.75rem;
+    margin-top: 1.75rem;
+}
+
+.feature-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 2rem 1.5rem;
+    border-radius: 12px;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-light);
+    box-shadow: var(--dh-shadow-sm);
+    transition: all 0.3s ease;
+
+    &:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--dh-shadow-lg);
+        border-color: var(--el-color-primary-light-5);
+    }
+
+    h3 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
         color: var(--el-text-color-primary);
     }
 
     p {
         color: var(--el-text-color-regular);
         line-height: 1.6;
+        margin: 0;
     }
+}
+
+.feature-icon {
+    margin: 0 auto 1.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--el-color-primary-light-9);
+    flex-shrink: 0;
 }
 
 .mr-2 {
     margin-right: 0.5rem;
 }
 
+@media (max-width: 900px) {
+    .security-points {
+        grid-template-columns: 1fr;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .hero {
-        min-height: 30vh;
+        min-height: 25vh;
 
         .hero-body {
-            padding: 2rem 1rem;
+            padding: 2rem 1rem 0.5rem;
         }
     }
 
@@ -263,18 +372,18 @@ export default {
         margin-bottom: 2rem;
     }
 
-    .button-block .button {
+    .button-block .cta-button {
         padding: 0.8rem 2rem;
         font-size: 1rem;
     }
 
-    .features-grid {
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
+    .security-header {
+        flex-direction: column;
+        text-align: center;
     }
 
     .features-section {
-        padding: 2rem 0;
+        padding: 1rem 0 2rem;
 
         .container {
             padding: 0 1rem;

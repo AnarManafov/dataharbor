@@ -5,52 +5,37 @@
             <div class="login-header">
                 <div class="logo-section">
                     <img src="/assets/dataharbor-logo.svg" alt="DataHarbor" class="logo" />
-                    <h1>DataHarbor</h1>
                 </div>
-                <p class="login-subtitle">Sign in to access your files</p>
             </div>
 
-            <el-card class="login-card" shadow="hover">
-                <div v-if="loading" class="loading-section">
-                    <el-icon class="loading-icon">
-                        <Loading />
-                    </el-icon>
-                    <p class="loading-text">Authenticating...</p>
-                </div>
-                <div v-else class="login-content">
-                    <h2>Welcome Back</h2>
-                    <p class="login-description">
-                        {{ branding.loginDescription }}
-                    </p>
-
-                    <div class="login-form">
-                        <el-button type="primary" :loading="loading" size="large" class="login-button"
-                            @click="handleLogin">
-                            <el-icon class="button-icon">
-                                <User />
-                            </el-icon>
-                            {{ branding.loginButtonText }}
-                        </el-button>
-
-                        <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon class="error-alert"
-                            :closable="false" />
-                    </div>
-
-                    <div class="help-section">
-                        <p>Need help? <a href="https://github.com/AnarManafov/dataharbor/issues" target="_blank"
-                                rel="noopener noreferrer" class="help-link">Report an issue</a></p>
-                    </div>
-                </div>
-            </el-card>
-
-            <div class="login-footer">
-                <p>&copy; 2026 GSI Helmholtzzentrum f&uuml;r Schwerionenforschung GmbH</p>
-                <p class="footer-links">
-                    <a href="https://www.gsi.de/impressum" target="_blank" rel="noopener noreferrer">Impressum</a>
-                    <span>&middot;</span>
-                    <a href="https://www.gsi.de/en/data-privacy-protection" target="_blank"
-                        rel="noopener noreferrer">Data privacy protection</a>
+            <div v-if="loading" class="loading-section">
+                <el-icon class="loading-icon">
+                    <Loading />
+                </el-icon>
+                <p class="loading-text">Authenticating...</p>
+            </div>
+            <div v-else class="login-content">
+                <p class="login-description">
+                    {{ branding.loginDescription }}
                 </p>
+
+                <div class="login-form">
+                    <el-button type="primary" :loading="loading" size="large" class="login-button"
+                        @click="handleLogin">
+                        <el-icon class="button-icon">
+                            <User />
+                        </el-icon>
+                        Sign in to access your files
+                    </el-button>
+
+                    <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon class="error-alert"
+                        :closable="false" />
+                </div>
+
+                <div class="help-section">
+                    <p>Need help? <a href="https://github.com/AnarManafov/dataharbor/issues" target="_blank"
+                            rel="noopener noreferrer" class="help-link">Report an issue</a></p>
+                </div>
             </div>
         </div>
     </div>
@@ -116,58 +101,42 @@ export default {
 </script>
 
 <style scoped>
+/* Fill the main content area (viewport minus the top bar) without exceeding it,
+   so the global footer stays visible and the page doesn't scroll. */
 .login-view {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100%;
+    background: var(--el-bg-color-page);
     display: flex;
-    align-items: center;
     justify-content: center;
     padding: 2rem;
+    box-sizing: border-box;
 }
 
+/* Full-height column: logo pinned to top, button centered in the middle
+   (via auto margins on .login-content), footer at the bottom. */
 .login-container {
     width: 100%;
     max-width: 450px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .login-header {
     text-align: center;
-    margin-bottom: 2rem;
+    width: 100%;
 
     .logo-section {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 1rem;
-        margin-bottom: 1rem;
 
         .logo {
-            width: 48px;
-            height: 48px;
-        }
-
-        h1 {
-            color: white;
-            font-size: 2rem;
-            font-weight: 700;
-            margin: 0;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            width: 400px;
+            height: auto;
+            max-width: 100%;
         }
     }
-
-    .login-subtitle {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1.1rem;
-        font-weight: 300;
-        margin: 0;
-    }
-}
-
-.login-card {
-    border-radius: 16px;
-    border: none;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
 }
 
 .loading-section {
@@ -189,15 +158,8 @@ export default {
 }
 
 .login-content {
-    padding: 3rem 2rem;
-
-    h2 {
-        color: var(--el-text-color-primary);
-        font-size: 1.75rem;
-        font-weight: 600;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
+    width: 100%;
+    margin: auto 0;
 
     .login-description {
         color: var(--el-text-color-regular);
@@ -209,22 +171,37 @@ export default {
 
 .login-form {
     margin-bottom: 2rem;
+    text-align: center;
 
+    /* Centered primary action styled to match the home "Open File Browser"
+       CTA: blue gradient from the app palette, pill shape, theme-aware shadow. */
     .login-button {
-        width: 100%;
-        height: 48px;
-        font-size: 1rem;
-        font-weight: 500;
-        border-radius: 8px;
+        height: 52px;
+        padding: 0 2.5rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 50px;
+        background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
+        border: none;
+        color: var(--el-color-white);
+        box-shadow: var(--dh-shadow-md);
         transition: all 0.3s ease;
 
         .button-icon {
-            margin-right: 0.5rem;
+            margin-right: 0.6rem;
+            font-size: 1.35em;
         }
 
-        &:hover {
+        &:hover,
+        &:focus {
+            background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-dark-2) 100%);
+            color: var(--el-color-white);
             transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            box-shadow: var(--dh-shadow-lg);
+        }
+
+        &:active {
+            transform: translateY(0);
         }
     }
 
@@ -256,39 +233,6 @@ export default {
     }
 }
 
-.login-footer {
-    text-align: center;
-    margin-top: 2rem;
-
-    p {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 0.8rem;
-        margin: 0;
-    }
-
-    .footer-links {
-        margin-top: 0.4rem;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 0.4rem;
-
-        a {
-            color: rgba(255, 255, 255, 0.6);
-            text-decoration: none;
-
-            &:hover {
-                color: white;
-                text-decoration: underline;
-            }
-        }
-
-        span {
-            color: rgba(255, 255, 255, 0.4);
-        }
-    }
-}
-
 @keyframes rotating {
     from {
         transform: rotate(0deg);
@@ -305,20 +249,9 @@ export default {
     }
 
     .login-header {
-        .logo-section h1 {
-            font-size: 1.5rem;
-        }
-
-        .login-subtitle {
-            font-size: 1rem;
-        }
-    }
-
-    .login-content {
-        padding: 2rem 1.5rem;
-
-        h2 {
-            font-size: 1.5rem;
+        .logo-section .logo {
+            width: 280px;
+            height: auto;
         }
     }
 }

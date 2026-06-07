@@ -17,7 +17,7 @@
                                 DataHarbor bridges the gap between high-performance computing storage and
                                 the web browser. By integrating directly with your storage via
                                 the XRootD protocol, it gives researchers fast, secure access to their data
-                                from anywhere — without specialized client software.
+                                from anywhere, without specialized client software.
                             </p>
                         </div>
                         <div class="divider" />
@@ -50,7 +50,7 @@
                                         <Check />
                                     </el-icon>
                                     <span><strong>Resumable uploads</strong> — drag-and-drop multi-file uploads, chunked
-                                        and SHA-256 verified, that you can pause, resume and cancel — interrupted
+                                        and SHA-256 verified, that you can pause, resume and cancel. Interrupted
                                         transfers pick up where they left off</span>
                                 </li>
                                 <li>
@@ -139,13 +139,12 @@ export default {
 <style lang="scss" scoped>
 .about {
     min-height: 100%;
-    background: #f8f9fa;
+    background: var(--el-bg-color-page);
 }
 
 .page-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 3rem 0;
+    background: var(--el-bg-color-page);
+    padding: 3rem 0 1rem;
     text-align: center;
 
     .container {
@@ -156,16 +155,16 @@ export default {
 }
 
 .page-title {
+    color: var(--el-text-color-primary);
     font-size: 3rem;
     font-weight: 700;
     margin-bottom: 0.75rem;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .page-subtitle {
+    color: var(--el-text-color-regular);
     font-size: 1.1rem;
     font-weight: 300;
-    opacity: 0.85;
 }
 
 .content-section {

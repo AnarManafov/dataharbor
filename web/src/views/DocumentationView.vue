@@ -165,7 +165,7 @@
                     <p>
                         You can upload files from your computer straight into the directory you are
                         viewing. Uploads are split into chunks, verified end-to-end with an SHA-256
-                        checksum, and are fully resumable — if a transfer is paused or interrupted it
+                        checksum, and are fully resumable. If a transfer is paused or interrupted it
                         continues from the last completed chunk rather than starting over.
                     </p>
 
@@ -184,7 +184,7 @@
                             <strong>Handling conflicts</strong> — if a file already exists in the
                             destination, pick a per-file action: <em>fail</em>, <em>skip</em>,
                             <em>rename</em>, or <em>overwrite</em> (when the server allows it). An
-                            overwrite is performed safely — your existing file is restored if publishing
+                            overwrite is performed safely: your existing file is restored if publishing
                             the new one fails.
                         </li>
                         <li>
@@ -206,7 +206,7 @@
                         </el-icon> Authentication</h2>
                     <p>
                         DataHarbor uses OpenID Connect (OIDC) single sign-on. Your institutional
-                        identity provider handles the login — DataHarbor never sees your password.
+                        identity provider handles the login, so DataHarbor never sees your password.
                     </p>
 
                     <ul class="feature-list">
@@ -273,13 +273,12 @@ export default {
 <style lang="scss" scoped>
 .documentation {
     min-height: 100vh;
-    background: #f8f9fa;
+    background: var(--el-bg-color-page);
 }
 
 .page-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 3rem 0;
+    background: var(--el-bg-color-page);
+    padding: 3rem 0 1rem;
     text-align: center;
 
     .container {
@@ -290,16 +289,16 @@ export default {
 }
 
 .page-title {
+    color: var(--el-text-color-primary);
     font-size: 3rem;
     font-weight: 700;
     margin-bottom: 0.75rem;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .page-subtitle {
+    color: var(--el-text-color-regular);
     font-size: 1.1rem;
     font-weight: 300;
-    opacity: 0.85;
 }
 
 .content-section {
