@@ -52,7 +52,7 @@
                             }}%</span>
                     </span>
                 </div>
-                <div style='font-size: 10px; color: var(--el-text-color-secondary); margin-top: 2px;'
+                <div style='font-size: var(--dh-font-size-2xs); color: var(--el-text-color-secondary); margin-top: 2px;'
                     :title='currentDirectory'>
                     {{ currentDirectory }}
                 </div>
@@ -238,7 +238,7 @@ const downloadCount = computed(() => downloadSpeeds.value.length);
 }
 
 .el-breadcrumb {
-    font-size: 16px;
+    font-size: var(--dh-font-size-base);
     width: 100%;
     white-space: nowrap;
     overflow: hidden;
@@ -253,7 +253,7 @@ const downloadCount = computed(() => downloadSpeeds.value.length);
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: var(--dh-font-size-xs);
     white-space: nowrap;
     color: var(--el-text-color-secondary);
 }
@@ -273,7 +273,7 @@ const downloadCount = computed(() => downloadSpeeds.value.length);
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+    font-size: var(--dh-font-size-xs);
     white-space: nowrap;
 }
 
@@ -319,7 +319,7 @@ const downloadCount = computed(() => downloadSpeeds.value.length);
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: var(--dh-font-size-xs);
     white-space: nowrap;
     color: var(--el-text-color-secondary);
 }
@@ -333,7 +333,7 @@ const downloadCount = computed(() => downloadSpeeds.value.length);
 }
 
 .net-stat-icon {
-    font-size: 8px;
+    font-size: var(--dh-font-size-2xs);
     margin-right: 2px;
 }
 

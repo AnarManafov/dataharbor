@@ -1027,11 +1027,11 @@ function onDismissUploadPanel() {
 
 /* GitHub-style pagination sizing */
 :deep(.el-pagination) {
-	font-size: 12px;
+	font-size: var(--dh-font-size-sm);
 }
 
 :deep(.el-pagination .el-pager li) {
-	font-size: 12px;
+	font-size: var(--dh-font-size-sm);
 }
 
 /* Responsive adjustments */
@@ -1073,7 +1073,7 @@ function onDismissUploadPanel() {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 14px;
+	font-size: var(--dh-font-size-sm);
 	color: var(--el-text-color-primary);
 }
 

@@ -94,14 +94,17 @@
   --dh-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   --dh-font-family-mono: 'SFMono-Regular', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
   
-  /* Typography scale */
-  --dh-font-size-xs: 0.75rem;    /* 12px */
-  --dh-font-size-sm: 0.875rem;   /* 14px */
-  --dh-font-size-base: 1rem;     /* 16px */
-  --dh-font-size-lg: 1.125rem;   /* 18px */
-  --dh-font-size-xl: 1.25rem;    /* 20px */
-  --dh-font-size-2xl: 1.5rem;    /* 24px */
-  --dh-font-size-3xl: 1.875rem;  /* 30px */
+  /* Typography scale.
+   * px comments are resolved against the 14px root set on <html> (see below).
+   * Everything is rem so the whole scale follows that single root knob. */
+  --dh-font-size-2xs: 0.625rem;  /* 8.75px - tiny labels (paths, status dots, version) */
+  --dh-font-size-xs: 0.75rem;    /* 10.5px */
+  --dh-font-size-sm: 0.875rem;   /* 12.25px */
+  --dh-font-size-base: 1rem;     /* 14px */
+  --dh-font-size-lg: 1.125rem;   /* 15.75px */
+  --dh-font-size-xl: 1.25rem;    /* 17.5px */
+  --dh-font-size-2xl: 1.5rem;    /* 21px */
+  --dh-font-size-3xl: 1.875rem;  /* 26.25px */
   
   /* Line heights */
   --dh-line-height-tight: 1.25;
@@ -258,7 +261,17 @@ body > .el-notification,
 /* Global body and html styles - ensures teleported components inherit proper fonts */
 html {
   font-family: var(--dh-font-family);
-  font-size: var(--dh-font-size-base);
+  /*
+   * Root font size = the single knob for the whole UI scale.
+   * Everything else (--dh-font-size-*, paddings, Element Plus sizing) is
+   * expressed in rem and scales relatively from this value.
+   *
+   * Browsers default the root to 16px; GitHub's UI renders at ~14px, which
+   * is why this app felt comparatively large. 87.5% of 16px = 14px to match
+   * GitHub's density while keeping all relative (sm/lg/...) tokens intact.
+   * Bump to 90.625% (≈14.5px) or 93.75% (15px) if you want it slightly larger.
+   */
+  font-size: 87.5%;
   line-height: var(--dh-line-height-normal);
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
@@ -288,6 +301,7 @@ samp {
 }
 
 /* Typography utility classes for consistent text styling */
+.dh-text-2xs { font-size: var(--dh-font-size-2xs) !important; }
 .dh-text-xs { font-size: var(--dh-font-size-xs) !important; }
 .dh-text-sm { font-size: var(--dh-font-size-sm) !important; }
 .dh-text-base { font-size: var(--dh-font-size-base) !important; }

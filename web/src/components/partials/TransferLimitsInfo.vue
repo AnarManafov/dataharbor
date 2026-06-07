@@ -67,19 +67,19 @@ function formatSize(bytes) {
   list-style: none;
   padding: 0;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--dh-font-size-sm);
   line-height: 1.7;
 }
 
 .section-title {
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--dh-font-size-sm);
   color: var(--el-color-primary);
   margin-bottom: 4px;
 }
 
 .muted {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
+  font-size: var(--dh-font-size-sm);
 }
 </style>
