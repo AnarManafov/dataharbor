@@ -186,7 +186,10 @@ services:
 
   # XRootD server for local development
   xrootd:
-    platform: linux/amd64 # Required - XRootD packages not available for ARM64
+    # Required - XRootD (Rocky Linux 10) packages are x86_64 only.
+    # Rocky 10 needs x86-64-v3 (AVX2); Apple Silicon needs a v3-capable QEMU.
+    # See docker/README.md -> "Apple Silicon (ARM64) Users - QEMU Setup".
+    platform: linux/amd64
     build:
       context: ..
       dockerfile: docker/xrootd/Dockerfile
