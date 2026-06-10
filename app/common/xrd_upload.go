@@ -63,7 +63,15 @@ func (xc *XRDClient) OpenUploadFile(ctx context.Context, authToken, path string,
 	xc.logger.Infow("Opening file for upload",
 		"path", path, "overwrite", overwrite, "server", xc.address)
 
-	client, err := xc.createClient(ctx, authToken)
+	// The handle (and its XRootD connection) outlives this HTTP request: chunk
+	// writes and the final complete/close arrive as separate requests over the
+	// session's multi-hour lifetime. The xrootd client wires the context passed
+	// at creation into its response-reader goroutine, so inheriting the request
+	// context would stop response delivery as soon as this request finishes —
+	// later chunk acks and the kXR_close reply would then never be received and
+	// those calls would block. Detach the client's lifetime from the request.
+	clientCtx := context.WithoutCancel(ctx)
+	client, err := xc.createClient(clientCtx, authToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
