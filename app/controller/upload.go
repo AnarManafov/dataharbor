@@ -790,13 +790,17 @@ func CompleteUpload(c *gin.Context) {
 	start := time.Now()
 
 	// Close the handle to flush the temp file. Guarded by writeMu so we never
-	// close it out from under an in-flight chunk write.
+	// close it out from under an in-flight chunk write. Bounded so a stalled
+	// XRootD server fails the request instead of hanging it indefinitely (the
+	// request context itself carries no deadline).
 	sess.writeMu.Lock()
 	handle := sess.handle
 	sess.handle = nil // prevent double-close
 	var closeErr error
 	if handle != nil {
-		closeErr = handle.Close(ctx)
+		closeCtx, cancelClose := context.WithTimeout(ctx, 30*time.Second)
+		closeErr = handle.Close(closeCtx)
+		cancelClose()
 	}
 	sess.writeMu.Unlock()
 	if closeErr != nil {
