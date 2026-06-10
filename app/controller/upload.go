@@ -961,7 +961,10 @@ func terminateSession(sess *uploadSession, newState, reason string, closeHandle 
 			_ = h.Close(ctx)
 		}
 	}
-	_ = common.GetXRDClient().RemoveFile(ctx, sess.UserToken, sess.TempPath)
+	if err := common.GetXRDClient().RemoveFile(ctx, sess.UserToken, sess.TempPath); err != nil {
+		common.GetLogger().Warnw("failed to remove upload temp file (orphan left behind)",
+			"uploadId", sess.ID, "temp", sess.TempPath, "error", err)
+	}
 	sess.batch.done()
 	uploadStore.delete(sess.ID)
 	return true
