@@ -43,7 +43,7 @@
                         :content='getDownloadEstimate(scope.row)' :disabled='!hasEstimate(scope.row)' placement='left'
                         effect='dark'>
                         <el-button @click='downloadFile(scope.row)' size='small' type='primary' :icon='Download'
-                            :loading='scope.row.downloading' :disabled='scope.row.downloading' circle>
+                            circle>
                         </el-button>
                     </el-tooltip>
                 </div>

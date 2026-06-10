@@ -4,7 +4,6 @@ import BrowseXrdView from '../views/BrowseXrdView.vue'
 import AboutView from '../views/AboutView.vue'
 import DocumentationView from '../views/DocumentationView.vue'
 import LoginView from '../views/LoginView.vue'
-import DownloadTestView from '../views/DownloadTestView.vue'
 import OidcCallbackComponent from '../components/partials/OidcCallbackComponent.vue'
 import OidcCallbackError from '../components/partials/OidcCallbackError.vue'
 import { useAuth } from '../composables/useAuth'
@@ -52,12 +51,6 @@ const routes = [
         name: 'login',
         component: LoginView,
         meta: { isPublic: true }
-    },
-    {
-        path: '/download-test',
-        name: 'downloadTest',
-        component: DownloadTestView,
-        meta: { requiresAuth: true }
     },
     // Authentication callback routes for OIDC flow
     {

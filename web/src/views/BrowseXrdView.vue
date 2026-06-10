@@ -61,8 +61,7 @@
 					</div>
 					<div class="batch-action-buttons">
 						<el-button size="small" @click="clearFileSelection">Clear</el-button>
-						<el-button size="small" type="primary" :icon="Download" :loading="batchDownloading"
-							:disabled="batchDownloading" @click="handleBatchDownload">
+						<el-button size="small" type="primary" :icon="Download" @click="handleBatchDownload">
 							Download as .tar.gz
 						</el-button>
 					</div>
@@ -125,7 +124,7 @@ const initialPath = ref("");
 const isBackendOnline = ref(false);
 const vfsStat = ref(null);
 
-const { recordDownloadSpeed, updateLatency, updateQueryTime, _isPinging } = useNetworkStats();
+const { updateLatency, updateQueryTime, _isPinging } = useNetworkStats();
 
 const PAGE_SIZE = 500;
 
@@ -136,7 +135,6 @@ const currentDirectory = ref(useStorage('currentDirectory', '', sessionStorage))
 const fileTableRef = ref(null);
 // Batch selection state
 const selectedFiles = ref([]);
-const batchDownloading = ref(false);
 // Computed total size of selected files
 const selectedFilesSize = computed(() => {
 	const total = selectedFiles.value.reduce((acc, f) => acc + (f.size || 0), 0);
@@ -492,15 +490,12 @@ const selectDir = async (row: { type: string; name: string; }) => {
 }
 
 /**
- * Handle file download using StreamSaver.js
+ * Handle file download. The transfer itself is owned by the browser's native
+ * download engine (we only start it), so progress and completion show up in
+ * the browser's downloads UI, not in the app.
  * @param {Object} row - The file row object
  */
-const handleDownloadFile = async (row: { name: string; size?: number; downloading?: boolean }) => {
-	if (row.downloading) {
-		console.log('Download already in progress for:', row.name);
-		return;
-	}
-
+const handleDownloadFile = async (row: { name: string; size?: number }) => {
 	const filePath = joinPaths(currentDirectory.value, row.name);
 
 	try {
@@ -515,44 +510,13 @@ const handleDownloadFile = async (row: { name: string; size?: number; downloadin
 			}
 		);
 
-		// Set downloading state
-		row.downloading = true;
+		DownloadService.downloadFile(filePath, row.name);
 
 		ElMessage({
-			type: 'info',
-			message: `Starting download: ${row.name}`,
-			duration: 2000
+			type: 'success',
+			message: `Download started: ${row.name} — see your browser's downloads`,
+			duration: 5000
 		});
-
-		// Use StreamSaver for download
-		const result = await DownloadService.downloadFile(
-			filePath,
-			row.name,
-			row.size || 0
-		);
-
-		if (result.success) {
-			let message = `Download completed: ${row.name}`;
-			if (result.speed) {
-				const { mbps, duration, bytesPerSec } = result.speed;
-				const sizeMB = ((row.size || 0) / (1024 * 1024)).toFixed(1);
-				message += ` (${sizeMB} MB in ${duration}s at ${mbps} MB/s)`;
-				// Record speed for estimation
-				recordDownloadSpeed(bytesPerSec);
-			}
-
-			ElMessage({
-				type: 'success',
-				message: message,
-				duration: 5000 // Longer duration for speed info
-			});
-		} else {
-			ElMessage({
-				type: 'error',
-				message: `Download failed: ${result.error}`,
-				duration: 5000
-			});
-		}
 	} catch (error) {
 		if (error === 'cancel' || error === 'close') {
 			console.log('Download cancelled by user');
@@ -564,9 +528,6 @@ const handleDownloadFile = async (row: { name: string; size?: number; downloadin
 				duration: 5000
 			});
 		}
-	} finally {
-		// Clear downloading state
-		row.downloading = false;
 	}
 }
 
@@ -605,32 +566,13 @@ const handleBatchDownload = async () => {
 			}
 		);
 
-		batchDownloading.value = true;
+		DownloadService.downloadBatch(currentDirectory.value, fileNames);
 
 		ElMessage({
-			type: 'info',
-			message: `Starting batch download: ${fileNames.length} files`,
-			duration: 2000
+			type: 'success',
+			message: `Download started: ${fileNames.length} files — see your browser's downloads`,
+			duration: 5000
 		});
-
-		const result = await DownloadService.downloadBatch(
-			currentDirectory.value,
-			fileNames,
-			totalSize
-		);
-
-		if (result.success) {
-			let message = `Batch download completed: ${fileNames.length} files`;
-			if (result.speed) {
-				const { mbps, duration } = result.speed;
-				const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
-				message += ` (${sizeMB} MB in ${duration}s at ${mbps} MB/s)`;
-				recordDownloadSpeed(result.speed.bytesPerSec);
-			}
-			ElMessage({ type: 'success', message, duration: 5000 });
-		} else {
-			ElMessage({ type: 'error', message: `Batch download failed: ${result.error}`, duration: 5000 });
-		}
 	} catch (error) {
 		if (error === 'cancel' || error === 'close') {
 			console.log('Batch download cancelled by user');
@@ -642,8 +584,6 @@ const handleBatchDownload = async () => {
 				duration: 5000
 			});
 		}
-	} finally {
-		batchDownloading.value = false;
 	}
 };
 

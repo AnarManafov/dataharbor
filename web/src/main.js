@@ -1,9 +1,6 @@
 import 'element-plus/dist/index.css';
 import './styles/theme.css';
 
-// Load stream polyfill for browser compatibility
-import './services/streamPolyfill.js';
-
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import store from './store';
