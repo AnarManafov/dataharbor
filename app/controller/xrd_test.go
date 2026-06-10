@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AnarManafov/dataharbor/app/config"
+	"github.com/AnarManafov/dataharbor/app/request"
 	"go-hep.org/x/hep/xrootd/xrdfs"
 )
 
@@ -1431,4 +1432,54 @@ func TestGetDownloadSlots_EnforcesPerUserCap(t *testing.T) {
 	rel2, err := slots.Acquire("user_bob")
 	assert.NoError(t, err, "slot is reusable after release")
 	rel2()
+}
+
+// ============================================
+// bindBatchDownloadRequest Tests
+// ============================================
+
+// The batch download endpoint accepts both JSON (fetch/StreamSaver path) and a
+// classic HTML form post (Safari native-download path). See bindBatchDownloadRequest.
+func TestBindBatchDownloadRequest(t *testing.T) {
+	t.Run("form urlencoded with repeated files fields", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := "basePath=%2Fdata&files=a.txt&files=b.txt"
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		var req request.BatchDownloadRequest
+		err := bindBatchDownloadRequest(c, &req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "/data", req.BasePath)
+		assert.Equal(t, []string{"a.txt", "b.txt"}, req.Files)
+	})
+
+	t.Run("form missing fields is rejected", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader("basePath=%2Fdata"))
+		c.Request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+		var req request.BatchDownloadRequest
+		err := bindBatchDownloadRequest(c, &req)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("json body still binds", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		body := `{"basePath": "/data", "files": ["a.txt"]}`
+		c.Request = httptest.NewRequest("POST", "/api/v1/xrd/download/batch", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		var req request.BatchDownloadRequest
+		err := bindBatchDownloadRequest(c, &req)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "/data", req.BasePath)
+		assert.Equal(t, []string{"a.txt"}, req.Files)
+	})
 }

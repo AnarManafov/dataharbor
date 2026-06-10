@@ -966,11 +966,30 @@ func validateBatchFileName(name string) error {
 	return nil
 }
 
+// bindBatchDownloadRequest accepts the batch download parameters either as the
+// canonical JSON body or as a classic HTML form post (`basePath` plus repeated
+// `files` fields). The form variant exists for browsers where the download has
+// to be driven by native form navigation instead of fetch streaming (Safari
+// blocks the service-worker machinery StreamSaver relies on).
+func bindBatchDownloadRequest(c *gin.Context, req *request.BatchDownloadRequest) error {
+	switch c.ContentType() {
+	case "application/x-www-form-urlencoded", "multipart/form-data":
+		req.BasePath = c.PostForm("basePath")
+		req.Files = c.PostFormArray("files")
+		if req.BasePath == "" || len(req.Files) == 0 {
+			return fmt.Errorf("basePath and files form fields are required")
+		}
+		return nil
+	default:
+		return c.ShouldBindJSON(req)
+	}
+}
+
 // DownloadMultipleFiles streams multiple files as a tar (optionally gzipped) archive.
 // Each file is read from XRootD and written to the tar stream on-the-fly — no server-side caching.
 func DownloadMultipleFiles(c *gin.Context) {
 	var req request.BatchDownloadRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := bindBatchDownloadRequest(c, &req); err != nil {
 		response.Error(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
