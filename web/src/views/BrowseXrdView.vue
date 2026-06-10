@@ -82,7 +82,7 @@
 		<UploadProgressPanel
 			:state="uploadService.state"
 			@pause="uploadService.pauseAll"
-			@resume="() => uploadService.resumeAll(currentDirectory)"
+			@resume="uploadService.resumeAll"
 			@abort="uploadService.abortAll"
 			@dismiss="onDismissUploadPanel"
 		/>
@@ -874,11 +874,9 @@ async function onUploadConfirm(decisions) {
 }
 
 function onDismissUploadPanel() {
-	// Dismissing just clears the panel state (keeps uploadService in idle).
-	uploadService.state.files = [];
-	uploadService.state.status = 'idle';
-	uploadService.state.overall.totalBytes = 0;
-	uploadService.state.overall.transferredBytes = 0;
+	// Clears the panel and aborts any server-side sessions still alive, so
+	// dismissing a paused/failed batch frees its concurrency slot right away.
+	uploadService.reset();
 }
 </script>
 

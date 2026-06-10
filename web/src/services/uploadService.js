@@ -145,10 +145,26 @@ export function createUploadService(opts = {}) {
   }
 
   /**
+   * Abort (fire-and-forget) every server-side session from the current batch
+   * that is not in a terminal state. Paused or errored files keep their
+   * session — and the batch concurrency slot it pins — alive on the server
+   * until the idle janitor fires, so dropping them locally without this call
+   * leaks slots and leaves ".dh-upload" temp files behind.
+   */
+  function releaseStaleSessions() {
+    for (const f of state.files) {
+      if (f.uploadId && !['done', 'skipped', 'aborted'].includes(f.state)) {
+        abortUpload(f.uploadId).catch(() => { })
+      }
+    }
+  }
+
+  /**
    * Populate state.files from an enumeration result, in `queued` state, with
    * default conflict resolution `fail`.
    */
   function prepare(items) {
+    releaseStaleSessions()
     state.files = items.map((it, idx) => ({
       id: `f_${idx}_${it.file.name}`,
       file: it.file,
@@ -273,13 +289,29 @@ export function createUploadService(opts = {}) {
       uploadOne(f, chunkSize)
     )
 
-    // --- Compute final batch status.
+    finalizeBatchStatus()
+  }
+
+  /**
+   * Compute the terminal batch status once the upload workers have drained.
+   * A paused batch must stay `paused` — the workers also exit when the user
+   * pauses, and stamping `completed` here would hide the Resume control.
+   */
+  function finalizeBatchStatus() {
+    if (state.status === 'aborted') {
+      return // leave as-is
+    }
+    const anyPaused = state.files.some(
+      (f) => f.state === 'paused' || (f.state === 'queued' && f.uploadId)
+    )
+    if (anyPaused) {
+      state.status = 'paused'
+      return
+    }
     const anyErr = state.files.some((f) => f.state === 'error')
     const anyDone = state.files.some((f) => f.state === 'done')
     const anySkipped = state.files.some((f) => f.state === 'skipped')
-    if (state.status === 'aborted') {
-      // leave as-is
-    } else if (anyErr && !anyDone) {
+    if (anyErr && !anyDone) {
       state.status = 'failed'
     } else if (!anyDone && !anyErr && anySkipped) {
       // Nothing was actually uploaded — every file was skipped (e.g. conflicts
@@ -344,6 +376,9 @@ export function createUploadService(opts = {}) {
         }
         f.state = 'error'
         f.error = 'chunk failed: ' + errMsg(err)
+        // The client gives up on this file; free its server-side session (and
+        // the batch slot it pins) instead of waiting for the idle janitor.
+        abortUpload(f.uploadId).catch(() => { })
         return
       } finally {
         f._controller = null
@@ -361,20 +396,26 @@ export function createUploadService(opts = {}) {
     } catch (err) {
       f.state = 'error'
       f.error = 'verify failed: ' + errMsg(err)
+      // Most complete-failures are already terminated server-side (the abort
+      // then 404s harmlessly), but resumable ones would otherwise pin the slot.
+      abortUpload(f.uploadId).catch(() => { })
     }
   }
 
-  /** Pause all in-flight uploads; can be resumed with start() again. */
+  /** Pause all in-flight uploads; can be resumed with resumeAll(). */
   function pauseAll() {
     state.status = 'paused'
     for (const f of state.files) {
       f._paused = true
       if (f._controller) f._controller.abort()
     }
+    // Drop partial-chunk progress from the display; only committed bytes
+    // survive a pause (the server resumes from the last committed offset).
+    state.overall.transferredBytes = sumTransferred()
   }
 
   /** Resume a previously paused batch (reuses existing uploadIds). */
-  async function resumeAll(destDir) {
+  async function resumeAll() {
     for (const f of state.files) {
       f._paused = false
       if (f.state === 'paused') f.state = 'queued'
@@ -385,8 +426,7 @@ export function createUploadService(opts = {}) {
     await runWithConcurrency(queue, concurrentFiles, (f) =>
       uploadOne(f, chunkSize)
     )
-    const anyErr = state.files.some((f) => f.state === 'error')
-    state.status = anyErr ? 'failed' : 'completed'
+    finalizeBatchStatus()
   }
 
   /** Abort the whole batch: cancel in-flight chunks and ask the server to
@@ -405,6 +445,18 @@ export function createUploadService(opts = {}) {
     for (const f of state.files) {
       if (f.state !== 'done' && f.state !== 'skipped') f.state = 'aborted'
     }
+  }
+
+  /** Clear the batch from the panel, aborting any sessions still alive on
+   * the server so their slots and temp files are released immediately. */
+  function reset() {
+    releaseStaleSessions()
+    state.files = []
+    state.status = 'idle'
+    state.errorMessage = ''
+    state.overall.totalBytes = 0
+    state.overall.transferredBytes = 0
+    state.overall.speedBps = 0
   }
 
   function sumTransferred() {
@@ -428,6 +480,7 @@ export function createUploadService(opts = {}) {
     pauseAll,
     resumeAll,
     abortAll,
+    reset,
     // Derived getters for convenience in templates.
     progress: computed(() =>
       state.overall.totalBytes > 0
