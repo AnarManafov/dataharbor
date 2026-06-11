@@ -160,8 +160,8 @@ Controls the server-side multi-file chunked upload feature. See
 | Key                                  | Type   | Default        | Description                                                     |
 | ------------------------------------ | ------ | -------------- | --------------------------------------------------------------- |
 | `xrd.upload.enabled`                 | bool   | `true`         | Master switch for the upload feature.                           |
-| `xrd.upload.max_file_size`           | int64  | `10737418240`  | Maximum per-file size in bytes (default 10 GiB).                |
-| `xrd.upload.max_batch_size`          | int64  | `53687091200`  | Maximum aggregate batch size in bytes (default 50 GiB).         |
+| `xrd.upload.max_file_size`           | int64  | `53687091200`  | Maximum per-file size in bytes (default 50 GiB).                |
+| `xrd.upload.max_batch_size`          | int64  | `107374182400` | Maximum aggregate batch size in bytes (default 100 GiB).        |
 | `xrd.upload.max_files_per_batch`     | int    | `100`          | Maximum number of files in a single batch.                      |
 | `xrd.upload.max_concurrent_per_user` | int    | `2`            | Concurrent upload **sessions** allowed per user (`0` disables cap). One slot is taken per session and shared by all files in that batch, so a batch may contain far more files than this cap. |
 | `xrd.upload.chunk_size`              | int64  | `8388608`      | Maximum chunk size accepted by the server (default 8 MiB).      |

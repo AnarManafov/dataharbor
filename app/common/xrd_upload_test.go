@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go-hep.org/x/hep/xrootd"
+	"go-hep.org/x/hep/xrootd/xrdfs"
 )
 
 // startTestXRDServer starts the go-hep file-backed XRootD test server on a
@@ -57,4 +58,35 @@ func TestOpenUploadFileSurvivesRequestContextCancel(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(baseDir, "data.bin"))
 	require.NoError(t, err)
 	require.Equal(t, "hello world", string(got))
+}
+
+// wedgedFile simulates an XRootD file whose close never completes — the
+// behavior of a handle whose connection died mid-upload (the kXR_close reply
+// never arrives). Only Close is implemented; the embedded interface panics on
+// anything else, which this test never calls.
+type wedgedFile struct{ xrdfs.File }
+
+func (wedgedFile) Close(context.Context) error {
+	time.Sleep(10 * time.Second) // far beyond the test's close deadline
+	return nil
+}
+
+// Regression test for the abort-path hang: closing a handle with a dead
+// connection used to block forever, which left the temp file, the concurrency
+// slot, and the session registered until restart. Close must give up at the
+// context deadline so teardown can proceed.
+func TestUploadHandleClose_AbandonsWedgedConnection(t *testing.T) {
+	handle := &UploadHandle{file: wedgedFile{}}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	err := handle.Close(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "abandoned")
+	require.Less(t, time.Since(start), 2*time.Second, "Close must not wait for the wedged file")
+
+	// Idempotent: the second close is a no-op even though the first was abandoned.
+	require.NoError(t, handle.Close(context.Background()))
 }

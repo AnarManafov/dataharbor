@@ -29,8 +29,8 @@ Limits are configured in `application.yaml` under `xrd.upload`:
 | Field                  | Default      | Description                                                              |
 | ---------------------- | ------------ | ------------------------------------------------------------------------ |
 | `enabled`              | `true`       | Master switch for the upload feature.                                    |
-| `maxFileSize`          | `10 GiB`     | Upper bound per file.                                                    |
-| `maxBatchSize`         | `50 GiB`     | Upper bound for the total bytes of a batch.                              |
+| `maxFileSize`          | `50 GiB`     | Upper bound per file.                                                    |
+| `maxBatchSize`         | `100 GiB`    | Upper bound for the total bytes of a batch.                              |
 | `maxFilesPerBatch`     | `100`        | Maximum number of files in one batch.                                    |
 | `maxConcurrentPerUser` | `2`          | Concurrent **upload sessions** per user.                                 |
 | `chunkSize`            | `8 MiB`      | Maximum chunk size accepted by the server.                               |
@@ -47,7 +47,7 @@ them in the toolbar **Transfer limits** popover.
 ```
 POST /api/v1/xrd/upload/session   -> { uploadId, destPath, conflict, chunkSize } per file
 PUT  /api/v1/xrd/upload/{id}/chunk?offset=N   (body: raw bytes)
-POST /api/v1/xrd/upload/{id}/complete  -> server verifies SHA-256 and publishes
+POST /api/v1/xrd/upload/{id}/complete  (body: { sha256 }) -> server verifies and publishes
 DELETE /api/v1/xrd/upload/{id}   -> cancel and clean up temp file
 GET  /api/v1/xrd/upload/{id}/status  -> bytesReceived, state
 GET  /api/v1/xrd/upload/limits   -> full limits object
@@ -81,11 +81,23 @@ See [AUTHENTICATION.md](AUTHENTICATION.md) for the full SciTokens setup.
 
 ## Integrity
 
-The client streams each file through `crypto.subtle.digest('SHA-256')` and
-submits the hex digest with the session request. After all chunks have
-been written the server recomputes the SHA-256 and compares it before
-renaming the temp file to its final destination. A mismatch aborts the
-upload with HTTP 400 and removes the temp file.
+The client computes a streaming SHA-256 of each file in a Web Worker
+(hash-wasm, with a pure-JS fallback) **while the chunks are uploading**, and
+submits the hex digest with the `complete` request — there is no separate
+hashing phase. The server hashes chunks as they arrive and compares its
+digest against the client's before renaming the temp file to its final
+destination. A mismatch aborts the upload with HTTP 400 and removes the temp
+file. A `complete` request without a checksum is rejected with HTTP 400 and
+leaves the session resumable.
+
+## Orphaned temp files
+
+The session store is in-memory, so a backend restart orphans the temp file
+of any in-flight upload — the janitor no longer knows about it. To self-heal,
+session creation sweeps the destination directory for stale
+`<file>.dh-upload.<id>` entries whose `<id>` does not belong to a live
+session and removes them. Re-uploading a file therefore cleans up the litter
+of previous interrupted attempts at the same destination.
 
 ## Concurrency and fairness
 

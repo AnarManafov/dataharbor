@@ -183,7 +183,6 @@ function iconFor(s) {
     case 'paused':
       return VideoPause
     case 'queued':
-    case 'hashing':
       return Clock
     default:
       return Loading

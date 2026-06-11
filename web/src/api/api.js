@@ -126,7 +126,7 @@ export function getTransferLimits() {
  * Create a multi-file upload session. The server allocates one uploadId per
  * accepted file and returns conflict status for each.
  *
- * @param {{destDir:string, files:Array<{relPath:string,size:number,sha256:string,onConflict?:string}>}} payload
+ * @param {{destDir:string, files:Array<{relPath:string,size:number,onConflict?:string}>}} payload
  */
 export function createUploadSession(payload) {
   return apiClient.post('/v1/xrd/upload/session', payload).catch(handleApiError);
@@ -163,12 +163,16 @@ export function uploadChunk(uploadId, offset, chunk, opts = {}) {
 
 /**
  * Finalize an upload: the server verifies SHA-256 and atomically publishes the
- * file under its destination path.
+ * file under its destination path. The checksum — computed while the chunks
+ * were uploading — is required here.
+ *
+ * @param {string} uploadId
+ * @param {string} sha256 lowercase hex SHA-256 of the whole file
  */
-export function completeUpload(uploadId) {
+export function completeUpload(uploadId, sha256) {
   return apiClient.post(
     `/v1/xrd/upload/${encodeURIComponent(uploadId)}/complete`,
-    {}
+    { sha256 }
   ).catch(handleApiError);
 }
 

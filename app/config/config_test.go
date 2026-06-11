@@ -665,8 +665,8 @@ func TestSetDefaults_UploadConfig(t *testing.T) {
 	setDefaults(v)
 
 	assert.True(t, v.GetBool("xrd.upload.enabled"))
-	assert.Equal(t, int64(10)*1024*1024*1024, v.GetInt64("xrd.upload.max_file_size"))
-	assert.Equal(t, int64(50)*1024*1024*1024, v.GetInt64("xrd.upload.max_batch_size"))
+	assert.Equal(t, int64(50)*1024*1024*1024, v.GetInt64("xrd.upload.max_file_size"))
+	assert.Equal(t, int64(100)*1024*1024*1024, v.GetInt64("xrd.upload.max_batch_size"))
 	assert.Equal(t, 100, v.GetInt("xrd.upload.max_files_per_batch"))
 	assert.Equal(t, 2, v.GetInt("xrd.upload.max_concurrent_per_user"))
 	assert.Equal(t, 8*1024*1024, v.GetInt("xrd.upload.chunk_size"))

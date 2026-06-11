@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go-hep.org/x/hep/xrootd/xrdfs"
 
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
@@ -84,6 +85,63 @@ func TestParseDurationOrDefault(t *testing.T) {
 	assert.Equal(t, time.Hour, parseDurationOrDefault("not a duration", time.Hour))
 }
 
+func TestStaleTempUploadID(t *testing.T) {
+	const suffix = ".dh-upload"
+	id := strings.Repeat("ab", 16) // 32 hex chars
+
+	got, ok := staleTempUploadID("video.vmdk"+suffix+"."+id, "video.vmdk", suffix)
+	require.True(t, ok)
+	assert.Equal(t, id, got)
+
+	cases := []struct {
+		name  string
+		entry string
+		base  string
+	}{
+		{"different destination", "other.bin" + suffix + "." + id, "video.vmdk"},
+		{"the destination itself", "video.vmdk", "video.vmdk"},
+		{"missing id", "video.vmdk" + suffix + ".", "video.vmdk"},
+		{"id too short", "video.vmdk" + suffix + "." + id[:31], "video.vmdk"},
+		{"id too long", "video.vmdk" + suffix + "." + id + "0", "video.vmdk"},
+		{"id not hex", "video.vmdk" + suffix + "." + strings.Repeat("z", 32), "video.vmdk"},
+		{"suffix only as infix", "video.vmdk.backup" + suffix + "." + id, "video.vmdk"},
+		{"no suffix", "video.vmdk." + id, "video.vmdk"},
+	}
+	for _, tc := range cases {
+		if _, ok := staleTempUploadID(tc.entry, tc.base, suffix); ok {
+			t.Errorf("%s: expected %q to NOT match base %q", tc.name, tc.entry, tc.base)
+		}
+	}
+
+	// A temp file for "video.vmdk.backup" must not match base "video.vmdk"...
+	_, ok = staleTempUploadID("video.vmdk.backup"+suffix+"."+id, "video.vmdk", suffix)
+	assert.False(t, ok)
+	// ...but must match its own base.
+	_, ok = staleTempUploadID("video.vmdk.backup"+suffix+"."+id, "video.vmdk.backup", suffix)
+	assert.True(t, ok)
+}
+
+// TestCollectStaleTemps verifies the orphan-sweep decision logic: temp files
+// of dead sessions are selected for removal, temps of live sessions and
+// unrelated entries are left alone.
+func TestCollectStaleTemps(t *testing.T) {
+	const suffix = ".dh-upload"
+	orphanID := strings.Repeat("ab", 16)
+	liveID := strings.Repeat("cd", 16)
+
+	entries := []xrdfs.EntryStat{
+		{EntryName: "big.vmdk" + suffix + "." + orphanID},  // orphan -> sweep
+		{EntryName: "big.vmdk" + suffix + "." + liveID},    // live session -> keep
+		{EntryName: "big.vmdk"},                            // the destination itself -> keep
+		{EntryName: "other.bin" + suffix + "." + orphanID}, // different destination -> keep
+		{EntryName: "notes.txt"},                           // unrelated -> keep
+	}
+	isLive := func(id string) bool { return id == liveID }
+
+	stale := collectStaleTemps(entries, "/data/user", "big.vmdk", suffix, isLive)
+	assert.Equal(t, []string{"/data/user/big.vmdk" + suffix + "." + orphanID}, stale)
+}
+
 // ---------------------------------------------------------------------------
 // Handler tests: CreateUploadSession validation paths (short-circuit before
 // any XRootD call is made).
@@ -142,7 +200,7 @@ func TestCreateUploadSession_FeatureDisabled(t *testing.T) {
 		CreateSessionRequest{
 			DestDir: "/data",
 			Files: []UploadFileRequest{
-				{RelPath: "a.txt", Size: 10, Sha256: sha64()},
+				{RelPath: "a.txt", Size: 10},
 			},
 		})
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
@@ -164,7 +222,7 @@ func TestCreateUploadSession_InvalidDestDir(t *testing.T) {
 	w := postJSON(newUploadTestRouter(), "/api/v1/xrd/upload/session",
 		CreateSessionRequest{
 			DestDir: "../escape",
-			Files:   []UploadFileRequest{{RelPath: "a.txt", Size: 1, Sha256: sha64()}},
+			Files:   []UploadFileRequest{{RelPath: "a.txt", Size: 1}},
 		})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "destDir")
@@ -190,9 +248,9 @@ func TestCreateUploadSession_TooManyFiles(t *testing.T) {
 	req := CreateSessionRequest{
 		DestDir: "/data",
 		Files: []UploadFileRequest{
-			{RelPath: "a.txt", Size: 1, Sha256: sha64()},
-			{RelPath: "b.txt", Size: 1, Sha256: sha64()},
-			{RelPath: "c.txt", Size: 1, Sha256: sha64()},
+			{RelPath: "a.txt", Size: 1},
+			{RelPath: "b.txt", Size: 1},
+			{RelPath: "c.txt", Size: 1},
 		},
 	}
 	w := postJSON(newUploadTestRouter(), "/api/v1/xrd/upload/session", req)
@@ -205,7 +263,7 @@ func TestCreateUploadSession_BadRelPath(t *testing.T) {
 	w := postJSON(newUploadTestRouter(), "/api/v1/xrd/upload/session",
 		CreateSessionRequest{
 			DestDir: "/data",
-			Files:   []UploadFileRequest{{RelPath: "../x", Size: 1, Sha256: sha64()}},
+			Files:   []UploadFileRequest{{RelPath: "../x", Size: 1}},
 		})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), "relPath")
@@ -221,7 +279,7 @@ func TestCreateUploadSession_FileTooLarge(t *testing.T) {
 	w := postJSON(newUploadTestRouter(), "/api/v1/xrd/upload/session",
 		CreateSessionRequest{
 			DestDir: "/data",
-			Files:   []UploadFileRequest{{RelPath: "a.txt", Size: 1000, Sha256: sha64()}},
+			Files:   []UploadFileRequest{{RelPath: "a.txt", Size: 1000}},
 		})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, strings.ToLower(w.Body.String()), "max file size")
@@ -239,23 +297,12 @@ func TestCreateUploadSession_BatchTooLarge(t *testing.T) {
 		CreateSessionRequest{
 			DestDir: "/data",
 			Files: []UploadFileRequest{
-				{RelPath: "a.txt", Size: 100, Sha256: sha64()},
-				{RelPath: "b.txt", Size: 100, Sha256: sha64()},
+				{RelPath: "a.txt", Size: 100},
+				{RelPath: "b.txt", Size: 100},
 			},
 		})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, strings.ToLower(w.Body.String()), "batch size")
-}
-
-func TestCreateUploadSession_BadSha(t *testing.T) {
-	ensureUploadDefaults(t)
-	w := postJSON(newUploadTestRouter(), "/api/v1/xrd/upload/session",
-		CreateSessionRequest{
-			DestDir: "/data",
-			Files:   []UploadFileRequest{{RelPath: "a.txt", Size: 10, Sha256: "deadbeef"}},
-		})
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "sha256")
 }
 
 func TestCreateUploadSession_UnknownConflictAction(t *testing.T) {
@@ -264,7 +311,7 @@ func TestCreateUploadSession_UnknownConflictAction(t *testing.T) {
 		CreateSessionRequest{
 			DestDir: "/data",
 			Files: []UploadFileRequest{
-				{RelPath: "a.txt", Size: 10, Sha256: sha64(), OnConflict: "panic"},
+				{RelPath: "a.txt", Size: 10, OnConflict: "panic"},
 			},
 		})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -278,7 +325,7 @@ func TestCreateUploadSession_OverwriteForbiddenByServer(t *testing.T) {
 		CreateSessionRequest{
 			DestDir: "/data",
 			Files: []UploadFileRequest{
-				{RelPath: "a.txt", Size: 10, Sha256: sha64(), OnConflict: ConflictActionOverwrite},
+				{RelPath: "a.txt", Size: 10, OnConflict: ConflictActionOverwrite},
 			},
 		})
 	assert.Equal(t, http.StatusForbidden, w.Code)
@@ -289,7 +336,7 @@ func TestCreateUploadSession_ReservedSuffix(t *testing.T) {
 	w := postJSON(newUploadTestRouter(), "/api/v1/xrd/upload/session",
 		CreateSessionRequest{
 			DestDir: "/data",
-			Files:   []UploadFileRequest{{RelPath: "report.dh-upload", Size: 10, Sha256: sha64()}},
+			Files:   []UploadFileRequest{{RelPath: "report.dh-upload", Size: 10}},
 		})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, strings.ToLower(w.Body.String()), "reserved upload suffix")
@@ -315,7 +362,6 @@ func primeSession(t *testing.T, userKey string, size int64) *uploadSession {
 		DestPath:       "/data/a.txt",
 		TempPath:       "/data/a.txt.dh-upload",
 		Size:           size,
-		ExpectSHA:      sha64(),
 		ChunkSize:      8 * 1024 * 1024,
 		CreatedAt:      time.Now(),
 		ExpiresAt:      time.Now().Add(time.Hour),
@@ -470,13 +516,28 @@ func TestAbortUpload_UnknownID(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// TestCompleteUpload_ShaMismatch: the checksum travels with the complete
+// request (computed client-side while the chunks uploaded). A digest that
+// does not match the server-side hash of the received bytes must fail.
 func TestCompleteUpload_ShaMismatch(t *testing.T) {
 	ensureUploadDefaults(t)
 	sess := primeSession(t, "anonymous", 5)
-	// Feed the hasher with different bytes than the declared sha
 	_, _ = sess.hasher.Write([]byte("hello"))
 	sess.BytesReceived = 5
-	// ExpectSHA is all-zeros from sha64() which won't match "hello"
+
+	w := postJSON(newUploadTestRouter(),
+		"/api/v1/xrd/upload/"+sess.ID+"/complete",
+		CompleteUploadRequest{Sha256: strings.Repeat("a", 64)})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, strings.ToLower(w.Body.String()), "sha256 mismatch")
+}
+
+// TestCompleteUpload_ChecksumRequired: a complete request without a sha256 is
+// a client error that must NOT kill the session.
+func TestCompleteUpload_ChecksumRequired(t *testing.T) {
+	ensureUploadDefaults(t)
+	sess := primeSession(t, "anonymous", 5)
+	sess.BytesReceived = 5
 
 	r := newUploadTestRouter()
 	req := httptest.NewRequest(http.MethodPost,
@@ -484,7 +545,25 @@ func TestCompleteUpload_ShaMismatch(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, strings.ToLower(w.Body.String()), "sha256 mismatch")
+	assert.Contains(t, strings.ToLower(w.Body.String()), "sha256 is required")
+
+	got, ok := uploadStore.get(sess.ID)
+	require.True(t, ok, "session must survive a missing-checksum complete attempt")
+	got.mu.Lock()
+	defer got.mu.Unlock()
+	assert.Equal(t, "uploading", got.state)
+}
+
+func TestCompleteUpload_BadBodySha(t *testing.T) {
+	ensureUploadDefaults(t)
+	sess := primeSession(t, "anonymous", 5)
+	sess.BytesReceived = 5
+
+	w := postJSON(newUploadTestRouter(),
+		"/api/v1/xrd/upload/"+sess.ID+"/complete",
+		CompleteUploadRequest{Sha256: "deadbeef"})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "64 hex")
 }
 
 func TestCompleteUpload_NotAllBytes(t *testing.T) {
@@ -492,11 +571,9 @@ func TestCompleteUpload_NotAllBytes(t *testing.T) {
 	sess := primeSession(t, "anonymous", 100)
 	sess.BytesReceived = 50
 
-	r := newUploadTestRouter()
-	req := httptest.NewRequest(http.MethodPost,
-		"/api/v1/xrd/upload/"+sess.ID+"/complete", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
+	w := postJSON(newUploadTestRouter(),
+		"/api/v1/xrd/upload/"+sess.ID+"/complete",
+		CompleteUploadRequest{Sha256: sha64()})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, strings.ToLower(w.Body.String()), "not all bytes")
 }
@@ -516,6 +593,73 @@ func TestGetTransferLimits(t *testing.T) {
 	assert.True(t, env.Data.Upload.Enabled)
 	assert.Greater(t, env.Data.Upload.MaxFileSize, int64(0))
 	assert.Equal(t, "sha256", env.Data.Upload.ChecksumAlgo)
+}
+
+// TestAbortUpload_CleansUpSession: a client cancel must tear the session down
+// completely — removed from the store and the batch concurrency slot released
+// (the temp-file removal is attempted too; against the unreachable test XRD
+// server it fails and is logged, which must not block the rest).
+func TestAbortUpload_CleansUpSession(t *testing.T) {
+	ensureUploadDefaults(t)
+	sess := primeSession(t, "anonymous", 100)
+	released := false
+	sess.batch = &batchSlot{refs: 1, release: func() { released = true }}
+
+	r := newUploadTestRouter()
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/xrd/upload/"+sess.ID, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	_, ok := uploadStore.get(sess.ID)
+	assert.False(t, ok, "aborted session must be removed from the store")
+	assert.True(t, released, "aborting the last file of a batch must release its slot")
+
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	assert.Equal(t, "aborted", sess.state)
+}
+
+// wedgedUploadFile simulates an upload handle whose connection died: closing
+// it never completes. Only Close is used; other xrdfs.File methods are never
+// called by the teardown path.
+type wedgedUploadFile struct{ xrdfs.File }
+
+func (wedgedUploadFile) Close(context.Context) error {
+	time.Sleep(10 * time.Second) // far beyond the test's teardown timeout
+	return nil
+}
+
+// TestAbortUpload_WedgedHandleStillCleansUp is the regression test for the
+// production incident where one dead XRootD connection poisoned everything:
+// the handle close blocked forever inside the abort, so the temp file was
+// never removed, the slot never released, and the session stayed registered —
+// which also made the orphan sweep skip the temp ("live" session) and the
+// janitor ignore it (no longer "uploading"). Teardown must abandon the wedged
+// close at the deadline and finish the cleanup.
+func TestAbortUpload_WedgedHandleStillCleansUp(t *testing.T) {
+	ensureUploadDefaults(t)
+	oldTimeout := teardownCloseTimeout
+	teardownCloseTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { teardownCloseTimeout = oldTimeout })
+
+	sess := primeSession(t, "anonymous", 100)
+	sess.handle = common.NewUploadHandle(nil, wedgedUploadFile{}, sess.TempPath)
+	released := false
+	sess.batch = &batchSlot{refs: 1, release: func() { released = true }}
+
+	start := time.Now()
+	abortSession(sess, "test: client cancel with dead connection")
+	require.Less(t, time.Since(start), 5*time.Second,
+		"teardown must not wait for the wedged close")
+
+	_, ok := uploadStore.get(sess.ID)
+	assert.False(t, ok, "session must leave the store despite the wedged handle")
+	assert.True(t, released, "slot must be released despite the wedged handle")
+
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	assert.Equal(t, "aborted", sess.state)
 }
 
 // ---------------------------------------------------------------------------
