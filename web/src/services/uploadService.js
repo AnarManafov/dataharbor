@@ -1,5 +1,6 @@
 import { reactive, ref, computed } from 'vue'
 import { sha256 } from '@noble/hashes/sha2.js'
+import HashWorker from './hashWorker.js?worker'
 import {
   createUploadSession,
   uploadChunk,
@@ -24,7 +25,7 @@ import {
  *   - Support pause/resume/cancel for both individual files and the whole batch.
  */
 
-/** @typedef {'queued'|'hashing'|'uploading'|'verifying'|'done'|'error'|'skipped'|'paused'|'aborted'} FileState */
+/** @typedef {'queued'|'uploading'|'verifying'|'done'|'error'|'skipped'|'paused'|'aborted'} FileState */
 
 /**
  * Create an upload service instance. Kept as a factory (not a singleton) so
@@ -43,10 +44,23 @@ export function createUploadService(opts = {}) {
       startedAt: 0,
       speedBps: 0,
       chunkSize: 0,
+      // Speed is measured from the most recent (re)start of actual chunk
+      // traffic, not from batch creation — otherwise hashing time and pauses
+      // drag the displayed rate toward zero.
+      speedBaseBytes: 0,
+      speedBaseAt: 0,
     },
     status: /** @type {'idle'|'preparing'|'uploading'|'paused'|'completed'|'skipped'|'failed'|'aborted'} */ ('idle'),
     errorMessage: '',
   })
+
+  // Drive-loop bookkeeping (non-reactive). Exactly one drive loop may own the
+  // batch at a time: `_driveSeq` invalidates a superseded loop's pending
+  // finalize, and `_drivePromise` lets resumeAll() wait for a paused loop's
+  // workers to fully drain before re-queueing files. Without this, a quick
+  // pause→resume races the old workers and strands files in `paused`.
+  let _driveSeq = 0
+  let _drivePromise = null
 
   /** @typedef {{
    *   id: string,
@@ -60,9 +74,12 @@ export function createUploadService(opts = {}) {
    *   destPath: string,
    *   conflict: 'none'|'exists'|'',
    *   bytesSent: number,
+   *   hashedBytes: number,
    *   error: string,
    *   _controller: AbortController|null,
    *   _paused: boolean,
+   *   _hashId: number,
+   *   _hashPromise: Promise<string>|null,
    * }} UploadItem */
 
   /**
@@ -165,6 +182,10 @@ export function createUploadService(opts = {}) {
    */
   function prepare(items) {
     releaseStaleSessions()
+    // Detach from any drive loop still draining for the previous batch: its
+    // pending finalize must not stamp a status onto the new batch.
+    _driveSeq++
+    _drivePromise = null
     state.files = items.map((it, idx) => ({
       id: `f_${idx}_${it.file.name}`,
       file: it.file,
@@ -177,9 +198,12 @@ export function createUploadService(opts = {}) {
       destPath: '',
       conflict: '',
       bytesSent: 0,
+      hashedBytes: 0,
       error: '',
       _controller: null,
       _paused: false,
+      _hashId: 0,
+      _hashPromise: null,
     }))
     state.overall.totalBytes = state.files.reduce((a, f) => a + f.size, 0)
     state.overall.transferredBytes = 0
@@ -210,23 +234,9 @@ export function createUploadService(opts = {}) {
       if (choice) f.onConflict = choice
     }
 
-    // --- Hash each file (sequential to keep memory predictable).
-    for (const f of state.files) {
-      f.state = 'hashing'
-      try {
-        f.sha256 = await hashFileSha256(f.file, hashSliceSize)
-      } catch (err) {
-        f.state = 'error'
-        f.error = 'hash failed: ' + errMsg(err)
-      }
-    }
-    if (state.files.every((f) => f.state === 'error')) {
-      state.status = 'failed'
-      state.errorMessage = 'All files failed to hash'
-      return
-    }
-
-    // --- Open a session with the backend.
+    // --- Open a session with the backend. There is no separate hashing
+    // phase: the SHA-256 is computed in the worker WHILE chunks upload (see
+    // uploadOne) and supplied to the server with the complete request.
     let sessionResp
     try {
       const resp = await createUploadSession({
@@ -236,7 +246,6 @@ export function createUploadService(opts = {}) {
           .map((f) => ({
             relPath: f.relPath,
             size: f.size,
-            sha256: f.sha256,
             onConflict: f.onConflict,
           })),
       })
@@ -278,18 +287,33 @@ export function createUploadService(opts = {}) {
       f.uploadId = sf.uploadId
     }
 
-    // --- Drive parallel uploads.
-    state.status = 'uploading'
+    // --- Drive parallel uploads. The user may have paused (or cancelled)
+    // while we were still hashing; honor that instead of stomping the status.
+    if (state.status !== 'paused' && state.status !== 'aborted') {
+      state.status = 'uploading'
+    }
     const chunkSize = sessionResp.chunkSize || 8 * 1024 * 1024
     state.overall.chunkSize = chunkSize
     const queue = state.files.filter((f) => f.state === 'queued' || f.uploadId)
     queue.forEach((f) => { if (f.state !== 'skipped') f.state = 'queued' })
 
-    await runWithConcurrency(queue, concurrentFiles, (f) =>
+    markSpeedBaseline()
+    await driveQueue(queue, chunkSize)
+  }
+
+  /**
+   * Run the upload workers over `queue` and, once they drain, finalize the
+   * batch status — unless a newer drive loop has taken over in the meantime
+   * (pause→resume starts a new loop while this one is still unwinding; its
+   * late finalize must not clobber the live status).
+   */
+  async function driveQueue(queue, chunkSize) {
+    const seq = ++_driveSeq
+    _drivePromise = runWithConcurrency(queue, concurrentFiles, (f) =>
       uploadOne(f, chunkSize)
     )
-
-    finalizeBatchStatus()
+    await _drivePromise
+    if (seq === _driveSeq) finalizeBatchStatus()
   }
 
   /**
@@ -300,6 +324,12 @@ export function createUploadService(opts = {}) {
   function finalizeBatchStatus() {
     if (state.status === 'aborted') {
       return // leave as-is
+    }
+    // A file can still be mid-flight here (e.g. resume raced this loop's
+    // unwind). Let the loop that owns that file finalize instead.
+    if (state.files.some((f) =>
+      ['uploading', 'verifying'].includes(f.state))) {
+      return
     }
     const anyPaused = state.files.some(
       (f) => f.state === 'paused' || (f.state === 'queued' && f.uploadId)
@@ -329,8 +359,22 @@ export function createUploadService(opts = {}) {
    */
   async function uploadOne(f, chunkSize) {
     if (f.state === 'skipped' || f.state === 'error' || f.state === 'done') return
+    if (f._paused) {
+      f.state = 'paused'
+      return
+    }
 
     f.state = 'uploading'
+
+    // Kick off the checksum in the worker so it overlaps the (network-bound)
+    // chunk uploads; completeUpload below waits for it. Survives pause/resume
+    // cycles: only started once per file. The detached .catch keeps a
+    // rejection (cancel, read error) from surfacing as unhandled if the
+    // upload dies before reaching the await.
+    if (!f._hashPromise) {
+      f._hashPromise = hashFileWithProgress(f)
+      f._hashPromise.catch(() => { })
+    }
 
     // Resume support: ask the server where it thinks we are.
     try {
@@ -377,8 +421,10 @@ export function createUploadService(opts = {}) {
         f.state = 'error'
         f.error = 'chunk failed: ' + errMsg(err)
         // The client gives up on this file; free its server-side session (and
-        // the batch slot it pins) instead of waiting for the idle janitor.
+        // the batch slot it pins) instead of waiting for the idle janitor,
+        // and stop hashing bytes nobody will verify.
         abortUpload(f.uploadId).catch(() => { })
+        if (f._hashId) cancelHashJob(f._hashId)
         return
       } finally {
         f._controller = null
@@ -391,9 +437,18 @@ export function createUploadService(opts = {}) {
 
     f.state = 'verifying'
     try {
-      await completeUpload(f.uploadId)
+      // The hash usually finished long ago (CPU+disk outpace the network);
+      // when it has not, "verifying" covers the remaining wait. A paused hash
+      // job parks this await — resumeAll resumes hash jobs before draining
+      // workers, so this cannot deadlock the resume path.
+      f.sha256 = await f._hashPromise
+      await completeUpload(f.uploadId, f.sha256)
       f.state = 'done'
     } catch (err) {
+      if (state.status === 'aborted') {
+        f.state = 'aborted' // cancelled while waiting on hash/complete
+        return
+      }
       f.state = 'error'
       f.error = 'verify failed: ' + errMsg(err)
       // Most complete-failures are already terminated server-side (the abort
@@ -402,12 +457,13 @@ export function createUploadService(opts = {}) {
     }
   }
 
-  /** Pause all in-flight uploads; can be resumed with resumeAll(). */
+  /** Pause all in-flight uploads and hashes; resume with resumeAll(). */
   function pauseAll() {
     state.status = 'paused'
     for (const f of state.files) {
       f._paused = true
       if (f._controller) f._controller.abort()
+      if (f._hashId) pauseHashJob(f._hashId)
     }
     // Drop partial-chunk progress from the display; only committed bytes
     // survive a pause (the server resumes from the last committed offset).
@@ -416,17 +472,42 @@ export function createUploadService(opts = {}) {
 
   /** Resume a previously paused batch (reuses existing uploadIds). */
   async function resumeAll() {
+    if (state.status !== 'paused') return
+    // Pre-session resume: the batch was paused before the server session
+    // existed (no uploadIds yet). There is no drive loop to restart — just
+    // unblock and let start() carry on by itself.
+    if (!state.files.some((f) => f.uploadId)) {
+      state.status = 'preparing'
+      for (const f of state.files) f._paused = false
+      return
+    }
+    // Take ownership: the paused drive loop may still be unwinding (a file
+    // aborted mid-chunk settles to `paused` asynchronously). Invalidate its
+    // pending finalize, show activity immediately, then wait for its workers
+    // to fully drain — re-queueing before that either misses files that have
+    // not settled yet or runs two workers against the same file.
+    _driveSeq++
+    state.status = 'uploading'
+    // Wake paused hash jobs BEFORE draining: a worker parked in its
+    // completeUpload await needs the hash to finish, or the drain never ends.
+    for (const f of state.files) {
+      if (f._hashId) resumeHashJob(f._hashId)
+    }
+    if (_drivePromise) await _drivePromise.catch(() => { })
+    // The user may have paused again or cancelled while we waited.
+    if (state.status !== 'uploading') return
+
+    // Only after the old loop has drained: un-pause and re-queue. Clearing
+    // `_paused` earlier would let a not-yet-settled old worker carry on with
+    // its file, forcing the drain above to wait for that whole file.
     for (const f of state.files) {
       f._paused = false
       if (f.state === 'paused') f.state = 'queued'
     }
-    state.status = 'uploading'
     const queue = state.files.filter((f) => f.state === 'queued' && f.uploadId)
     const chunkSize = state.overall.chunkSize || 8 * 1024 * 1024
-    await runWithConcurrency(queue, concurrentFiles, (f) =>
-      uploadOne(f, chunkSize)
-    )
-    finalizeBatchStatus()
+    markSpeedBaseline()
+    await driveQueue(queue, chunkSize)
   }
 
   /** Abort the whole batch: cancel in-flight chunks and ask the server to
@@ -436,6 +517,7 @@ export function createUploadService(opts = {}) {
     for (const f of state.files) {
       if (f._controller) f._controller.abort()
       f._controller = null
+      if (f._hashId) cancelHashJob(f._hashId)
     }
     await Promise.allSettled(
       state.files
@@ -451,12 +533,16 @@ export function createUploadService(opts = {}) {
    * the server so their slots and temp files are released immediately. */
   function reset() {
     releaseStaleSessions()
+    _driveSeq++
+    _drivePromise = null
     state.files = []
     state.status = 'idle'
     state.errorMessage = ''
     state.overall.totalBytes = 0
     state.overall.transferredBytes = 0
     state.overall.speedBps = 0
+    state.overall.speedBaseBytes = 0
+    state.overall.speedBaseAt = 0
   }
 
   function sumTransferred() {
@@ -465,11 +551,121 @@ export function createUploadService(opts = {}) {
     return total
   }
 
+  /** Restart the transfer-rate measurement window from "now". */
+  function markSpeedBaseline() {
+    state.overall.speedBaseBytes = sumTransferred()
+    state.overall.speedBaseAt = Date.now()
+    state.overall.speedBps = 0
+  }
+
   function updateSpeed() {
-    const dt = (Date.now() - state.overall.startedAt) / 1000
+    const baseAt = state.overall.speedBaseAt || state.overall.startedAt
+    const dt = (Date.now() - baseAt) / 1000
     if (dt > 0) {
-      state.overall.speedBps = state.overall.transferredBytes / dt
+      state.overall.speedBps =
+        (state.overall.transferredBytes - state.overall.speedBaseBytes) / dt
     }
+  }
+
+  // --- Hashing -------------------------------------------------------------
+  // SHA-256 runs in a dedicated Web Worker (see hashWorker.js): pure-JS
+  // hashing of a multi-GB file takes minutes, and on the main thread that
+  // freezes the page. Falls back to inline hashing if the worker cannot start.
+  let _hashWorker = null
+  let _hashWorkerBroken = false
+  let _hashSeq = 0
+  const _hashJobs = new Map() // id -> {resolve, reject, onProgress}
+
+  function getHashWorker() {
+    if (_hashWorker || _hashWorkerBroken) return _hashWorker
+    try {
+      _hashWorker = new HashWorker()
+    } catch {
+      _hashWorkerBroken = true
+      return null
+    }
+    _hashWorker.onmessage = (e) => {
+      const { id, hashedBytes, digest, error } = e.data || {}
+      const job = _hashJobs.get(id)
+      if (!job) return
+      if (typeof hashedBytes === 'number') {
+        job.onProgress(hashedBytes)
+        return
+      }
+      _hashJobs.delete(id)
+      if (error) job.reject(new Error(error))
+      else job.resolve(digest)
+    }
+    _hashWorker.onerror = () => {
+      // Worker script failed to load/run (e.g. CSP). Fail pending jobs so
+      // their callers retry inline, and stop using the worker.
+      const pending = [..._hashJobs.values()]
+      _hashJobs.clear()
+      _hashWorker.terminate()
+      _hashWorker = null
+      _hashWorkerBroken = true
+      for (const job of pending) job.reject(new Error('hash worker failed'))
+    }
+    return _hashWorker
+  }
+
+  /** Ask the worker to abandon a running hash job. */
+  function cancelHashJob(id) {
+    if (_hashWorker && _hashJobs.has(id)) {
+      _hashWorker.postMessage({ type: 'cancel', id })
+    }
+  }
+
+  /** Hold a running hash job after its current slice. */
+  function pauseHashJob(id) {
+    if (_hashWorker && _hashJobs.has(id)) {
+      _hashWorker.postMessage({ type: 'pause', id })
+    }
+  }
+
+  /** Let a paused hash job continue. */
+  function resumeHashJob(id) {
+    if (_hashWorker && _hashJobs.has(id)) {
+      _hashWorker.postMessage({ type: 'resume', id })
+    }
+  }
+
+  /** Park until the batch leaves the paused state (poll; pause is rare and
+   * 150 ms of resume latency is imperceptible next to multi-second hashes). */
+  async function waitWhilePaused() {
+    while (state.status === 'paused') {
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    }
+  }
+
+  /**
+   * Hash one upload item, reporting progress into f.hashedBytes. Prefers the
+   * worker; falls back to inline (main-thread) hashing if the worker breaks.
+   * Rejects with 'cancelled' when the job was cancelled via cancelHashJob.
+   */
+  async function hashFileWithProgress(f) {
+    const onProgress = (n) => { f.hashedBytes = n }
+    const worker = getHashWorker()
+    if (worker) {
+      const id = ++_hashSeq
+      f._hashId = id
+      try {
+        return await new Promise((resolve, reject) => {
+          _hashJobs.set(id, { resolve, reject, onProgress })
+          worker.postMessage({ id, file: f.file, sliceSize: hashSliceSize })
+        })
+      } catch (err) {
+        if (err?.message === 'cancelled') throw err
+        // Worker-path failure: retry on the main thread below.
+      } finally {
+        f._hashId = 0
+      }
+    }
+    // Inline fallback honors pause/cancel via a per-slice gate.
+    return hashFileSha256(f.file, hashSliceSize, onProgress, async () => {
+      await waitWhilePaused()
+      if (state.status === 'aborted') throw new Error('cancelled')
+    })
   }
 
   return {
@@ -493,20 +689,26 @@ export function createUploadService(opts = {}) {
 
 /**
  * Compute a file's SHA-256 incrementally, reading in slices to keep heap
- * usage constant regardless of file size.
+ * usage constant regardless of file size. Main-thread fallback for when the
+ * hash worker is unavailable; prefer hashFileWithProgress.
  *
  * @param {File|Blob} file
  * @param {number} sliceSize bytes per slice
+ * @param {(hashedBytes: number) => void} [onProgress]
+ * @param {() => Promise<void>} [gate] awaited before each slice; may park
+ *        (pause) or throw (cancel) to control the hash from outside
  * @returns {Promise<string>} lowercase hex SHA-256
  */
-async function hashFileSha256(file, sliceSize = 8 * 1024 * 1024) {
+async function hashFileSha256(file, sliceSize = 8 * 1024 * 1024, onProgress, gate) {
   const hasher = sha256.create()
   let offset = 0
   while (offset < file.size) {
+    if (gate) await gate()
     const slice = file.slice(offset, offset + sliceSize)
     const buf = await slice.arrayBuffer()
     hasher.update(new Uint8Array(buf))
-    offset += sliceSize
+    offset += buf.byteLength
+    onProgress?.(Math.min(offset, file.size))
   }
   return bytesToHex(hasher.digest())
 }

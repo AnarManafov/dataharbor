@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go-hep.org/x/hep/xrootd/xrdfs"
 
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
@@ -57,10 +58,6 @@ type UploadFileRequest struct {
 	// Size is the total size in bytes of the file about to be uploaded.
 	Size int64 `json:"size" binding:"required"`
 
-	// Sha256 is the hex-encoded SHA-256 of the full file. The server verifies
-	// this checksum after the final chunk is received.
-	Sha256 string `json:"sha256" binding:"required"`
-
 	// OnConflict controls behavior when RelPath already exists at DestDir.
 	// Defaults to "fail" when empty. See ConflictAction* constants.
 	OnConflict ConflictAction `json:"onConflict"`
@@ -93,6 +90,13 @@ type UploadStatusResponse struct {
 	ChunkSize      int    `json:"chunkSize"`
 	State          string `json:"state"` // "uploading" | "completed" | "failed" | "aborted"
 	FailureMessage string `json:"failureMessage,omitempty"`
+}
+
+// CompleteUploadRequest is the body of POST .../complete. The client hashes
+// the file while its chunks upload and supplies the digest here, where the
+// server needs it for verification.
+type CompleteUploadRequest struct {
+	Sha256 string `json:"sha256" binding:"required"`
 }
 
 // CompleteUploadResponse is returned by POST /api/v1/xrd/upload/:uploadId/complete.
@@ -144,7 +148,6 @@ type uploadSession struct {
 	DestPath  string // final absolute path on XRootD
 	TempPath  string // in-progress path (DestPath + TempSuffix + per-session id)
 	Size      int64
-	ExpectSHA string
 	ChunkSize int
 	Overwrite bool // chosen conflict action required overwrite semantics
 	CreatedAt time.Time
@@ -242,6 +245,12 @@ var (
 	uploadSlotsOnce   sync.Once
 	uploadSlots       *common.SlotManager
 	uploadJanitorOnce sync.Once
+
+	// teardownCloseTimeout bounds the handle close during session teardown. A
+	// dead connection wedges the close; after this long it is abandoned so the
+	// rest of the cleanup (temp removal, slot release) still runs. Variable so
+	// tests can shorten it.
+	teardownCloseTimeout = 15 * time.Second
 )
 
 // getUploadSlots returns the lazily-initialized concurrency slot manager for
@@ -426,11 +435,6 @@ func CreateUploadSession(c *gin.Context) {
 					i, f.RelPath, f.Size, cfg.XRD.Upload.MaxFileSize))
 			return
 		}
-		if !isValidSha256Hex(f.Sha256) {
-			response.Error(c, http.StatusBadRequest,
-				fmt.Sprintf("files[%d]: sha256 must be 64 hex chars", i))
-			return
-		}
 		if f.OnConflict != "" &&
 			f.OnConflict != ConflictActionFail &&
 			f.OnConflict != ConflictActionSkip &&
@@ -478,6 +482,7 @@ func CreateUploadSession(c *gin.Context) {
 
 	created := make([]*uploadSession, 0, len(req.Files))
 	results := make([]UploadFileSession, 0, len(req.Files))
+	sweepCache := make(map[string][]xrdfs.EntryStat)
 
 	rollback := func(fileInfo *UploadFileRequest, reason error) {
 		for _, sess := range created {
@@ -553,6 +558,13 @@ func CreateUploadSession(c *gin.Context) {
 			}
 		}
 
+		// Clean up orphaned temp files from earlier attempts at this destination
+		// (and at its pre-rename name) before opening a fresh one.
+		sweepStaleTemps(ctx, xrdClient, userToken, destPath, tempSuffix, sweepCache)
+		if finalDest != destPath {
+			sweepStaleTemps(ctx, xrdClient, userToken, finalDest, tempSuffix, sweepCache)
+		}
+
 		// Open the temp file for writing. The temp path is made unique per
 		// session (suffix + opaque upload id) so two concurrent uploads to the
 		// same destination — or a file literally named "<name><tempSuffix>" —
@@ -581,7 +593,6 @@ func CreateUploadSession(c *gin.Context) {
 			DestPath:       finalDest,
 			TempPath:       tempPath,
 			Size:           f.Size,
-			ExpectSHA:      strings.ToLower(f.Sha256),
 			ChunkSize:      cfg.XRD.Upload.ChunkSize,
 			Overwrite:      action == ConflictActionOverwrite,
 			CreatedAt:      now,
@@ -757,6 +768,18 @@ func CompleteUpload(c *gin.Context) {
 		return
 	}
 
+	var req CompleteUploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest,
+			"sha256 is required in the complete request: "+err.Error())
+		return
+	}
+	expectSHA := strings.ToLower(req.Sha256)
+	if !isValidSha256Hex(expectSHA) {
+		response.Error(c, http.StatusBadRequest, "sha256 must be 64 hex chars")
+		return
+	}
+
 	sess.mu.Lock()
 	if sess.state != "uploading" {
 		state := sess.state
@@ -774,13 +797,12 @@ func CompleteUpload(c *gin.Context) {
 		return
 	}
 	gotSHA := hex.EncodeToString(sess.hasher.Sum(nil))
-	if gotSHA != sess.ExpectSHA {
-		expect := sess.ExpectSHA
+	if gotSHA != expectSHA {
 		sess.mu.Unlock()
 		// Abort + cleanup.
-		failSession(sess, fmt.Sprintf("sha256 mismatch: got %s expected %s", gotSHA, expect))
+		failSession(sess, fmt.Sprintf("sha256 mismatch: got %s expected %s", gotSHA, expectSHA))
 		response.Error(c, http.StatusBadRequest,
-			fmt.Sprintf("sha256 mismatch: got %s expected %s", gotSHA, expect))
+			fmt.Sprintf("sha256 mismatch: got %s expected %s", gotSHA, expectSHA))
 		return
 	}
 	sess.mu.Unlock()
@@ -947,9 +969,6 @@ func terminateSession(sess *uploadSession, newState, reason string, closeHandle 
 	sess.failureMessage = reason
 	sess.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	if closeHandle {
 		// Guarded by writeMu: wait for any in-flight chunk write to finish
 		// before closing, so the handle is never closed out from under a write.
@@ -958,10 +977,21 @@ func terminateSession(sess *uploadSession, newState, reason string, closeHandle 
 		sess.handle = nil
 		sess.writeMu.Unlock()
 		if h != nil {
-			_ = h.Close(ctx)
+			// Bounded: a dead connection wedges the close (see
+			// UploadHandle.Close). The cleanup below must run regardless.
+			closeCtx, cancelClose := context.WithTimeout(context.Background(), teardownCloseTimeout)
+			if err := h.Close(closeCtx); err != nil {
+				common.GetLogger().Warnw("failed to close upload handle during teardown",
+					"uploadId", sess.ID, "error", err)
+			}
+			cancelClose()
 		}
 	}
-	if err := common.GetXRDClient().RemoveFile(ctx, sess.UserToken, sess.TempPath); err != nil {
+	// Fresh context and a fresh XRootD connection: removal must not depend on
+	// the (possibly dead) upload connection or a budget spent by the close.
+	rmCtx, cancelRm := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancelRm()
+	if err := common.GetXRDClient().RemoveFile(rmCtx, sess.UserToken, sess.TempPath); err != nil {
 		common.GetLogger().Warnw("failed to remove upload temp file (orphan left behind)",
 			"uploadId", sess.ID, "temp", sess.TempPath, "error", err)
 	}
@@ -993,6 +1023,78 @@ func failSession(sess *uploadSession, reason string) {
 // the handle ourselves. It does not attempt another close.
 func failSessionNoHandle(sess *uploadSession, reason string) {
 	terminateSession(sess, "failed", reason, false)
+}
+
+// staleTempUploadID reports whether entryName (a bare file name) is an upload
+// temp file for destBase — i.e. "<destBase><tempSuffix>.<32-hex id>" — and
+// returns the embedded upload id (without the "up_" prefix).
+func staleTempUploadID(entryName, destBase, tempSuffix string) (string, bool) {
+	prefix := destBase + tempSuffix + "."
+	if !strings.HasPrefix(entryName, prefix) {
+		return "", false
+	}
+	id := strings.TrimPrefix(entryName, prefix)
+	if len(id) != 32 {
+		return "", false
+	}
+	if _, err := hex.DecodeString(id); err != nil {
+		return "", false
+	}
+	return id, true
+}
+
+// sweepStaleTemps removes temp files for destPath left behind by upload
+// sessions this server no longer tracks. The session store is in-memory, so a
+// backend restart orphans every in-flight temp file — the janitor cannot see
+// them, and they would otherwise sit on the XRootD server forever. Sweeping at
+// session creation makes re-uploading a file self-heal its own litter.
+//
+// Best-effort: list/remove failures are logged, never fatal. dirCache avoids
+// re-listing the same directory for multi-file batches.
+func sweepStaleTemps(ctx context.Context, xc *common.XRDClient, token, destPath, tempSuffix string, dirCache map[string][]xrdfs.EntryStat) {
+	dir, base := path.Split(destPath)
+	dir = path.Clean(dir)
+	entries, listed := dirCache[dir]
+	if !listed {
+		var err error
+		entries, err = xc.ListDirectory(ctx, dir, token)
+		if err != nil {
+			common.GetLogger().Debugw("orphan sweep: cannot list directory", "dir", dir, "error", err)
+			entries = nil
+		}
+		dirCache[dir] = entries
+	}
+	stale := collectStaleTemps(entries, dir, base, tempSuffix, func(id string) bool {
+		_, live := uploadStore.get("up_" + id)
+		return live
+	})
+	for _, p := range stale {
+		if err := xc.RemoveFile(ctx, token, p); err != nil {
+			common.GetLogger().Warnw("orphan sweep: failed to remove stale temp file",
+				"path", p, "error", err)
+		} else {
+			common.GetLogger().Infow("orphan sweep: removed stale upload temp file", "path", p)
+		}
+	}
+}
+
+// collectStaleTemps returns the full paths of directory entries that are
+// orphaned upload temp files for the destination `base` in `dir`: entries that
+// match the temp naming scheme and whose embedded upload id is NOT a live
+// session (isLive). Pure decision logic, separated from XRootD I/O for tests.
+func collectStaleTemps(entries []xrdfs.EntryStat, dir, base, tempSuffix string, isLive func(string) bool) []string {
+	var stale []string
+	for _, e := range entries {
+		id, ok := staleTempUploadID(e.Name(), base, tempSuffix)
+		if !ok {
+			continue
+		}
+		if isLive(id) {
+			continue // belongs to an active session; the janitor owns it
+		}
+		stale = append(stale, path.Join(dir, e.Name()))
+	}
+	return stale
 }
 
 // validateRelPath ensures a user-supplied relPath is safe to append to an

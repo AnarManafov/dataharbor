@@ -460,8 +460,8 @@ func setDefaults(v *viper.Viper) {
 
 	// Upload defaults
 	v.SetDefault("xrd.upload.enabled", true)
-	v.SetDefault("xrd.upload.max_file_size", int64(10)*1024*1024*1024)  // 10 GiB per file
-	v.SetDefault("xrd.upload.max_batch_size", int64(50)*1024*1024*1024) // 50 GiB per session
+	v.SetDefault("xrd.upload.max_file_size", int64(50)*1024*1024*1024)   // 50 GiB per file
+	v.SetDefault("xrd.upload.max_batch_size", int64(100)*1024*1024*1024) // 100 GiB per session
 	v.SetDefault("xrd.upload.max_files_per_batch", 100)
 	v.SetDefault("xrd.upload.max_concurrent_per_user", 2)
 	v.SetDefault("xrd.upload.chunk_size", 8*1024*1024) // 8 MiB

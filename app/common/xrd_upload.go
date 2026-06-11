@@ -25,6 +25,13 @@ type UploadHandle struct {
 	path   string // the target path as opened (typically the ".dh-upload" temp path)
 }
 
+// NewUploadHandle bundles an open XRootD file (and optionally the client that
+// owns its connection) into an UploadHandle. Exposed so tests can inject fake
+// files; production code obtains handles via OpenUploadFile.
+func NewUploadHandle(client *xrootd.Client, file xrdfs.File, path string) *UploadHandle {
+	return &UploadHandle{client: client, file: file, path: path}
+}
+
 // File returns the underlying open XRootD file for WriteAt calls.
 func (h *UploadHandle) File() xrdfs.File { return h.file }
 
@@ -33,24 +40,45 @@ func (h *UploadHandle) Path() string { return h.path }
 
 // Close closes the file and the underlying client. Safe to call more than once;
 // the second call is a no-op.
+//
+// The close is bounded by ctx: when the handle's connection is dead (e.g. a
+// failed chunk write), the kXR_close reply never arrives and both file.Close
+// and client.Close can block forever — file.Close because the response is
+// never delivered, client.Close because it takes no context at all. A wedged
+// close here previously hung the whole abort path, leaving the temp file, the
+// concurrency slot, and the session registered forever. When ctx expires the
+// close goroutine is abandoned (leaked) so the caller can carry on with
+// cleanup; the temp-file removal uses a fresh connection and is unaffected.
 func (h *UploadHandle) Close(ctx context.Context) error {
 	if h == nil {
 		return nil
 	}
-	var firstErr error
-	if h.file != nil {
-		if err := h.file.Close(ctx); err != nil {
-			firstErr = err
-		}
-		h.file = nil
+	file, client := h.file, h.client
+	h.file, h.client = nil, nil
+	if file == nil && client == nil {
+		return nil
 	}
-	if h.client != nil {
-		if err := h.client.Close(); err != nil && firstErr == nil {
-			firstErr = err
+	done := make(chan error, 1)
+	go func() {
+		var firstErr error
+		if file != nil {
+			if err := file.Close(ctx); err != nil {
+				firstErr = err
+			}
 		}
-		h.client = nil
+		if client != nil {
+			if err := client.Close(); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+		done <- firstErr
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("close abandoned (connection wedged): %w", ctx.Err())
 	}
-	return firstErr
 }
 
 // OpenUploadFile opens path on the XRootD server for writing. If overwrite is
@@ -99,7 +127,7 @@ func (xc *XRDClient) OpenUploadFile(ctx context.Context, authToken, path string,
 		return nil, classifyXRDError(err, fmt.Sprintf("open %s for write", path))
 	}
 
-	return &UploadHandle{client: client, file: file, path: path}, nil
+	return NewUploadHandle(client, file, path), nil
 }
 
 // StatPath fetches stat info for a path.
