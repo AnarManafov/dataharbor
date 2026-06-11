@@ -247,7 +247,14 @@ services:
     #   - "${XRD_PORT:-1094}:1094"
 
     networks:
-      - dataharbor-network
+      dataharbor-network:
+        aliases:
+          # Extra DNS name for this container on the internal network.
+          # Set XROOTD_NETWORK_ALIAS to the FQDN in the XRootD host TLS cert
+          # (e.g. dataharbor1.gsi.de) and point XRD_HOST at the same name so
+          # the backend's TLS hostname verification succeeds.
+          # Defaults to the service name, which is always resolvable anyway.
+          - ${XROOTD_NETWORK_ALIAS:-xrootd}
 
     # ==========================================
     # RESOURCE LIMITS (Optional but recommended)
