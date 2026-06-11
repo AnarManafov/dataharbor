@@ -196,6 +196,14 @@ OIDC_SESSION_SECRET=$(openssl rand -hex 32)
 # TLS CA verification (set to false for self-signed certs)
 XROOTD_TLS_CA_VERIFY=true
 
+# XRootD network alias (optional)
+# Extra DNS name for the xrootd container on the internal Docker network.
+# Set it to the FQDN in the XRootD host TLS certificate and set XRD_HOST to
+# the same value, so the backend connects under a name matching the cert SAN.
+# Default: xrootd (the service name)
+# XROOTD_NETWORK_ALIAS=dataharbor1.gsi.de
+# XRD_HOST=dataharbor1.gsi.de
+
 # Public URL of the deployment (important for CORS and redirects)
 # CORS_ALLOW_ORIGINS=https://yourdomain.com
 # FRONTEND_URL=https://yourdomain.com
