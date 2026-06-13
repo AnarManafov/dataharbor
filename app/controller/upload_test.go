@@ -474,6 +474,29 @@ func TestUploadChunk_ReadErrorKeepsSessionResumable(t *testing.T) {
 	assert.Equal(t, int64(0), got.BytesReceived)
 }
 
+// TestUploadWriteContext_SurvivesRequestCancel guards the pause/resume fix: a
+// chunk write must NOT be cancelled when the client aborts the chunk request
+// (which is exactly what a pause does). Cancelling it mid-protocol abandons an
+// XRootD stream and wedges the session's shared connection, so the resumed
+// chunk hangs forever and the temp file is never cleaned up. The write context
+// is therefore detached from the request context.
+func TestUploadWriteContext_SurvivesRequestCancel(t *testing.T) {
+	reqCtx, cancelReq := context.WithCancel(context.Background())
+	writeCtx, cancel := uploadWriteContext(reqCtx)
+	defer cancel()
+
+	cancelReq() // the client pauses → its chunk request is aborted
+
+	select {
+	case <-writeCtx.Done():
+		t.Fatalf("write context was cancelled by the request: an in-flight XRootD " +
+			"write would be abandoned mid-protocol and wedge the connection")
+	default:
+	}
+	require.NoError(t, writeCtx.Err(),
+		"write must survive client pause/abort so the shared XRootD connection stays usable")
+}
+
 func TestGetUploadStatus_WrongUser(t *testing.T) {
 	ensureUploadDefaults(t)
 	sess := primeSession(t, "someone_else", 10)
