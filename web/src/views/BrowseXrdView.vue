@@ -122,6 +122,9 @@ const filters = appContext.config.globalProperties.$filters;
 
 const initialPath = ref("");
 const isBackendOnline = ref(false);
+// Set once the initial directory has been resolved and loaded on mount. Guards
+// the reconnect watcher below from racing that first load (see its comment).
+const initialLoadDone = ref(false);
 const vfsStat = ref(null);
 
 const { updateLatency, updateQueryTime, _isPinging } = useNetworkStats();
@@ -247,9 +250,12 @@ watch(isBackendOnline, async (newValue) => {
 			message: 'Backend service is online.',
 			type: 'success',
 		})
-		// Only load directory if currentDirectory has been set
-		// (avoid loading with empty path before onMounted sets the initial directory)
-		if (currentDirectory.value) {
+		// Reload the current directory only on a genuine reconnect — i.e. after
+		// the initial mount load has resolved the directory. Loading here during
+		// the first connect would race onMounted's initial-directory resolution
+		// and could restore a stale persisted path, leaving the listing showing
+		// one folder while the path bar shows another.
+		if (initialLoadDone.value && currentDirectory.value) {
 			loadDirectory(currentDirectory.value);
 		}
 	}
@@ -325,8 +331,16 @@ onMounted(() => {
 	getInitialDirPath()
 		.then(resp => {
 			let homeDir = resp.data.data
+			initialPath.value = homeDir
+			fetchVFSStat(homeDir)
 
-			// Check if we have a path from props (route parameter)
+			// Resolve where to land. The route path (props.path) is the source of
+			// truth for "stay where you were" across a reload, since navigation
+			// keeps it in the URL. When it is absent — e.g. an OIDC re-login
+			// redirected away and dropped it — fall back to the server's initial
+			// directory rather than the persisted currentDirectory: that path may
+			// no longer be accessible after a backend restart / re-login, and
+			// restoring it desynced the listing from the path bar.
 			let targetPath = homeDir;
 			if (props.path) {
 				try {
@@ -337,16 +351,10 @@ onMounted(() => {
 				}
 			}
 
-			// Use new data only if there no value in the storage, or use the path from props
-			if (!currentDirectory.value || props.path) {
-				currentDirectory.value = targetPath;
-			}
-			initialPath.value = homeDir
-			fetchVFSStat(homeDir)
-
-			// Load the initial directory after setting the current directory
-			// This ensures the file list is populated immediately after login
+			// Single authoritative load: loadDirectory sets currentDirectory and
+			// lists it, so the path bar, the stored path and the listing all agree.
 			loadDirectory(targetPath)
+			initialLoadDone.value = true
 		})
 		.catch((error) => {
 			if (error) {
