@@ -634,6 +634,16 @@ func CreateUploadSession(c *gin.Context) {
 	})
 }
 
+// uploadWriteContext returns the context that bounds a single XRootD chunk
+// write. It is intentionally detached from the request context: a chunk write
+// runs on the session's shared, long-lived XRootD connection, and cancelling it
+// mid-protocol (when the client pauses/aborts the chunk request) abandons a
+// stream whose response is never read, wedging the connection for every later
+// chunk — including the resume. The timeout still bounds a stuck server.
+func uploadWriteContext(reqCtx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(reqCtx), 5*time.Minute)
+}
+
 // UploadChunk handles PUT /api/v1/xrd/upload/:uploadId/chunk?offset=N.
 //
 // The request body is the raw bytes of one chunk (no multipart wrapper).
@@ -725,7 +735,21 @@ func UploadChunk(c *gin.Context) {
 	}
 
 	// Write to XRootD at the declared offset.
-	writeCtx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
+	//
+	// The write context is DETACHED from the request context: once the body is
+	// buffered, the write must run to completion on the session's long-lived
+	// XRootD connection even if the client goes away. When the user pauses, the
+	// browser aborts the in-flight chunk request and c.Request.Context() is
+	// cancelled — but cancelling the write mid-protocol abandons an XRootD
+	// stream whose (unbuffered) response channel is never drained. The server's
+	// reply for that stream then blocks the connection's response reader for
+	// good, so the *next* chunk (the resume) hangs forever trying to claim a
+	// stream, and the wedged write keeps holding writeMu so even the abort path
+	// stalls and the temp file is never cleaned up. Detaching keeps the shared
+	// connection consistent; the 5-minute timeout still bounds a genuinely
+	// stuck XRootD server. The write is positional and idempotent, so a chunk
+	// the client re-sends on resume (because it never saw our ack) is harmless.
+	writeCtx, cancel := uploadWriteContext(c.Request.Context())
 	defer cancel()
 	if err := handle.File().WriteAtContext(writeCtx, buf, offset); err != nil {
 		// Transient too: leave the session resumable. WriteAt is positional and
