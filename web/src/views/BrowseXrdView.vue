@@ -873,13 +873,26 @@ async function onUploadConfirm(decisions) {
 		await uploadService.start(destDir, decisions);
 	} catch (err) {
 		displayErrorMessage('Upload failed', err);
-		return;
 	}
-	// Refresh directory listing so newly uploaded files appear.
-	if (uploadService.state.files.some((f) => f.state === 'done')) {
-		await listDir();
-	}
+	// The directory refresh is driven by the status watcher below, not here:
+	// an upload that is paused and later resumed finishes inside resumeAll()'s
+	// drive loop, long after this start() call has returned, so refreshing here
+	// would miss it.
 }
+
+// Refresh the listing whenever an upload batch reaches a successful terminal
+// state, so newly uploaded files appear. Watching the status (rather than
+// refreshing after start()) catches completions from both the initial run and
+// a post-pause resumeAll(); 'completed' is only set when at least one file was
+// actually uploaded.
+watch(
+	() => uploadService.state.status,
+	(status) => {
+		if (status === 'completed') {
+			listDir();
+		}
+	}
+);
 
 function onDismissUploadPanel() {
 	// Clears the panel and aborts any server-side sessions still alive, so
