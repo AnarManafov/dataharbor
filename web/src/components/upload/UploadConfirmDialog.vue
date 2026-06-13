@@ -72,7 +72,7 @@
               value="overwrite"
               :disabled="!limits?.allowOverwrite"
             />
-            <el-option label="Rename" value="rename" />
+            <el-option label="Keep both (rename)" value="rename" />
           </el-select>
         </template>
       </el-table-column>
