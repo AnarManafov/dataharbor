@@ -1,31 +1,41 @@
 # Release Notes
 
-## v1.0.21 (2026-05-30)
+## v1.1.0 (2026-06-17)
 
 Changelog:
 ### Added
-- update branding (8972706)
-- add multi-file batch download as tar.gz archive (backend,frontend) [GH-11] (f1392d9)
+- multi-file chunked resumable upload to XRootD (upload) [GH-56] (a46d549)
+- add GitHub issue reporting for users (7d3bdc2)
+- hash while uploading, sweep stale temps (upload) (1ed6ce5)
+- refresh listing when upload completes (upload) (97e2dbc)
 
 ### Fixed
-- update help section links for issue reporting (ec93b1f)
-- fix TLS handshake failure and XRootD hostname warning (backend,docker) (c9171af)
-
-### Documentation
-- remap commit references after author-email history rewrite (changelog) (83d0d8f)
+- run under v3-capable QEMU on Apple Silicon (xrootd) (a382d0c)
+- use browser-native downloads (download) [GH-61] (ba143d0)
+- detach XRootD client from request ctx (upload) (af08c3b)
+- detach XRootD client from request ctx (upload) (df1bde0)
+- detach chunk write from request ctx (upload) (e9b3643)
+- land on initial dir after re-login (browse) (5fb650a)
+- clarify the rename conflict label (upload) (67a73fd)
 
 ### Maintenance
-- remove GSI local environment configuration (1931b94)
-- add CODEOWNERS file for repository ownership (d28785b)
-- Prepare release v1.0.19 [skip ci] (cfbfd3f)
-- Prepare release v1.0.20 [skip ci] (a9fd5aa)
-- update dependencies and fix vulnerabilities (5c630f4)
-- pin golangci-lint version and add lockfile for reproducible builds (devcontainer) (0049533)
+- add opencode-ai setup and streamline AGENTS.md (devcontainer) [GH-56] (2666938)
+- Updated coverage badge. (99ce4aa)
+- add CLAUDE.md and fix theme font-size (b161670)
+- Updated coverage badge. (a0d684a)
+
+### Style
+- flat themed surfaces for home, login, about and docs (web) (6eb606e)
+- adopt typography tokens and GitHub-density root (web) (770166a)
 
 ### Build
-- update dependencies for web package (deps) (710a2a0)
-- update base images and dependencies (docker) [GH-11] (33fea7a)
+- upgrade to XRootD 6.0.3 on Rocky Linux 10 (xrootd) [GH-56] (2b3ae7d)
+- ignore the go `app` binary without ignoring app/ dirs (8166835)
+- upgrade deps, fix shell-quote vuln (deps) (1d47eb9)
 
 ### CI
-- add SSH key for direct master branch deployment (ef3061a)
+- push coverage badge via deploy key to satisfy master ruleset (8dad38f)
+
+### Other
+- ops(docker): configurable xrootd network alias [GH-63] (113eabf)
 
