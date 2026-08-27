@@ -17,6 +17,6 @@
     "prepare-release": "npm run sync-versions && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^10.0.3"
+    "concurrently": "^10.0.5"
   }
 }

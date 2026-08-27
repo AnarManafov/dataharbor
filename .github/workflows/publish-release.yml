@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false # Don't cancel in-progress releases
 
 env:
-  NODE_VERSION: "23"
+  NODE_VERSION: "26"
   GO_VERSION_FILE: "./app/go.mod"
   ARTIFACT_RETENTION_DAYS: 30
 
@@ -32,12 +32,12 @@ jobs:
       backend_version: ${{ steps.get_versions.outputs.backend_version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Fetch all history and tags
 
       - name: Download version info from previous workflow
-        uses: dawidd6/action-download-artifact@v19
+        uses: dawidd6/action-download-artifact@v24
         with:
           workflow: version-tag-processor.yml
           name: version-info
@@ -71,7 +71,7 @@ jobs:
           retention-days: 1
 
       - name: Download changelog from version-tag-processor workflow
-        uses: dawidd6/action-download-artifact@v19
+        uses: dawidd6/action-download-artifact@v24
         with:
           workflow: version-tag-processor.yml
           name: version-changelog
@@ -92,13 +92,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: master # Must use master to get the version-bumped package.json and v* tags from version-tag-processor
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -126,13 +126,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           ref: master # Must use master to get the version-bumped go files and app/v* tags from version-tag-processor
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache-dependency-path: "./app/go.sum"
@@ -223,7 +223,7 @@ jobs:
           [ "$BACKEND_RPM" != "not-found" ] && echo "- Backend: $BACKEND_RPM"
 
       - name: Checkout repository for deploy bundle
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           sparse-checkout: |
             docker/docker-compose.deploy.yml
@@ -277,7 +277,7 @@ jobs:
           echo "$delimiter" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare-release.outputs.global_tag }}
           name: Release ${{ needs.prepare-release.outputs.global_tag }}

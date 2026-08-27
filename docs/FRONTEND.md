@@ -94,7 +94,7 @@ web/
 
 ### Prerequisites
 
-- **Node.js 18+** - Modern JavaScript runtime
+- **Node.js 26+** - Modern JavaScript runtime
 - **npm** - Package manager for dependency management
 - **Git** - Version control system
 

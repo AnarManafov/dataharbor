@@ -37,7 +37,7 @@ jobs:
       rpm_dir: /tmp/all-rpms
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Fetch all history for proper changelog creation
 

@@ -304,11 +304,11 @@ xrootd.trace auth login debug
 
 ## Versions & Package Sources
 
-| Component         | Version / Source                                                      |
-| ----------------- | -------------------------------------------------------------------- |
-| Base image        | `rockylinux/rockylinux:10` (builder), `:10-minimal` (prod runtime)   |
-| XRootD            | `6.0.3` — CERN stable repo (`xrootd.web.cern.ch`, el10)              |
-| xrootd-multiuser  | `2.2.1` (osg25up) — OSG `osg-upcoming-development` channel, el10     |
+| Component        | Version / Source                                                   |
+| ---------------- | ------------------------------------------------------------------ |
+| Base image       | `rockylinux/rockylinux:10` (builder), `:10-minimal` (prod runtime) |
+| XRootD           | `6.1.1` — CERN stable repo (`xrootd.web.cern.ch`, el10)            |
+| xrootd-multiuser | `2.2.1` (osg25up) — OSG `osg-upcoming-development` channel, el10   |
 
 Pin a different XRootD version with `--build-arg XROOTD_VERSION=<x.y.z>`.
 
@@ -320,6 +320,14 @@ Pin a different XRootD version with `--build-arg XROOTD_VERSION=<x.y.z>`.
 > channels still carry the 5.x-ABI build, which will not load under XRootD 6.x.
 > Once OSG promotes the 6.x multiuser build to a `main`/`release` channel, drop
 > the `--enablerepo=osg-upcoming-development` flag in the Dockerfiles.
+
+> **Why still the `25-main` series?** An `osg/26-main` el10 series exists and its
+> release RPM installs, but the repositories behind it are still an empty
+> bootstrap skeleton (verified 2026-08-27): `osg`, `osg-development`,
+> `osg-upcoming-development` and `osg-testing` together publish only
+> `osg-release`, `buildsys-macros` and `osg-ca-certs` (2–5 packages each, versus
+> 97–170 in `25-main`), and `osg-upcoming` / `osg-contrib` return HTTP 404. There
+> is no `xrootd-multiuser` in any `26-main` channel yet. Re-check before bumping.
 
 ## Building Images
 

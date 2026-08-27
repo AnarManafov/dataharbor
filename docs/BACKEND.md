@@ -125,7 +125,7 @@ graph TB
 
 | Technology           | Purpose                                              |
 | -------------------- | ---------------------------------------------------- |
-| **Go 1.25+**         | Main programming language with excellent concurrency |
+| **Go 1.27+**         | Main programming language with excellent concurrency |
 | **Gin**              | High-performance HTTP web framework                  |
 | **Viper**            | Configuration management (YAML, env vars)            |
 | **Zap**              | Structured, leveled logging                          |

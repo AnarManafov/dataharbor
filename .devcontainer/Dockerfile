@@ -2,12 +2,12 @@
 # Uses base devcontainer with features for Go, Node.js, and development tools
 #
 # Architecture:
-# - Base: mcr.microsoft.com/devcontainers/base:ubuntu-24.04 (Ubuntu 24.04 LTS)
+# - Base: mcr.microsoft.com/devcontainers/base:ubuntu26.04 (Ubuntu 26.04 LTS)
 # - Go, Node.js, golangci-lint installed via devcontainer features
 # - XRootD packages installed directly (no feature available)
 #
 
-FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
+FROM mcr.microsoft.com/devcontainers/base:ubuntu26.04
 
 # Install XRootD development packages (for go-hep/xrootd integration)
 # These are project-specific and not available as devcontainer features

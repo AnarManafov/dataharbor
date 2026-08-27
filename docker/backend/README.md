@@ -14,7 +14,7 @@ The backend handles:
 
 ```mermaid
 graph LR
-    A[golang:1.25-alpine] -->|Build| B[Go Binary]
+    A[golang:1.27-alpine] -->|Build| B[Go Binary]
     B -->|Copy to| C[alpine:3.22]
     C -->|Add| D[xrootd-client]
     D --> E[Final Image]
@@ -156,7 +156,7 @@ cd ../../app && go mod tidy
 ## Dependencies
 
 - `xrootd-client` - XRootD protocol library
-- Go 1.25+
+- Go 1.27+
 - Alpine Linux 3.22
 
 ## Security

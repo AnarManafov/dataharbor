@@ -105,10 +105,6 @@ func (xc *XRDClient) OpenUploadFile(ctx context.Context, authToken, path string,
 	}
 
 	fs := client.FS()
-	if fs == nil {
-		_ = client.Close()
-		return nil, fmt.Errorf("failed to get filesystem interface")
-	}
 
 	// OpenModeOwnerRead|OpenModeOwnerWrite = 0600 equivalent. The server-side
 	// umask (set in xrootd.cfg) controls the final permissions.
@@ -147,9 +143,6 @@ func (xc *XRDClient) StatPath(ctx context.Context, authToken, path string) (xrdf
 	}()
 
 	fs := client.FS()
-	if fs == nil {
-		return xrdfs.EntryStat{}, false, fmt.Errorf("failed to get filesystem interface")
-	}
 
 	stat, err := fs.Stat(ctx, path)
 	if err != nil {
@@ -178,9 +171,6 @@ func (xc *XRDClient) RenameFile(ctx context.Context, authToken, oldpath, newpath
 	}()
 
 	fs := client.FS()
-	if fs == nil {
-		return fmt.Errorf("failed to get filesystem interface")
-	}
 
 	if err := fs.Rename(ctx, oldpath, newpath); err != nil {
 		return classifyXRDError(err, fmt.Sprintf("rename %s to %s", oldpath, newpath))
@@ -203,9 +193,6 @@ func (xc *XRDClient) RemoveFile(ctx context.Context, authToken, path string) err
 	}()
 
 	fs := client.FS()
-	if fs == nil {
-		return fmt.Errorf("failed to get filesystem interface")
-	}
 
 	if err := fs.RemoveFile(ctx, path); err != nil {
 		if isNotExistError(err) {
