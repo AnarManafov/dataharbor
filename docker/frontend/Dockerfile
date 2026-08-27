@@ -1,6 +1,6 @@
 # Frontend Dockerfile - Multi-stage build: Node.js build + Nginx serve
 
-FROM node:25-alpine AS builder
+FROM node:26-alpine AS builder
 
 WORKDIR /build
 
@@ -19,7 +19,7 @@ COPY web/ ./web/
 # Build the frontend
 RUN npm run build --workspace=web
 
-FROM nginx:1.29-alpine
+FROM nginx:1.31-alpine
 
 RUN apk add --no-cache ca-certificates tzdata
 

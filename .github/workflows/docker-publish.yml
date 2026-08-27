@@ -30,12 +30,12 @@ jobs:
       version: ${{ steps.context.outputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Download version info from release workflow
-        uses: dawidd6/action-download-artifact@v19
+        uses: dawidd6/action-download-artifact@v24
         with:
           workflow: publish-release.yml
           name: version-info
@@ -87,7 +87,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: master # Must use master to get the version-bumped package.json from version-tag-processor
 

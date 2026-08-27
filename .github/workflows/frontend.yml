@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true # Cancel in-progress runs on new pushes
 
 env:
-  NODE_VERSION: "23" # Updated to match local Node.js 23 version
+  NODE_VERSION: "26" # Matches the devcontainer / docker Node.js major
   FRONTEND_DIR: "./web"
   CACHE_NPM_DEPS: npm-cache-${{ github.sha }}
 
@@ -27,10 +27,10 @@ jobs:
     timeout-minutes: 15 # Prevent hung workflows
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -58,10 +58,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 

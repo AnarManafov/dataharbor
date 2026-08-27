@@ -183,11 +183,8 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 		}
 	}()
 
-	// Get filesystem interface
+	// Get filesystem interface (client.FS never returns nil)
 	fs := client.FS()
-	if fs == nil {
-		return nil, fmt.Errorf("failed to get filesystem interface")
-	}
 
 	// Perform the directory listing - simple and direct
 	xc.logger.Debug("Calling fs.Dirlist", "path", dirPath)
@@ -201,7 +198,7 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 			return nil, &XRootDAuthError{
 				message: "You don't have permission to view this directory. Your access does not include " +
 					"read permission for this path — contact your administrator if you believe this is an error.",
-				cause:   err,
+				cause: err,
 			}
 		}
 
@@ -253,10 +250,6 @@ func (xc *XRDClient) GetFileSystem(ctx context.Context, authToken string) (xrdfs
 	}
 
 	fs := client.FS()
-	if fs == nil {
-		_ = client.Close()
-		return nil, nil, fmt.Errorf("failed to get filesystem interface")
-	}
 
 	cleanup := func() {
 		if closeErr := client.Close(); closeErr != nil {
@@ -304,9 +297,6 @@ func (xc *XRDClient) VirtualStat(ctx context.Context, path string, authToken str
 	}()
 
 	fs := client.FS()
-	if fs == nil {
-		return xrdfs.VirtualFSStat{}, fmt.Errorf("failed to get filesystem interface")
-	}
 
 	stat, err := fs.VirtualStat(ctx, path)
 	if err != nil {

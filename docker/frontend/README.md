@@ -17,12 +17,12 @@ Modern web UI with:
 graph LR
     CLIENT[Client] -->|HTTPS:443 ONLY| NGX[Nginx Gateway]
     NGX -->|Internal /| FE[Frontend Container]
-    
+
     subgraph Frontend Container
         FE -->|Dev| VITE[Vite:5173]
         FE -->|Prod| STATIC[Nginx:80]
     end
-    
+
     Note[Port 5173 Dev / Port 80 Prod: Internal only]
 ```
 
@@ -210,7 +210,7 @@ docker compose restart frontend
 
 ## Dependencies
 
-- Node.js 24
+- Node.js 26
 - Vue 3
 - Vite
 - Nginx (production only)

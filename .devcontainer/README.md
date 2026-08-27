@@ -12,8 +12,8 @@ The Dev Container provides a fully configured development environment with all t
 
 | Category             | Tools                                        |
 | -------------------- | -------------------------------------------- |
-| **Base Image**       | Ubuntu 24.04 LTS (via devcontainer features) |
-| **Languages**        | Go 1.25+, Node.js 24+                        |
+| **Base Image**       | Ubuntu 26.04 LTS (via devcontainer features) |
+| **Languages**        | Go 1.27+, Node.js 26+                        |
 | **Go Tools**         | golangci-lint, gopls, delve, staticcheck     |
 | **Frontend**         | Vite, ESLint, Prettier                       |
 | **Utilities**        | Git, GitHub CLI, Docker, Zsh, Oh My Zsh      |
@@ -97,7 +97,7 @@ code .
 # 4. Wait for container to build (first time only)
 
 # 5. Verify setup:
-go version          # Go 1.24+
+go version          # Go 1.27+
 node --version      # Node 24+
 xrdfs --version     # XRootD client
 ```
@@ -109,15 +109,15 @@ xrdfs --version     # XRootD client
 ```mermaid
 graph TB
     CODE[Source Code<br/>on Host]
-    CONTAINER[Dev Container<br/>Ubuntu 24.04]
+    CONTAINER[Dev Container<br/>Ubuntu 26.04]
     VSCODE[VS Code<br/>on Host]
 
     VSCODE -->|Remote Connection| CONTAINER
     CODE -->|Volume Mount| CONTAINER
 
     subgraph "Devcontainer Features"
-        CONTAINER --> GO[Go 1.24]
-        CONTAINER --> NODE[Node.js 24]
+        CONTAINER --> GO[Go 1.27]
+        CONTAINER --> NODE[Node.js 26]
         CONTAINER --> LINT[golangci-lint]
         CONTAINER --> DOCKER[Docker CLI]
     end

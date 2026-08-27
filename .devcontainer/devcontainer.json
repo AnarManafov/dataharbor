@@ -145,12 +145,12 @@
   "features": {
     // Go development with tools (gopls, dlv, staticcheck, etc.)
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.26.4",
-      "golangciLintVersion": "2.11.2"
+      "version": "1.27.0",
+      "golangciLintVersion": "2.13.1"
     },
     // Node.js for Vue.js frontend
-    "ghcr.io/devcontainers/features/node:1": {
-      "version": "25",
+    "ghcr.io/devcontainers/features/node:2": {
+      "version": "26",
       "nodeGypDependencies": true
     },
     // Git with latest version
@@ -162,9 +162,11 @@
       "version": "latest"
     },
     // Docker outside of Docker for container management
+    // moby:false -> installs upstream Docker CE CLI. The moby-cli packages are
+    // not published for Ubuntu 26.04 (resolute), so moby:true fails to install.
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "version": "latest",
-      "moby": true
+      "moby": false
     },
     // Common utilities (curl, wget, jq, etc.)
     "ghcr.io/devcontainers/features/common-utils:2": {

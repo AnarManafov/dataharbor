@@ -7,7 +7,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker)](./docker)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-Ready-2496ED?style=flat&logo=docker)](./docker/docker-compose.yml)
 [![Devcontainer](https://img.shields.io/badge/Devcontainer-Supported-0078D4?style=flat&logo=visual-studio-code)](./.devcontainer)
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![Vue Version](https://img.shields.io/badge/Vue.js-3.0+-4FC08D?style=flat&logo=vue.js)](https://vuejs.org/)
 
 

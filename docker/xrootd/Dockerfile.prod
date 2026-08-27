@@ -21,7 +21,7 @@
 # ============================================
 
 # Global build argument for XRootD version
-ARG XROOTD_VERSION=6.0.3
+ARG XROOTD_VERSION=6.1.1
 
 # ---------------------------------------------
 # Build stage: Install XRootD and dependencies
@@ -34,6 +34,11 @@ FROM rockylinux/rockylinux:10 AS builder
 # - CERN repo provides the core xrootd 6.x packages (xrootd, server, libs, scitokens)
 # - OSG repo provides xrootd-multiuser; the 6.x-ABI build currently lives in the
 #   `osg-upcoming-development` channel (enabled per-install below)
+# - Stay on the 25-main series. An `osg/26-main` el10 series exists but is still an
+#   empty bootstrap skeleton (verified 2026-08-27): its release/development/
+#   upcoming-development/testing channels together ship only osg-release,
+#   buildsys-macros and osg-ca-certs -- no xrootd-multiuser, and osg-upcoming and
+#   osg-contrib 404 outright. Re-check before bumping to 26-main.
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
 	dnf install -y epel-release dnf-plugins-core && \
 	curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
