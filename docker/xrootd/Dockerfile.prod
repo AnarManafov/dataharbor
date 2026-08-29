@@ -16,7 +16,7 @@
 # Required mounts at runtime:
 #   - /data                    : Host data directory (Lustre/GPFS)
 #   - /var/run/xrootd/certs/   : TLS certificate and key
-#   - /etc/xrootd/mapfile      : User mapping file
+#   - /etc/xrootd/mapdir/      : Directory containing user mapping file (mapfile)
 #   - /etc/grid-security/certificates/ : CA certificates (optional)
 # ============================================
 
@@ -158,13 +158,13 @@ RUN mkdir -p \
 COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
 COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
 
-# Create default mapfile with empty array (overridden by host mount at deploy time)
-# This ensures Docker mounts a file (not directory) when host mapfile is mounted
-RUN echo '[]' > /etc/xrootd/mapfile
+# Create default mapfile dir with empty array (overridden by host directory mount at deploy time)
+# Prod mounts the DIRECTORY /etc/xrootd/mapdir so cron rewrites (new inode) stay visible
+RUN mkdir -p /etc/xrootd/mapdir && echo '[]' > /etc/xrootd/mapdir/mapfile
 
 # Set proper permissions on configs
 RUN chown -R ${XROOTD_UID}:${XROOTD_GID} /etc/xrootd && \
-	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
+	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapdir/mapfile
 
 # Copy production entrypoint
 COPY docker/xrootd/scripts/docker-entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh

@@ -180,11 +180,11 @@ log_ok "TLS certificates validated"
 # ==========================================
 log_info "Validating user mapfile..."
 
-MAPFILE="/etc/xrootd/mapfile"
+MAPFILE="/etc/xrootd/mapdir/mapfile"
 if [ ! -f "$MAPFILE" ]; then
     log_error "User mapfile not found at $MAPFILE"
-    log_error "Mount your mapfile using XRD_MAPFILE_PATH in .env"
-    log_error "Example: XRD_MAPFILE_PATH=/opt/xrootd/mapfile"
+    log_error "Mount the directory containing it using XRD_MAPFILE_DIR in .env (file must be named 'mapfile')"
+    log_error "Example: XRD_MAPFILE_DIR=/opt/xrootd  (containing /opt/xrootd/mapfile)"
     exit 1
 fi
 
@@ -204,7 +204,7 @@ if command -v python3 &>/dev/null; then
     # Count mappings
     MAPPING_COUNT=$(python3 -c "import json; print(len(json.load(open('$MAPFILE'))))" 2>/dev/null || echo "?")
     if [ "$MAPPING_COUNT" = "0" ]; then
-        log_warn "Mapfile is empty (no user mappings) — mount a mapfile via XRD_MAPFILE_PATH for production use"
+        log_warn "Mapfile is empty (no user mappings) — mount a mapfile dir via XRD_MAPFILE_DIR for production use"
     else
         log_ok "Mapfile valid with $MAPPING_COUNT user mappings"
     fi

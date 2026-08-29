@@ -471,8 +471,8 @@ XROOTD_DATA_DIR=/lustre/dataharbor  # or /data/xrootd
 XRD_CERT_PATH=/etc/grid-security/hostcert.pem
 XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 
-# XRootD User Mapfile (REQUIRED)
-XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+# XRootD User Mapfile directory (REQUIRED; file must be named 'mapfile')
+XRD_MAPFILE_DIR=/opt/xrootd
 
 # XRootD TLS CA Verification
 # Set to false for self-signed certs in staging/testing
@@ -737,8 +737,8 @@ XRD_CERT_PATH=/etc/grid-security/hostcert.pem
 XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 
 # === USER MAPFILE (REQUIRED) ===
-# Path on HOST to user mapping file
-XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+# Host directory containing the user mapping file (file must be named 'mapfile')
+XRD_MAPFILE_DIR=/opt/xrootd
 
 # === NGINX SSL CERTIFICATES (REQUIRED) ===
 # Paths on HOST to SSL certificate for HTTPS gateway
@@ -910,7 +910,7 @@ nano .env
 Set these required variables:
 - `XROOTD_DATA_DIR`
 - `XRD_CERT_PATH`, `XRD_KEY_PATH`
-- `XRD_MAPFILE_PATH`
+- `XRD_MAPFILE_DIR`
 - `SSL_CERT_PATH`, `SSL_KEY_PATH`
 - `OIDC_*` variables
 - `CORS_ALLOW_ORIGINS`, `FRONTEND_URL` (if not using localhost)

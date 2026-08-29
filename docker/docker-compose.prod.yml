@@ -232,11 +232,15 @@ services:
       # CRITICAL: UIDs in mapfile MUST match filesystem UIDs (especially for Lustre/NFS)
       # Example: {"sub": "username", "result": "unixuser"}
       # The "result" user must exist on host and have proper permissions on XROOTD_DATA_DIR
+      # Mount the DIRECTORY containing the mapfile (not the single file) so that
+      # cron jobs which rewrite the mapfile via rename/sed (new inode) are still
+      # visible in the container. Single-file binds pin the original inode and go
+      # stale on rewrite. The file inside MUST be named "mapfile".
       # Long-form bind ensures Docker fails (instead of creating a directory)
-      # if the host file is missing
+      # if the host directory is missing
       - type: bind
-        source: ${XRD_MAPFILE_PATH}
-        target: /etc/xrootd/mapfile
+        source: ${XRD_MAPFILE_DIR}
+        target: /etc/xrootd/mapdir
         read_only: true
         bind:
           create_host_path: false

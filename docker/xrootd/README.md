@@ -83,7 +83,7 @@ docker compose -f docker-compose.deploy.yml up -d
 | `XROOTD_DATA_DIR`  | Host directory to serve      | `/lustre/dataharbor`              |
 | `XRD_CERT_PATH`    | Host path to TLS certificate | `/etc/ssl/certs/server.crt`       |
 | `XRD_KEY_PATH`     | Host path to TLS private key | `/etc/ssl/private/server.key`     |
-| `XRD_MAPFILE_PATH` | Host path to user mapfile    | `/opt/xrootd/mapfile`             |
+| `XRD_MAPFILE_DIR`  | Host dir with mapfile        | `/opt/xrootd` (has /mapfile)      |
 | `CA_CERTS_PATH`    | Host path to CA certificates | `/etc/grid-security/certificates` |
 
 ## User Mapping

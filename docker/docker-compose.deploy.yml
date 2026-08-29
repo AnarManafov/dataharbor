@@ -16,7 +16,7 @@
 #   - SSL_CERT_PATH, SSL_KEY_PATH: TLS certificates for nginx
 #   - XROOTD_DATA_DIR: Host directory to serve via XRootD
 #   - XRD_CERT_PATH, XRD_KEY_PATH: XRootD TLS certificates
-#   - XRD_MAPFILE_PATH: Token-to-user mapping file
+#   - XRD_MAPFILE_DIR: Directory containing the token-to-user mapping file (mapfile)
 #   - OIDC_*: Authentication configuration
 
 services:
@@ -211,11 +211,14 @@ services:
       - ${HOST_SSSD_PIPES:-/var/lib/sss/pipes}:/var/lib/sss/pipes:ro
 
       # USER MAPFILE
+      # Mount the DIRECTORY containing the mapfile (not the single file) so cron
+      # rewrites (new inode via rename/sed) stay visible in the container. The
+      # file inside MUST be named "mapfile".
       # Long-form bind ensures Docker fails (instead of creating a directory)
-      # if the host file is missing
+      # if the host directory is missing
       - type: bind
-        source: ${XRD_MAPFILE_PATH}
-        target: /etc/xrootd/mapfile
+        source: ${XRD_MAPFILE_DIR}
+        target: /etc/xrootd/mapdir
         read_only: true
         bind:
           create_host_path: false
