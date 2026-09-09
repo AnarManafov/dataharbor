@@ -49,7 +49,7 @@ func TestStartServer_DebugMode(t *testing.T) {
 	// Call the startServer function
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		startServer(stop)
+		_ = startServer(stop)
 	})
 
 	// Add assertions to verify server start
@@ -79,7 +79,7 @@ func TestStartServer_ReleaseMode(t *testing.T) {
 	// Call the startServer function
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		startServer(stop)
+		_ = startServer(stop)
 	})
 
 	// Add assertions to verify server start
@@ -117,7 +117,7 @@ func TestStartServer_SSLEnabled(t *testing.T) {
 			// Recover from any panic
 			_ = recover()
 		}()
-		startServer(stop)
+		_ = startServer(stop)
 	})
 
 	// Signal stop and wait for the goroutine to finish
@@ -143,7 +143,7 @@ func TestStartServer_DefaultAddress(t *testing.T) {
 	// Start server in goroutine
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		startServer(stop)
+		_ = startServer(stop)
 	})
 
 	// Signal stop and wait for the goroutine to finish
