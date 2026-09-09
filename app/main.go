@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -27,7 +28,9 @@ func main() {
 	// Initialize everything in the proper order
 	initialize()
 	stop := make(chan struct{})
-	startServer(stop)
+	if err := startServer(stop); err != nil {
+		common.Logger.Fatal("Server error:", err)
+	}
 }
 
 func initialize() {
@@ -83,7 +86,7 @@ func initialize() {
 	}
 }
 
-func startServer(stop chan struct{}) {
+func startServer(stop chan struct{}) error {
 	cfg := config.GetConfig()
 
 	if !cfg.Server.Debug {
@@ -108,6 +111,11 @@ func startServer(stop chan struct{}) {
 		MaxHeaderBytes: 1 << 20,           // 1MB max header size
 	}
 
+	// A listener that dies on its own is reported through this channel rather
+	// than by calling Logger.Fatal (os.Exit) from inside the goroutine: an exit
+	// there takes down the whole process, which in tests means the test binary.
+	serveErr := make(chan error, 1)
+
 	// Start server with SSL/TLS support if enabled
 	if cfg.Server.SSL.Enabled {
 		fmt.Printf("Starting HTTPS server on address: %s\n", address)
@@ -115,27 +123,34 @@ func startServer(stop chan struct{}) {
 
 		// Validate certificate files exist
 		if cfg.Server.SSL.CertFile == "" || cfg.Server.SSL.KeyFile == "" {
-			common.Logger.Fatal("SSL enabled but certificate or key file not specified")
+			return errors.New("SSL enabled but certificate or key file not specified")
 		}
 
 		go func() {
-			if err := srv.ListenAndServeTLS(cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile); err != nil && err != http.ErrServerClosed {
-				common.Logger.Fatal("HTTPS server failed:", err)
+			if err := srv.ListenAndServeTLS(cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serveErr <- fmt.Errorf("HTTPS server failed: %w", err)
 			}
 		}()
 	} else {
 		fmt.Printf("Starting HTTP server on address: %s\n", address)
 		go func() {
-			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				common.Logger.Fatal("HTTP server failed:", err)
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serveErr <- fmt.Errorf("HTTP server failed: %w", err)
 			}
 		}()
 	}
 
-	<-stop
+	// Whichever comes first: the listener failing, or a shutdown request.
+	select {
+	case err := <-serveErr:
+		return err
+	case <-stop:
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		common.Logger.Fatal("Server forced to shutdown:", err)
+		return fmt.Errorf("server forced to shutdown: %w", err)
 	}
+	return nil
 }

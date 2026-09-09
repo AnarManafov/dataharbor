@@ -98,7 +98,7 @@ code .
 
 # 5. Verify setup:
 go version          # Go 1.27+
-node --version      # Node 24+
+node --version      # Node 26+
 xrdfs --version     # XRootD client
 ```
 
