@@ -1,0 +1,30 @@
+# golangci-lint configuration (schema v2).
+#
+# v2 requires this explicit `version` key; without a config file at all,
+# golangci-lint silently falls back to its five default linters, which makes
+# the effective linter set depend on the binary's version rather than on the
+# repo. Pin it here so local `make lint` and CI agree.
+#
+# Requires golangci-lint >= 2.x built with a Go toolchain at least as new as
+# the `go` directive in go.mod (currently 1.27.1) -- an older binary cannot
+# parse newer language constructs.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # The upstream default set: errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
