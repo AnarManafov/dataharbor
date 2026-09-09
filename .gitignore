@@ -4,6 +4,12 @@ node_modules
 /sandbox
 
 
+# npm workspaces: the only lockfile is the one at the repo root.
+# A per-workspace web/package-lock.json is never installed from (Docker and CI
+# both run `npm ci` at the root), but Dependabot still scans it, so a stale copy
+# reports vulnerabilities that the real dependency tree does not have.
+web/package-lock.json
+
 # local env files
 .env.local
 .env.*.local
