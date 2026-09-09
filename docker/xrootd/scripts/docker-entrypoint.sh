@@ -31,12 +31,12 @@ mkdir -p /data/testuser2
 chown testuser2:testuser2 /data/testuser2
 chmod 700 /data/testuser2  # Owner-only access
 
-if ! id -u amanafov &>/dev/null; then
-    useradd -u 1003 -m -s /bin/bash amanafov
+if ! id -u manafov &>/dev/null; then
+    useradd -u 1003 -m -s /bin/bash manafov
 fi
-mkdir -p /data/amanafov
-chown amanafov:amanafov /data/amanafov
-chmod 700 /data/amanafov  # Owner-only access
+mkdir -p /data/manafov
+chown manafov:manafov /data/manafov
+chmod 700 /data/manafov  # Owner-only access
 
 # Setup test data for user mapping demonstration
 if [ -f "/usr/local/bin/setup-test-data.sh" ]; then

@@ -113,7 +113,7 @@ COPY --from=builder /etc/shadow /etc/shadow
 # Create test users for token-to-Unix-user mapping demonstration
 RUN useradd -m -s /bin/bash -u 1001 testuser1 && \
 	useradd -m -s /bin/bash -u 1002 testuser2 && \
-	useradd -m -s /bin/bash -u 1003 amanafov
+	useradd -m -s /bin/bash -u 1003 manafov
 
 # Create directories with proper permissions for xrootd and test users
 RUN mkdir -p \
@@ -125,7 +125,7 @@ RUN mkdir -p \
 	/data \
 	/data/testuser1 \
 	/data/testuser2 \
-	/data/amanafov && \
+	/data/manafov && \
 	chown -R xrootd:xrootd \
 	/var/log/xrootd \
 	/var/spool/xrootd \
@@ -135,8 +135,8 @@ RUN mkdir -p \
 	chown xrootd:xrootd /data && \
 	chown testuser1:testuser1 /data/testuser1 && \
 	chown testuser2:testuser2 /data/testuser2 && \
-	chown amanafov:amanafov /data/amanafov && \
-	chmod 700 /data/testuser1 /data/testuser2 /data/amanafov
+	chown manafov:manafov /data/manafov && \
+	chmod 700 /data/testuser1 /data/testuser2 /data/manafov
 
 # Copy configuration files
 COPY docker/xrootd/configs/xrootd-dev.cfg /etc/xrootd/xrootd-dev.cfg
