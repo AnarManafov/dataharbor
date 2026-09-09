@@ -44,7 +44,7 @@ docker compose logs xrootd
 
 Development mode automatically:
 - Generates self-signed TLS certificates
-- Creates test users (testuser1, testuser2, amanafov)
+- Creates test users (testuser1, testuser2, manafov)
 - Sets up test data in `/data`
 
 ### Production
@@ -126,7 +126,7 @@ The mapfile is a JSON array of mappings:
 
 | Token Subject | Unix User   | UID  | Home Directory    |
 | ------------- | ----------- | ---- | ----------------- |
-| `a.manafov`   | `amanafov`  | 1003 | `/data/amanafov`  |
+| `a.manafov`   | `manafov`   | 1003 | `/data/manafov`   |
 | `testuser1`   | `testuser1` | 1001 | `/data/testuser1` |
 | `testuser2`   | `testuser2` | 1002 | `/data/testuser2` |
 | (unmapped)    | denied      | -    | -                 |
@@ -263,7 +263,7 @@ docker compose exec xrootd tail -f /var/log/xrootd/xrootd.log
 
 ```bash
 # Verify users exist
-docker compose exec xrootd id amanafov
+docker compose exec xrootd id manafov
 
 # Check data directories
 docker compose exec xrootd ls -la /data

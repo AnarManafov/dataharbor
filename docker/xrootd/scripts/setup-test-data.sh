@@ -39,8 +39,8 @@ EOF
         echo "Sample data for ${user}" > "$user_dir/sample.txt"
         echo "Timestamp: $(date)" >> "$user_dir/sample.txt"
         
-        # Create additional test files for amanafov user
-        if [ "$user" = "amanafov" ]; then
+        # Create additional test files for manafov user
+        if [ "$user" = "manafov" ]; then
             # Create 2 random data files (10-15 MB each) for download testing
             # Using dd with /dev/urandom for efficient random data generation
             echo "Generating test data files..."
@@ -99,7 +99,7 @@ EOF
 }
 
 # Create test data for all users
-create_test_files "amanafov"
+create_test_files "manafov"
 create_test_files "testuser1"
 create_test_files "testuser2"
 
@@ -121,7 +121,7 @@ echo ""
 echo "User Mapping Configuration:"
 echo "  Token 'sub' claim    ->  Unix User    ->  Home Dir"
 echo "  -------------------------------------------------"
-echo "  a.manafov            ->  amanafov     ->  /data/amanafov"
+echo "  a.manafov            ->  manafov      ->  /data/manafov"
 echo "  testuser1            ->  testuser1    ->  /data/testuser1"
 echo "  testuser2            ->  testuser2    ->  /data/testuser2"
 echo "  <other>              ->  ACCESS DENIED (default_user=\"\")"
@@ -129,6 +129,6 @@ echo ""
 echo "To test:"
 echo "  1. Login with your GSI Keycloak account (a.manafov)"
 echo "  2. Browse to /data - you should see all directories"
-echo "  3. Try to access /data/amanafov - should work!"
+echo "  3. Try to access /data/manafov - should work!"
 echo "  4. Check XRootD logs for user mapping: docker logs dataharbor-xrootd-dev"
 echo ""
