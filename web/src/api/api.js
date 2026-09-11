@@ -239,12 +239,13 @@ export function getUserInfo() {
 
 /**
  * Begin OAuth/OIDC authentication flow
- * Preserves user's navigation intent for post-login continuation
- * @param {string} redirectUri - Destination after successful login
+ * The backend keeps redirectPath in the session and sends the browser back
+ * there once the IdP callback completes, so deep links survive the round trip.
+ * @param {string} redirectPath - In-app path (e.g. "/browse/data") to return to after login
  */
-export function login(redirectUri) {
+export function login(redirectPath) {
   return apiClient.get('/auth/login', {
-    params: { redirect_uri: redirectUri },
+    params: { redirect_path: redirectPath },
     withCredentials: true
   }).catch(handleApiError);
 }

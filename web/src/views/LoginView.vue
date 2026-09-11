@@ -12,7 +12,7 @@
                 <el-icon class="loading-icon">
                     <Loading />
                 </el-icon>
-                <p class="loading-text">Authenticating...</p>
+                <p class="loading-text">{{ statusText }}</p>
             </div>
             <div v-else class="login-content">
                 <p class="login-description">
@@ -44,10 +44,17 @@
 <script>
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import useAuth from '../composables/useAuth';
+import useAuth, { autoLoginRecentlyFailed, sanitizeReturnPath } from '../composables/useAuth';
 import { Loading, User } from '@element-plus/icons-vue';
 import { getConfig } from '@/config/config';
 
+// This page is not a login form — the identity provider owns that. It exists
+// for two cases only:
+//   1. an unauthenticated visit to a protected route (`?redirect=/browse/...`):
+//      the router guard lands here and we forward to the IdP immediately, so
+//      the user never has to click "Sign in" a second time;
+//   2. a direct visit (bookmark) or a bounced automatic attempt: show the
+//      button so the user stays in control and can retry.
 export default {
     name: 'LoginView',
     components: {
@@ -55,27 +62,27 @@ export default {
         User
     },
     setup() {
-        const { login, isAuthenticated, error, isLoading } = useAuth();
+        const { login, checkAuth } = useAuth();
         const route = useRoute();
         const router = useRouter();
         const config = getConfig();
         const branding = config.branding || {};
 
-        // Store intended destination for post-login redirect
-        const redirectPath = ref(route.query.redirect || '/');
+        // Intended destination after login; only same-origin paths are honoured
+        const redirectPath = sanitizeReturnPath(route.query.redirect);
+        const cameFromProtectedRoute = typeof route.query.redirect === 'string' && route.query.redirect !== '';
         const errorMessage = ref('');
         const loading = ref(false);
+        const statusText = ref('Checking your session…');
 
-        // Handle login button click
-        const handleLogin = async () => {
-            console.log('Login button clicked');
+        const startLogin = async ({ automatic = false } = {}) => {
             loading.value = true;
+            statusText.value = 'Redirecting to sign-in…';
             errorMessage.value = '';
 
             try {
-                // Call the login method from useAuth composable
-                await login();
-                // The login method will redirect the browser, so we don't need to do anything else here
+                // Sends the browser to the IdP; nothing runs after this on success
+                await login(redirectPath, { automatic });
             } catch (err) {
                 console.error('Login failed:', err);
                 errorMessage.value = 'Failed to initiate login. Please try again.';
@@ -83,17 +90,33 @@ export default {
             }
         };
 
-        onMounted(() => {
-            // If already authenticated, redirect to intended destination
-            if (isAuthenticated.value) {
-                router.push(redirectPath.value);
+        const handleLogin = () => startLogin();
+
+        onMounted(async () => {
+            loading.value = true;
+
+            // Already signed in (e.g. bookmarked /login): skip the IdP entirely
+            if (await checkAuth()) {
+                router.replace(redirectPath);
+                return;
             }
+
+            if (cameFromProtectedRoute && !autoLoginRecentlyFailed()) {
+                await startLogin({ automatic: true });
+                return;
+            }
+
+            if (autoLoginRecentlyFailed()) {
+                errorMessage.value = "Sign-in didn't complete. Please try again.";
+            }
+            loading.value = false;
         });
 
         return {
             handleLogin,
             errorMessage,
             loading,
+            statusText,
             branding
         };
     }

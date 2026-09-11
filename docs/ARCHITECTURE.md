@@ -154,13 +154,14 @@ sequenceDiagram
     U->>F: Access protected resource
     F->>B: API request
     B->>F: 401 Unauthorized
-    F->>U: Redirect to login
+    F->>U: Show /login interstitial (auto-continues)
 
     Note over U,O: OIDC Authentication Flow
-    U->>F: Click login
-    F->>B: GET /auth/login
+    F->>B: GET /auth/login?redirect_path=<original path>
     B->>B: Generate state parameter (CSRF protection)
-    B->>U: 302 Redirect to OIDC
+    B->>B: Store state + redirect_path in session
+    B->>F: { auth_url }
+    F->>U: Redirect to OIDC
 
     U->>O: Authorization request + state
     O->>U: Authentication prompt

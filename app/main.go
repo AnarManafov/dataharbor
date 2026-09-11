@@ -79,6 +79,8 @@ func initialize() {
 
 	// 7. Initialize authentication system
 	controller.InitAuth()
+	// Surface a wrong client secret at boot instead of as a 500 mid-login.
+	go controller.VerifyOIDCClientCredentials()
 
 	// 8. Initialize snowflake ID generator
 	if err := util.InitSnowflake(); err != nil {

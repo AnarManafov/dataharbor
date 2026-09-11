@@ -24,16 +24,16 @@ sequenceDiagram
     Frontend->>Backend: API request to protected endpoint
     Backend->>Backend: AuthMiddleware: Check session cookies
     Backend->>Frontend: 401 Unauthorized (no valid session)
-    Frontend->>User: Redirect to login page (/login)
+    Frontend->>User: Show /login?redirect=/browse (interstitial, no click needed)
 
     Note over User,OIDC: Phase 2: OIDC Authorization Flow Initiation
-    User->>Frontend: Click login button
-    Frontend->>Backend: GET /api/v1/auth/login
+    Frontend->>Backend: GET /api/v1/auth/login?redirect_path=/browse
     Backend->>Backend: Generate random state (CSRF protection)
-    Backend->>Backend: session.Set("oauth_state", state)
-    Backend->>Backend: session.Set("original_url", redirect_url)
+    Backend->>Backend: session.Set("oidc_state", state)
+    Backend->>Backend: session.Set("post_login_redirect", redirect_path)
     Backend->>Backend: Build authorization URL with state
-    Backend->>User: 302 Redirect to OIDC Provider
+    Backend->>Frontend: { auth_url }
+    Frontend->>User: window.location = auth_url (OIDC Provider)
 
     Note over User,OIDC: Phase 3: User Authentication at OIDC Provider
     User->>OIDC: Authorization request with state parameter
@@ -52,7 +52,7 @@ sequenceDiagram
     Backend->>Backend: session.Set("id_token", id_token)
     Backend->>Backend: session.Set("refresh_token", refresh_token)
     Backend->>Backend: session.Save() → HTTP-only cookies
-    Backend->>User: 302 Redirect to original protected resource
+    Backend->>User: 307 Redirect to FRONTEND_URL + post_login_redirect
 
     Note over User,Backend: Phase 6: Authenticated Resource Access
     User->>Frontend: Navigate to original resource (/browse)

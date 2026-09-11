@@ -91,7 +91,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
-import { ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import {
     User,
     Setting,
@@ -183,19 +183,16 @@ const navigateTo = (path) => {
     router.push(path);
 };
 
+// One click → identity provider. The IdP is the login screen; an in-app
+// /login page in between would just be a second "Sign In" button. The user
+// comes back to the page they were on once the IdP callback completes.
 const handleLogin = async () => {
-    // After signing out we are already on /login, where pushing the same route
-    // is a no-op and the button looks dead. Start the OIDC flow directly there.
-    if (router.currentRoute.value.path === '/login') {
-        try {
-            await login();
-        } catch (err) {
-            console.error('Login failed:', err);
-        }
-        return;
+    try {
+        await login();
+    } catch (err) {
+        console.error('Login failed:', err);
+        ElMessage.error('Could not start sign-in. Please try again.');
     }
-
-    router.push('/login');
 };
 
 const handleUserAction = async (command) => {

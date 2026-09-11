@@ -436,6 +436,7 @@ The application uses Vue Router with declarative route definitions and metadata-
 **Route Structure**:
 
 - **Public Routes**: Accessible without authentication (`/`, `/about`, `/docs`, `/login`)
+  - `/login` is an interstitial, not a login form: the identity provider owns the credentials UI. Arriving there with `?redirect=<path>` (what the guard does for a protected route) starts the OIDC flow immediately; a direct visit shows a single button. The top-bar **Sign In** button also starts the OIDC flow directly, so signing in is always one click. After the IdP callback the backend sends the browser back to the recorded path.
 - **Protected Routes**: Require authentication (`/browse`)
 - **Callback Routes**: Handle OIDC authentication flow (`/oidc-callback`)
 
