@@ -1,41 +1,22 @@
 # Release Notes
 
-## v1.1.0 (2026-06-17)
+## v1.2.0 (2026-09-11)
 
 Changelog:
 ### Added
-- multi-file chunked resumable upload to XRootD (upload) [GH-56] (a46d549)
-- add GitHub issue reporting for users (7d3bdc2)
-- hash while uploading, sweep stale temps (upload) (1ed6ce5)
-- refresh listing when upload completes (upload) (97e2dbc)
+- derive XRootD Unix user from posix_username claim (auth) [GH-74] (4a99d0a)
+- streamline login, verify client secret (auth) [GH-74] (d364470)
 
-### Fixed
-- run under v3-capable QEMU on Apple Silicon (xrootd) (a382d0c)
-- use browser-native downloads (download) [GH-61] (ba143d0)
-- detach XRootD client from request ctx (upload) (af08c3b)
-- detach XRootD client from request ctx (upload) (df1bde0)
-- detach chunk write from request ctx (upload) (e9b3643)
-- land on initial dir after re-login (browse) (5fb650a)
-- clarify the rename conflict label (upload) (67a73fd)
+### Changed
+- modernize Go loops and string building [GH-74] (33e3291)
 
 ### Maintenance
-- add opencode-ai setup and streamline AGENTS.md (devcontainer) [GH-56] (2666938)
-- Updated coverage badge. (99ce4aa)
-- add CLAUDE.md and fix theme font-size (b161670)
-- Updated coverage badge. (a0d684a)
-
-### Style
-- flat themed surfaces for home, login, about and docs (web) (6eb606e)
-- adopt typography tokens and GitHub-density root (web) (770166a)
+- Updated coverage badge. (078d437)
+- rename dev test user amanafov to manafov (docker) (21421fe)
+- Updated coverage badge. (6626215)
 
 ### Build
-- upgrade to XRootD 6.0.3 on Rocky Linux 10 (xrootd) [GH-56] (2b3ae7d)
-- ignore the go `app` binary without ignoring app/ dirs (8166835)
-- upgrade deps, fix shell-quote vuln (deps) (1d47eb9)
-
-### CI
-- push coverage badge via deploy key to satisfy master ruleset (8dad38f)
-
-### Other
-- ops(docker): configurable xrootd network alias [GH-63] (113eabf)
+- bump toolchain and dependencies (deps) (fe334a9)
+- bump toolchain and dependencies (deps) (9260aa8)
+- add golangci-lint v2 config, drop stale web lockfile (cf2e2a3)
 

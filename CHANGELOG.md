@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-11
+
+### Added
+
+- derive XRootD Unix user from posix_username claim (auth) [GH-74] (4a99d0a)
+- streamline login, verify client secret (auth) [GH-74] (d364470)
+
+### Changed
+
+- modernize Go loops and string building [GH-74] (33e3291)
+
+### Maintenance
+
+- Updated coverage badge. (078d437, 6626215)
+- rename dev test user amanafov to manafov (docker) (21421fe)
+
+### Build
+
+- bump toolchain and dependencies (deps) (fe334a9, 9260aa8)
+- add golangci-lint v2 config, drop stale web lockfile (cf2e2a3)
+
 ## [1.1.0] - 2026-06-17
 
 ### Added
