@@ -4,3 +4,8 @@
 # All text files in docker folder must have Unix line endings
 # This ensures Docker containers work correctly across Windows, Linux, and macOS
 docker/** text=auto eol=lf
+
+# YAML config files (app/config, CI workflows, compose) must be LF so a Windows
+# editor cannot turn a one-line change into a whole-file diff
+*.yaml text eol=lf
+*.yml  text eol=lf

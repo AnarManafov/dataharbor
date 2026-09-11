@@ -25,8 +25,7 @@ graph TB
     CLIENT[Client] -->|Bearer Token| BE[Backend]
     BE -->|Token + TLS| XRD[XRootD Container]
     XRD -->|Validate| SCI[SciTokens Plugin]
-    SCI -->|Map user| MAP[Mapfile]
-    MAP -->|Unix user| MULTI[Multiuser Plugin]
+    SCI -->|posix_username claim| MULTI[Multiuser Plugin]
     MULTI -->|setuid/setgid| FS[Filesystem /data]
 ```
 
@@ -46,6 +45,7 @@ Development mode automatically:
 - Generates self-signed TLS certificates
 - Creates test users (testuser1, testuser2, manafov)
 - Sets up test data in `/data`
+- Renders the SciTokens config with the same script production uses
 
 ### Production
 
@@ -71,81 +71,201 @@ docker compose -f docker-compose.deploy.yml up -d
 | -------------------- | --------------------------- | ---------------------------------- |
 | **TLS Certificates** | Auto-generated self-signed  | Host-mounted real certs            |
 | **Data Directory**   | Named volume with test data | Bind mount from host (Lustre/GPFS) |
-| **User Mapfile**     | Baked into image            | Mounted from host                  |
-| **Test Users**       | Created in container        | Map to host filesystem UIDs        |
+| **User Mapping**     | `posix_username` claim      | `posix_username` claim             |
+| **Test Users**       | Created in container        | Resolved from host (LDAP/SSSD)     |
 | **Logging**          | Verbose (debug)             | Minimal (error only)               |
-| **Token Validation** | Passthrough on missing      | Deny on missing                    |
+| **Token Validation** | Deny on missing             | Deny on missing                    |
 
 ### Required Environment Variables (Production)
 
-| Variable           | Description                  | Example                           |
-| ------------------ | ---------------------------- | --------------------------------- |
-| `XROOTD_DATA_DIR`  | Host directory to serve      | `/lustre/dataharbor`              |
-| `XRD_CERT_PATH`    | Host path to TLS certificate | `/etc/ssl/certs/server.crt`       |
-| `XRD_KEY_PATH`     | Host path to TLS private key | `/etc/ssl/private/server.key`     |
-| `XRD_MAPFILE_PATH` | Host path to user mapfile    | `/opt/xrootd/mapfile`             |
-| `CA_CERTS_PATH`    | Host path to CA certificates | `/etc/grid-security/certificates` |
+| Variable          | Description                  | Example                           |
+| ----------------- | ---------------------------- | --------------------------------- |
+| `XROOTD_DATA_DIR` | Host directory to serve      | `/lustre/dataharbor`              |
+| `XRD_CERT_PATH`   | Host path to TLS certificate | `/etc/ssl/certs/server.crt`       |
+| `XRD_KEY_PATH`    | Host path to TLS private key | `/etc/ssl/private/server.key`     |
+| `CA_CERTS_PATH`   | Host path to CA certificates | `/etc/grid-security/certificates` |
+| `OIDC_ISSUER`     | OIDC issuer URL              | `https://id.gsi.de/realms/wl`     |
+
+The compose files wire `SCITOKENS_ISSUER: ${OIDC_ISSUER}` for the container, so set
+`OIDC_ISSUER` in `.env` — setting `SCITOKENS_ISSUER` there has no effect.
+
+Optional: `XRD_USER_MAPPING` (`claim`, the default, or `mapfile`) and, for mapfile
+mode only, `XRD_MAPFILE_PATH`. See
+[Alternative: static mapfile](#alternative-static-mapfile-xrd_user_mappingmapfile).
 
 ## User Mapping
 
-### How It Works
+XRootD runs every request as a real Unix user: the SciTokens plugin derives a
+username from the access token, and the multiuser plugin `setuid()`s to it before
+touching the filesystem. `XRD_USER_MAPPING` selects where that username comes from.
+
+| `XRD_USER_MAPPING` | Default | Rendered `[Issuer OIDC]` block                                        |
+| ------------------ | ------- | --------------------------------------------------------------------- |
+| `claim`            | **yes** | `username_claim = posix_username`                                     |
+| `mapfile`          | opt-in  | `map_subject = true`, `name_mapfile = ...`, `default_user = ""`        |
+
+Any other value makes the entrypoint exit non-zero.
+
+### How It Works (default: `posix_username` claim)
 
 ```mermaid
 flowchart LR
-    TOKEN[JWT Token] -->|Extract sub| SCI[SciTokens]
-    SCI -->|Lookup| MAP[Mapfile]
-    MAP -->|Unix user| MULTI[Multiuser]
+    TOKEN[JWT Token] -->|posix_username| SCI[SciTokens]
+    SCI -->|Unix user| MULTI[Multiuser]
     MULTI -->|setuid/setgid| FS[File Access]
 ```
 
-1. User authenticates via OIDC (e.g., Keycloak)
-2. Backend passes JWT token to XRootD
-3. SciTokens plugin validates token
-4. Mapfile maps token `sub` claim to Unix username
-5. Multiuser plugin switches to that user's UID/GID
-6. Files accessed with proper permissions
+1. User authenticates via OIDC (e.g. Keycloak)
+2. Backend passes the access token to XRootD
+3. SciTokens plugin validates the token and reads `posix_username` from it
+4. Multiuser plugin switches to that user's UID/GID
+5. Files are accessed with that user's permissions
 
-### Mapfile Format
+Nothing to maintain per user: the IdP already knows the POSIX username.
 
-The mapfile is a JSON array of mappings:
+**Host requirement:** every `posix_username` your IdP can issue must be resolvable
+via `getent passwd <posix_username>` on the host, with the UID matching the data
+filesystem (Lustre/GPFS/NFS). On HPC/enterprise hosts these users come from
+LDAP/AD via SSSD; the container talks to the host's SSSD daemon through the
+mounted socket.
 
-```json
-[
-  {"sub": "alice@example.com", "result": "alice"},
-  {"sub": "bob@example.com", "result": "bob"},
-  {"sub": "*", "result": ""}
-]
-```
+**Fail-closed behaviour.** A token is rejected outright when the claim is
 
-| Field    | Description                                               |
-| -------- | --------------------------------------------------------- |
-| `sub`    | JWT token subject claim (exact match or `*` for wildcard) |
-| `result` | Unix username to map to (empty string = deny access)      |
+- missing — `scitokens.trace` logs `Failed to get token username`;
+- empty or unsafe — `Token username claim contains unsafe characters`. Safe means
+  `[A-Za-z0-9_.@-]+` and not starting with `-`.
+
+This is the same guarantee the old `default_user = ""` gave: a user DataHarbor
+cannot map is denied, never silently downgraded to a shared account. Users
+without a POSIX account therefore cannot use claim mode.
+
+### Required Token Contents
+
+Access token (what XRootD validates):
+
+| Claim            | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `iss`            | Must equal `SCITOKENS_ISSUER`                                  |
+| `aud`            | Must equal `SCITOKENS_AUDIENCE` (defaults to the issuer URL)    |
+| `exp`, `iat`     | Validity window                                                 |
+| `scope`          | `read:/` for browse/download, `write:/` for upload              |
+| `sub`            | Stable user id — used by the backend for per-user rate limiting |
+| `posix_username` | The Unix account XRootD switches to (claim mode)                |
+| `ver`            | `scitoken:2.0`                                                  |
+
+Userinfo endpoint (what the backend shows in the UI): `sub`,
+`preferred_username`, `given_name`, `family_name`, `name`, and `posix_username`
+when present. `email` is optional — the UI degrades gracefully without it, and
+the requested scopes are configurable via `auth.oidc.scopes`.
+
+Keep this list in mind before trimming claims or scopes on the IdP client: the
+app breaks in ways that only show up at login or at first file access.
 
 ### Test Users (Development Only)
 
-| Token Subject | Unix User   | UID  | Home Directory    |
-| ------------- | ----------- | ---- | ----------------- |
-| `a.manafov`   | `manafov`   | 1003 | `/data/manafov`   |
-| `testuser1`   | `testuser1` | 1001 | `/data/testuser1` |
-| `testuser2`   | `testuser2` | 1002 | `/data/testuser2` |
-| (unmapped)    | denied      | -    | -                 |
+| `posix_username` | Unix User   | UID  | Home Directory    |
+| ---------------- | ----------- | ---- | ----------------- |
+| `manafov`        | `manafov`   | 1003 | `/data/manafov`   |
+| `testuser1`      | `testuser1` | 1001 | `/data/testuser1` |
+| `testuser2`      | `testuser2` | 1002 | `/data/testuser2` |
+| (claim missing)  | denied      | -    | -                 |
 
 ### Production User Setup
 
 **CRITICAL**: For production with Lustre/NFS:
-- UIDs in the mapfile must match filesystem UIDs
-- Users must exist on the host system
-- Users must have proper permissions on `XROOTD_DATA_DIR`
+- The Unix user must exist on the host (usually via LDAP/SSSD)
+- Its UID must match the filesystem UID
+- It must have permissions on `XROOTD_DATA_DIR`
 
 ```bash
-# On host system
-useradd -u 1001 alice
+# On the host, for each DataHarbor user
+getent passwd alice          # must resolve, with the Lustre UID
 mkdir -p /lustre/dataharbor/alice
 chown alice:alice /lustre/dataharbor/alice
+```
 
-# In mapfile
-[{"sub": "alice@keycloak.example.com", "result": "alice"}]
+### Alternative: static mapfile (`XRD_USER_MAPPING=mapfile`)
+
+The mapfile is the **escape hatch**, not the default. Use it when your IdP cannot
+emit a POSIX-username claim, or as a rollback lever that needs no image change.
+
+```bash
+cd docker
+
+# development (XRD_MAPFILE_PATH is required; the checked-in example works)
+XRD_MAPFILE_PATH=./xrootd/configs/mapfile.example \
+  docker compose -f docker-compose.yml -f docker-compose.mapfile.yml up -d
+
+# production
+XRD_MAPFILE_PATH=/opt/xrootd/mapfile \
+  docker compose -f docker-compose.prod.yml -f docker-compose.mapfile.yml up -d
+```
+
+The override sets `XRD_USER_MAPPING=mapfile` and bind-mounts `XRD_MAPFILE_PATH`
+read-only at `/etc/xrootd/mapfile`. `XRD_MAPFILE_PATH` is **required** — it has no
+default, so `docker compose` refuses to start rather than mount the wrong file.
+
+The entrypoint then exits non-zero rather than start with a broken mapping when
+the mapfile is missing, unreadable, empty (`[]` or zero bytes — that would deny
+every token), or not a JSON array. The structural checks are plain shell, so they
+also run in the production image, which ships no `python3`; where `python3` does
+exist it additionally parses the file as strict JSON.
+
+**Format** — a JSON array of rules:
+
+```json
+[
+  {"sub": "a.manafov", "result": "manafov"},
+  {"sub": "alice@example.com", "result": "alice"},
+  {"sub": "*", "result": ""}
+]
+```
+
+| Field      | Description                                                        |
+| ---------- | ------------------------------------------------------------------ |
+| `sub`      | Token subject claim (exact match, or `*` for wildcard)              |
+| `result`   | Unix username to map to (empty string = deny access)                |
+
+The plugin also supports a `username` rule that matches the `username_claim`
+value, but it is **inert here**: mapfile mode is exactly the mode in which
+`username_claim` is not rendered, so such a rule can never match. Use `sub`.
+
+Same host requirement as claim mode: every `result` user must resolve via
+`getent passwd` on the host with the correct UID. The production entrypoint
+spot-checks this at startup and warns about users it cannot resolve.
+`default_user` stays hard-coded to `""`, so an unmapped `sub` is denied.
+
+A mapfile left mounted while `XRD_USER_MAPPING=claim` is ignored; the entrypoint
+logs a warning so it does not look effective.
+
+#### Why a switch and not "claim first, mapfile as fallback"
+
+From `XrdSciTokens/XrdSciTokensAccess.cc` at v6.1.1 (the version pinned in both
+Dockerfiles):
+
+- With `username_claim` set and the claim **missing**, `GenerateAcls()` logs
+  `Failed to get token username` and returns `false`. The token is rejected
+  *before* any mapfile rule is consulted — a mapfile can never rescue a token
+  that lacks `posix_username`.
+- `username_claim` implies `map_subject`
+  (`m_map_subject = map_subject || !username_claim.empty()`) and makes
+  `default_user` irrelevant.
+- If a mapfile *is* configured alongside `username_claim`, its rules are still
+  evaluated in `Access()` against `sub`, the claim value, path and groups; a
+  match **overrides** the claim value and no match falls back to it. That is an
+  override facility, not a fallback, and it is deliberately not exposed as a
+  third mode.
+
+So the two modes are exclusive by design. Do not try to combine them.
+
+#### Keeping this path working
+
+`scripts/test-render-scitokens.sh` renders the template in both modes and asserts
+the resulting `[Issuer OIDC]` block plus the failure cases (unknown mode, missing
+mapfile, invalid JSON). It runs in CI on every change under `docker/xrootd/`:
+
+```bash
+./docker/xrootd/scripts/test-render-scitokens.sh
 ```
 
 ## Certificate Management
@@ -191,10 +311,40 @@ The production entrypoint validates certificates on startup:
 
 ### SciTokens Configuration
 
-| File                 | Purpose                                    |
-| -------------------- | ------------------------------------------ |
-| `scitokens_dev.cfg`  | Development (passthrough on missing token) |
-| `scitokens_prod.cfg` | Production (deny on missing token)         |
+One template serves both environments. The entrypoint renders it with `envsubst`
+to `/etc/xrootd/scitokens_rendered.cfg`, which both `xrootd-dev.cfg` and
+`xrootd-prod.cfg` point at.
+
+| File                            | Purpose                                                |
+| ------------------------------- | ------------------------------------------------------ |
+| `configs/scitokens.cfg.tmpl`    | Shared template (dev and prod)                          |
+| `scripts/render-scitokens-config.sh` | Renderer, sourced by both entrypoints              |
+| `configs/mapfile.example`       | Sample mapfile for `XRD_USER_MAPPING=mapfile`           |
+
+Values substituted at startup:
+
+| Variable                       | Development             | Production                 |
+| ------------------------------ | ----------------------- | -------------------------- |
+| `SCITOKENS_ONMISSING`          | `deny`                  | `deny`                     |
+| `SCITOKENS_BASE_PATH`          | `/data`                 | `/`                        |
+| `SCITOKENS_ISSUER`             | `OIDC_ISSUER` from .env | `OIDC_ISSUER` from .env    |
+| `SCITOKENS_AUDIENCE`           | issuer URL              | issuer URL                 |
+| `SCITOKENS_USER_MAPPING_BLOCK` | from `XRD_USER_MAPPING` | from `XRD_USER_MAPPING`    |
+
+`SCITOKENS_ONMISSING` is `deny` in **both** environments. `passthrough` only
+delegates to a *chained* authorizer, and both `xrootd-dev.cfg` and
+`xrootd-prod.cfg` load `ofs.authlib libXrdAccSciTokens.so` **without** `++` — so
+SciTokens is the only authorizer, there is no chain, and `passthrough` denies
+exactly like `deny`. Dev therefore runs production's value rather than
+advertising a difference the configuration cannot produce. The renderer rejects
+any value outside `deny` / `passthrough` / `allow_public` and warns loudly
+whenever it is not `deny`.
+
+Inspect what a running container actually uses:
+
+```bash
+docker compose exec xrootd cat /etc/xrootd/scitokens_rendered.cfg
+```
 
 ### Key Configuration Options
 
@@ -212,9 +362,9 @@ sec.protbind * only ztn
 ofs.osslib ++ libXrdMultiuser.so default
 multiuser.umask 0022
 
-# SciTokens Authorization
+# SciTokens Authorization (config rendered from scitokens.cfg.tmpl at startup)
 ofs.authorize
-ofs.authlib libXrdAccSciTokens.so config=/etc/xrootd/scitokens_prod.cfg
+ofs.authlib libXrdAccSciTokens.so config=/etc/xrootd/scitokens_rendered.cfg
 ```
 
 ## Lustre/GPFS Considerations
@@ -262,15 +412,23 @@ docker compose exec xrootd tail -f /var/log/xrootd/xrootd.log
 ### Check User Mapping
 
 ```bash
-# Verify users exist
-docker compose exec xrootd id manafov
+# Which mapping mode is in effect, and with what issuer/audience
+docker compose logs xrootd | grep -E 'User mapping|SciTokens config'
+
+# The configuration XRootD actually loaded
+docker compose exec xrootd cat /etc/xrootd/scitokens_rendered.cfg
+
+# Verify the Unix user the token maps to exists
+docker compose exec xrootd getent passwd manafov
 
 # Check data directories
 docker compose exec xrootd ls -la /data
-
-# Verify mapfile
-docker compose exec xrootd cat /etc/xrootd/mapfile
 ```
+
+A denied user in claim mode shows up in the XRootD log as
+`Failed to get token username` (claim absent) or
+`Token username claim contains unsafe characters` (claim empty or malformed).
+Decode the access token and check that `posix_username` is present.
 
 ### Test Connection
 
@@ -284,9 +442,9 @@ docker compose exec xrootd xrdfs localhost:1094 ls /data
 
 ### Common Issues
 
-| Issue                | Cause                | Solution                          |
-| -------------------- | -------------------- | --------------------------------- |
-| Permission Denied    | Token mapping failed | Check mapfile and user exists     |
+| Issue                | Cause                | Solution                                        |
+| -------------------- | -------------------- | ----------------------------------------------- |
+| Permission Denied    | Token mapping failed | Check `posix_username` is in the token and the Unix user resolves |
 | TLS Handshake Failed | Certificate mismatch | Verify cert hostname and CA       |
 | Data Directory Empty | Mount not propagated | Check `rslave` propagation        |
 | User Not Found       | UID mismatch         | Ensure UIDs match host filesystem |
@@ -358,7 +516,8 @@ On ARM64 Macs, the container runs via QEMU emulation.
 ### Production Hardening
 
 1. **Never use passthrough** in production - set `onmissing = deny`
-2. **Set empty default_user** - deny unmapped tokens
+2. **Keep mapping fail-closed** - claim mode rejects tokens without a usable
+   `posix_username`; mapfile mode keeps `default_user = ""`. Neither is configurable
 3. **Use real certificates** - not self-signed
 4. **Mount read-only** where possible
 5. **Set resource limits** - prevent DoS
@@ -382,15 +541,16 @@ xrootd/
 ├── Dockerfile             # Development image
 ├── Dockerfile.prod        # Production image (minimal)
 ├── configs/
-│   ├── xrootd-dev.cfg     # Dev XRootD config
-│   ├── xrootd-prod.cfg    # Prod XRootD config
-│   ├── scitokens_dev.cfg  # Dev SciTokens config
-│   ├── scitokens_prod.cfg # Prod SciTokens config
-│   └── mapfile            # User mapping (JSON)
+│   ├── xrootd-dev.cfg        # Dev XRootD config
+│   ├── xrootd-prod.cfg       # Prod XRootD config
+│   ├── scitokens.cfg.tmpl    # Shared SciTokens template (dev + prod)
+│   └── mapfile.example       # Sample mapfile for XRD_USER_MAPPING=mapfile
 └── scripts/
-    ├── docker-entrypoint.sh      # Dev entrypoint
-    ├── docker-entrypoint-prod.sh # Prod entrypoint
-    └── setup-test-data.sh        # Test data creator
+    ├── docker-entrypoint.sh          # Dev entrypoint
+    ├── docker-entrypoint-prod.sh     # Prod entrypoint
+    ├── render-scitokens-config.sh    # Renders scitokens.cfg.tmpl (both modes)
+    ├── test-render-scitokens.sh      # Render test, runs in CI
+    └── setup-test-data.sh            # Test data creator
 ```
 
 ---

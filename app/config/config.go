@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
@@ -189,15 +190,90 @@ type AuthConfig struct {
 
 // OIDCConfig represents the OIDC configuration
 type OIDCConfig struct {
-	Issuer                string   `mapstructure:"issuer" yaml:"issuer"`
-	ClientID              string   `mapstructure:"client_id" yaml:"client_id"`
-	ClientSecret          string   `mapstructure:"client_secret" yaml:"client_secret"`
-	DiscoveryURL          string   `mapstructure:"discovery_url" yaml:"discovery_url"`
-	AllowedRoles          []string `mapstructure:"allowed_roles" yaml:"allowed_roles"`
+	Issuer       string   `mapstructure:"issuer" yaml:"issuer"`
+	ClientID     string   `mapstructure:"client_id" yaml:"client_id"`
+	ClientSecret string   `mapstructure:"client_secret" yaml:"client_secret"`
+	DiscoveryURL string   `mapstructure:"discovery_url" yaml:"discovery_url"`
+	AllowedRoles []string `mapstructure:"allowed_roles" yaml:"allowed_roles"`
+	// Scopes requested in the authorization request. Configurable so a client
+	// that no longer offers a scope (e.g. 'email') cannot lock users out.
+	// Accepts a YAML list or a comma/space-separated string (env var).
+	//
+	// Resolved by ScopeString:
+	//   omitted entirely  -> DefaultOIDCScopes() ("openid profile email")
+	//   set but empty     -> "openid" alone, for a client that offers nothing else
+	//   set to a list     -> that list, with 'openid' always added and put first
+	// 'openid' can never be configured away: without it the IdP falls back to
+	// plain OAuth2 and login breaks entirely.
+	Scopes                []string `mapstructure:"scopes" yaml:"scopes"`
 	SessionSecret         string   `mapstructure:"session_secret" yaml:"session_secret"`
 	TokenRefreshBufferSec int64    `mapstructure:"token_refresh_buffer_sec" yaml:"token_refresh_buffer_sec"`
 	DiscoveryDocCacheTTL  int      `mapstructure:"discovery_doc_cache_ttl" yaml:"discovery_doc_cache_ttl"` // seconds, default 3600 (1 hour)
 	UserInfoCacheTTL      int      `mapstructure:"userinfo_cache_ttl" yaml:"userinfo_cache_ttl"`           // seconds, default 60
+}
+
+// requiredOIDCScope is the one scope that cannot be configured away. Without it
+// the authorization request is plain OAuth2: the IdP returns no id_token (so
+// RP-initiated logout has no id_token_hint) and the userinfo endpoint rejects
+// the access token, so /api/auth/user fails for every user.
+const requiredOIDCScope = "openid"
+
+// DefaultOIDCScopes returns the scopes requested when auth.oidc.scopes is unset.
+// 'openid' is mandatory for OIDC; 'profile' and 'email' populate the userinfo
+// fields the UI shows.
+func DefaultOIDCScopes() []string {
+	return []string{requiredOIDCScope, "profile", "email"}
+}
+
+// ScopeString renders the configured scopes as the space-separated value the
+// authorization request expects. Entries may themselves be comma- or
+// space-separated (e.g. DATAHARBOR_AUTH_OIDC_SCOPES="openid profile"), and
+// duplicates and empty entries are dropped.
+//
+// 'openid' is always requested, and always first: trimming any other scope is
+// supported, trimming 'openid' would silently downgrade login to plain OAuth2,
+// so it is prepended when the configured list omits it.
+//
+// An omitted list (len 0) falls back to DefaultOIDCScopes. A list that WAS
+// provided but parses to nothing resolves to 'openid' alone - an operator whose
+// IdP client offers only 'openid' must be able to say so, rather than silently
+// getting the full default set back and another invalid_scope error.
+func (o OIDCConfig) ScopeString() string {
+	seen := make(map[string]struct{})
+	scopes := make([]string, 0, len(o.Scopes)+1)
+
+	for _, entry := range o.Scopes {
+		for _, scope := range strings.FieldsFunc(entry, func(r rune) bool {
+			return r == ',' || unicode.IsSpace(r)
+		}) {
+			if _, dup := seen[scope]; dup {
+				continue
+			}
+			seen[scope] = struct{}{}
+			scopes = append(scopes, scope)
+		}
+	}
+
+	if len(scopes) == 0 {
+		// No entries at all means the key was never set: use the defaults.
+		// Entries that all parsed away mean it was set to nothing on purpose,
+		// which resolves to the mandatory scope alone.
+		if len(o.Scopes) == 0 {
+			return strings.Join(DefaultOIDCScopes(), " ")
+		}
+		return requiredOIDCScope
+	}
+
+	// 'openid' leads the list whether or not it was configured.
+	ordered := make([]string, 0, len(scopes)+1)
+	ordered = append(ordered, requiredOIDCScope)
+	for _, scope := range scopes {
+		if scope != requiredOIDCScope {
+			ordered = append(ordered, scope)
+		}
+	}
+
+	return strings.Join(ordered, " ")
 }
 
 // ValidateConfig validates critical configuration fields
@@ -323,6 +399,8 @@ func LoadConfig(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	applyExplicitlyEmptyScopes(&cfg)
+
 	// Validate configuration
 	if err := ValidateConfig(&cfg); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
@@ -332,6 +410,24 @@ func LoadConfig(configFile string) (*Config, error) {
 	config = &cfg
 
 	return &cfg, nil
+}
+
+// oidcScopesEnvVar is the env override for auth.oidc.scopes, spelled out because
+// viper cannot report "set to the empty string" on its own.
+const oidcScopesEnvVar = "DATAHARBOR_AUTH_OIDC_SCOPES"
+
+// applyExplicitlyEmptyScopes makes an intentionally emptied scope list stick.
+//
+// Viper's AutomaticEnv treats an env var set to "" as unset (AllowEmptyEnv is
+// off, and turning it on would change every other key too), so an operator who
+// writes OIDC_SCOPES= to request only 'openid' would silently get the full
+// default set back. Detect that one case here and hand ScopeString a list that
+// was provided but parses to nothing, which it resolves to 'openid' alone.
+func applyExplicitlyEmptyScopes(cfg *Config) {
+	raw, ok := os.LookupEnv(oidcScopesEnvVar)
+	if ok && strings.TrimSpace(raw) == "" {
+		cfg.Auth.OIDC.Scopes = []string{""}
+	}
 }
 
 // GetConfig returns the current configuration
@@ -380,6 +476,7 @@ func GetConfig() *Config {
 						"/health",
 					},
 					OIDC: OIDCConfig{
+						Scopes:                DefaultOIDCScopes(),
 						TokenRefreshBufferSec: 60,   // Default: refresh tokens 1 minute before expiration
 						DiscoveryDocCacheTTL:  3600, // Default: cache discovery document for 1 hour
 						UserInfoCacheTTL:      60,   // Default: cache user info for 60 seconds
@@ -474,6 +571,7 @@ func setDefaults(v *viper.Viper) {
 	// Auth defaults
 	v.SetDefault("auth.enabled", false)
 	v.SetDefault("auth.skip_auth_paths", []string{"/health"})
+	v.SetDefault("auth.oidc.scopes", DefaultOIDCScopes())
 	v.SetDefault("auth.oidc.discovery_doc_cache_ttl", 3600) // 1 hour
 	v.SetDefault("auth.oidc.userinfo_cache_ttl", 60)        // 60 seconds
 
@@ -550,6 +648,7 @@ func createDefaultConfig(configFile string) error {
 				ClientSecret:          "",
 				DiscoveryURL:          "",
 				AllowedRoles:          []string{},
+				Scopes:                DefaultOIDCScopes(),
 				SessionSecret:         "",
 				TokenRefreshBufferSec: 60, // Default: refresh tokens 1 minute before expiration
 			},

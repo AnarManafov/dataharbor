@@ -51,6 +51,11 @@ auth:
     client_secret: ""
     discovery_url: ""
     allowed_roles: []
+    # Scopes requested at login. Trim if your IdP client does not offer one
+    # (e.g. drop "email"). "openid" is always requested, even if removed here.
+    # Omit the key entirely for the defaults below; set it to an empty list to
+    # request "openid" alone.
+    scopes: ["openid", "profile", "email"]
     session_secret: ""
     token_refresh_buffer_sec: 60  # Refresh tokens 1 minute before expiration
 

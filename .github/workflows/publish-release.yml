@@ -227,6 +227,7 @@ jobs:
         with:
           sparse-checkout: |
             docker/docker-compose.deploy.yml
+            docker/docker-compose.mapfile.yml
             docker/.env.production.example
           sparse-checkout-cone-mode: false
 
@@ -238,6 +239,8 @@ jobs:
           mkdir -p "${BUNDLE_DIR}"
 
           cp docker/docker-compose.deploy.yml "${BUNDLE_DIR}/docker-compose.yml"
+          # Opt-in override for the static mapfile user mapping (rollback lever)
+          cp docker/docker-compose.mapfile.yml "${BUNDLE_DIR}/docker-compose.mapfile.yml"
           cp docker/.env.production.example "${BUNDLE_DIR}/.env.example"
 
           # Create a README for the deployment bundle
@@ -255,6 +258,14 @@ jobs:
 
           All configuration is done via environment variables in the `.env` file.
           Config files (backend, xrootd, scitokens) are baked into the Docker images.
+
+          XRootD maps users from the access token's `posix_username` claim by
+          default. To fall back to a static JSON mapfile instead:
+
+          ```bash
+          XRD_MAPFILE_PATH=/opt/xrootd/mapfile \
+            docker compose -f docker-compose.yml -f docker-compose.mapfile.yml up -d
+          ```
 
           See the project documentation for full deployment instructions.
           DEPLOY_README
@@ -316,12 +327,20 @@ jobs:
             grep passwd /etc/nsswitch.conf
             ```
 
-            All users listed as `"result"` in the mapfile must be resolvable via `getent passwd` on the host.
+            XRootD maps each token to a Unix user via its `posix_username` claim
+            (`XRD_USER_MAPPING=claim`, the default — no mapfile needed). Every
+            `posix_username` your IdP can issue must be resolvable via
+            `getent passwd` on the host, with the UID the data filesystem expects.
+            A token without that claim is denied.
+
+            To keep the previous static mapfile behaviour, deploy with the
+            `docker-compose.mapfile.yml` override and set `XRD_MAPFILE_PATH`.
 
             ## Docker Compose Deployment
 
             A deployment bundle is attached (`dataharbor-deploy-${{ needs.prepare-release.outputs.version }}.tar.gz`) containing:
             - `docker-compose.yml` — Compose file for deploying pre-built images from GHCR
+            - `docker-compose.mapfile.yml` — Optional override for static mapfile user mapping
             - `.env.example` — Environment variables template
 
             All configuration (backend, XRootD, SciTokens) is baked into the Docker images

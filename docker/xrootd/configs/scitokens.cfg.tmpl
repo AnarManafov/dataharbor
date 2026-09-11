@@ -1,0 +1,45 @@
+# ============================================
+# SciTokens Configuration - TEMPLATE
+# ============================================
+# This file is a TEMPLATE. It is rendered at container startup to
+# /etc/xrootd/scitokens_rendered.cfg by
+# docker/xrootd/scripts/render-scitokens-config.sh (envsubst).
+#
+# Both the development and the production entrypoint render THIS file, so dev
+# and prod run the same configuration and differ only in substituted values.
+#
+# Variables:
+#   SCITOKENS_ONMISSING          - behaviour when a token is missing or invalid:
+#                                  deny (default, dev and prod) | passthrough |
+#                                  allow_public. Note that passthrough only
+#                                  delegates to a CHAINED authorizer; both
+#                                  xrootd-*.cfg load this plugin without `++`,
+#                                  so there is no chain and it denies anyway.
+#   SCITOKENS_AUDIENCE           - expected 'aud' claim (defaults to the issuer)
+#   SCITOKENS_ISSUER             - OIDC issuer URL (e.g. https://id.gsi.de/realms/wl)
+#   SCITOKENS_BASE_PATH          - path prefix this issuer may access
+#                                  (prod default: /, dev default: /data)
+#   SCITOKENS_USER_MAPPING_BLOCK - token-to-Unix-user mapping, built from
+#                                  XRD_USER_MAPPING (claim | mapfile)
+# ============================================
+
+[Global]
+# What to do when a token is missing or invalid
+# Options: passthrough (allow without authz), deny (block), allow_public (complex rules)
+onmissing = ${SCITOKENS_ONMISSING}
+
+# Audience - expected 'aud' claim value in JWT tokens
+# MUST match the value your OIDC provider puts in the access token
+audience = ${SCITOKENS_AUDIENCE}
+
+[Issuer OIDC]
+# The issuer URL from the JWT token (must match exactly)
+issuer = ${SCITOKENS_ISSUER}
+
+# Base path this issuer is allowed to access
+base_path = ${SCITOKENS_BASE_PATH}
+
+# User mapping (see XRD_USER_MAPPING):
+#   claim   -> username_claim = posix_username
+#   mapfile -> map_subject / name_mapfile / default_user
+${SCITOKENS_USER_MAPPING_BLOCK}

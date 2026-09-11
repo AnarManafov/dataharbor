@@ -1296,6 +1296,62 @@ func TestLoginInitWithMockDiscovery(t *testing.T) {
 		assert.Contains(t, authURL, "https://test-issuer.com/auth")
 		assert.Contains(t, authURL, "client_id=test-client-id")
 		assert.Contains(t, authURL, "response_type=code")
+		// Unset auth.oidc.scopes falls back to the standard OIDC set
+		assert.Contains(t, authURL, "scope=openid+profile+email")
+	})
+
+	t.Run("login init with configured scopes", func(t *testing.T) {
+		// An IdP client may not offer every scope (e.g. 'email' unassigned).
+		// auth.oidc.scopes must then narrow the authorization request instead of
+		// the hardcoded set locking everyone out with invalid_scope.
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/.well-known/openid-configuration" {
+				discoveryDoc := map[string]any{
+					"issuer":                 "https://test-issuer.com",
+					"authorization_endpoint": "https://test-issuer.com/auth",
+					"token_endpoint":         "https://test-issuer.com/token",
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(discoveryDoc)
+			} else {
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer server.Close()
+
+		config.SetConfig(&config.Config{
+			Env:    "development",
+			Server: config.ServerConfig{Address: ":8080"},
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC: config.OIDCConfig{
+					Issuer:        server.URL,
+					ClientID:      "test-client-id",
+					ClientSecret:  "test-client-secret",
+					SessionSecret: "test-session-secret",
+					Scopes:        []string{"openid", "profile"},
+				},
+			},
+			Frontend: config.FrontendConfig{URL: "http://localhost:5173"},
+		})
+		InitAuth()
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login", nil)
+		c.Request.Host = "localhost:8080"
+
+		LoginInit(c)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+		authURL, ok := response["auth_url"].(string)
+		require.True(t, ok)
+		assert.Contains(t, authURL, "scope=openid+profile")
+		assert.NotContains(t, authURL, "email")
 	})
 
 	t.Run("login init with short client secret", func(t *testing.T) {

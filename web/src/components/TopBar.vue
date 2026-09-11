@@ -44,7 +44,17 @@
                         </div>
                         <template #dropdown>
                             <el-dropdown-menu>
-                                <el-dropdown-item command="profile" disabled>
+                                <!-- Unix account files are read and written as on the
+                                     storage system, taken from the token's posix_username
+                                     claim. Shown for diagnostics. -->
+                                <el-dropdown-item v-if="posixUsername" class="posix-user-item" disabled>
+                                    <el-icon>
+                                        <Folder />
+                                    </el-icon>
+                                    <span class="posix-user-label">Storage account</span>
+                                    <span class="posix-user-value">{{ posixUsername }}</span>
+                                </el-dropdown-item>
+                                <el-dropdown-item command="profile" :divided="!!posixUsername" disabled>
                                     <el-icon>
                                         <User />
                                     </el-icon>
@@ -89,7 +99,8 @@ import {
     SwitchButton,
     Expand,
     Fold,
-    ArrowDown
+    ArrowDown,
+    Folder
 } from '@element-plus/icons-vue';
 
 const props = defineProps({
@@ -102,7 +113,7 @@ const props = defineProps({
 const emit = defineEmits(['toggle-sidebar']);
 
 const router = useRouter();
-const { isAuthenticated, user, logout } = useAuth();
+const { isAuthenticated, user, login, logout } = useAuth();
 
 // Computed properties for user info
 const userLogin = computed(() => {
@@ -124,6 +135,12 @@ const userFullName = computed(() => {
 
 const userEmail = computed(() => {
     return user.value?.email || '';
+});
+
+// Unix account XRootD switches to for this user. Comes from the access token's
+// posix_username claim, so it is absent for users without a POSIX account.
+const posixUsername = computed(() => {
+    return user.value?.posix_username || '';
 });
 
 const userInitials = computed(() => {
@@ -166,7 +183,18 @@ const navigateTo = (path) => {
     router.push(path);
 };
 
-const handleLogin = () => {
+const handleLogin = async () => {
+    // After signing out we are already on /login, where pushing the same route
+    // is a no-op and the button looks dead. Start the OIDC flow directly there.
+    if (router.currentRoute.value.path === '/login') {
+        try {
+            await login();
+        } catch (err) {
+            console.error('Login failed:', err);
+        }
+        return;
+    }
+
     router.push('/login');
 };
 
@@ -312,6 +340,23 @@ const handleUserAction = async (command) => {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 150px;
+}
+
+/* Diagnostics row: the Unix account used on the storage system.
+   Disabled like the other non-actionable items, but kept readable. */
+.posix-user-item.is-disabled {
+    color: var(--el-text-color-regular);
+    cursor: default;
+}
+
+.posix-user-label {
+    color: var(--el-text-color-secondary);
+    margin-right: 0.5rem;
+}
+
+.posix-user-value {
+    font-family: var(--dh-font-family-mono);
+    font-weight: var(--dh-font-weight-medium);
 }
 
 .user-avatar {

@@ -43,6 +43,9 @@ make clean-all         # Remove node_modules, build artifacts, coverage files
 
 Single-file Go tests: `cd app && go test ./controller -run TestName -v`
 
+SciTokens config render test (plain bash, also runs in CI):
+`./docker/xrootd/scripts/test-render-scitokens.sh`
+
 Run single test package:
 ```bash
 cd app && go test ./config/... -v
@@ -184,4 +187,13 @@ Upload writes require SciToken scopes presented to XRootD server. See `docs/UPLO
 
 11. **File path traversal protection**: `validateFilePath()` in `controller/xrd.go` guards all path inputs. Replicate this pattern for new endpoints accepting path parameters.
 
-12. **Per-user concurrency limits**: Both uploads and downloads use the shared `common.SlotManager` (`common/slots.go`), which returns an idempotent release handle. Caps come from `xrd.upload.max_concurrent_per_user` and `xrd.download.max_concurrent_per_user`. Uploads take one slot per *session* (batch), shared across all files in that batch.
+12. **XRootD user mapping**: `XRD_USER_MAPPING` selects how a token becomes a Unix
+    user — `claim` (default, `username_claim = posix_username`) or `mapfile` (opt-in,
+    static JSON, enabled with `docker/docker-compose.mapfile.yml`). Both dev and prod
+    entrypoints render the single template `docker/xrootd/configs/scitokens.cfg.tmpl`
+    through `scripts/render-scitokens-config.sh`; the rendered file is
+    `/etc/xrootd/scitokens_rendered.cfg`. The modes are mutually exclusive — the
+    SciTokens plugin rejects a token with no `posix_username` before any mapfile rule
+    runs, so a hybrid fallback is not possible.
+
+13. **Per-user concurrency limits**: Both uploads and downloads use the shared `common.SlotManager` (`common/slots.go`), which returns an idempotent release handle. Caps come from `xrd.upload.max_concurrent_per_user` and `xrd.download.max_concurrent_per_user`. Uploads take one slot per *session* (batch), shared across all files in that batch.

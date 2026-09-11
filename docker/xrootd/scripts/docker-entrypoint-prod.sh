@@ -5,7 +5,7 @@
 # Validates production requirements:
 # - TLS certificates mounted
 # - Data directory mounted
-# - User mapfile mounted
+# - User mapfile mounted (only when XRD_USER_MAPPING=mapfile)
 # - Proper permissions
 #
 # Does NOT create test users or data - production
@@ -45,24 +45,18 @@ echo ""
 # ==========================================
 log_info "Rendering configuration from environment variables..."
 
-# SciTokens config: substitute env vars (issuer/audience)
-SCITOKENS_ISSUER="${SCITOKENS_ISSUER:-}"
-SCITOKENS_AUDIENCE="${SCITOKENS_AUDIENCE:-$SCITOKENS_ISSUER}"
-export SCITOKENS_ISSUER SCITOKENS_AUDIENCE
-
-if [ -z "$SCITOKENS_ISSUER" ]; then
-    log_error "SCITOKENS_ISSUER environment variable is required"
-    log_error "Set it to your OIDC issuer URL (e.g., https://id.gsi.de/realms/wl)"
-    exit 1
-fi
-
-SCITOKENS_TEMPLATE="/etc/xrootd/scitokens_prod.cfg"
-SCITOKENS_RENDERED="/etc/xrootd/scitokens_rendered.cfg"
-envsubst '${SCITOKENS_ISSUER} ${SCITOKENS_AUDIENCE}' < "$SCITOKENS_TEMPLATE" > "$SCITOKENS_RENDERED"
-# Point the main config at the rendered file
-sed -i "s|config=/etc/xrootd/scitokens_prod.cfg|config=/etc/xrootd/scitokens_rendered.cfg|" /etc/xrootd/xrootd-prod.cfg
-chown xrootd:xrootd "$SCITOKENS_RENDERED"
-log_ok "SciTokens config rendered (issuer: $SCITOKENS_ISSUER)"
+# SciTokens config: rendered from the shared template. XRD_USER_MAPPING selects
+# how tokens map to Unix users (claim = posix_username, the default; mapfile =
+# static JSON file). xrootd-prod.cfg already points at the rendered file.
+#
+# Only XRD_USER_MAPPING is pinned here, because the mapfile spot-check below
+# reads it. SCITOKENS_ONMISSING (deny) and SCITOKENS_BASE_PATH (/) are the
+# renderer's own defaults - do not duplicate them, or a change there would
+# silently have no effect in production.
+XRD_USER_MAPPING="${XRD_USER_MAPPING:-claim}"
+# shellcheck source=./render-scitokens-config.sh
+. /usr/local/bin/render-scitokens-config.sh
+render_scitokens_config
 
 # TLS CA verification: update xrootd-prod.cfg in-place based on env var
 XROOTD_TLS_CA_VERIFY="${XROOTD_TLS_CA_VERIFY:-true}"
@@ -176,49 +170,6 @@ log_info "Certificate Subject: $CERT_SUBJECT"
 log_ok "TLS certificates validated"
 
 # ==========================================
-# Validate User Mapfile
-# ==========================================
-log_info "Validating user mapfile..."
-
-MAPFILE="/etc/xrootd/mapfile"
-if [ ! -f "$MAPFILE" ]; then
-    log_error "User mapfile not found at $MAPFILE"
-    log_error "Mount your mapfile using XRD_MAPFILE_PATH in .env"
-    log_error "Example: XRD_MAPFILE_PATH=/opt/xrootd/mapfile"
-    exit 1
-fi
-
-if [ ! -r "$MAPFILE" ]; then
-    log_error "Mapfile is not readable"
-    exit 1
-fi
-
-# Validate JSON syntax
-if command -v python3 &>/dev/null; then
-    if ! python3 -c "import json; json.load(open('$MAPFILE'))" 2>/dev/null; then
-        log_error "Mapfile is not valid JSON"
-        log_error "Check syntax at: $MAPFILE"
-        exit 1
-    fi
-
-    # Count mappings
-    MAPPING_COUNT=$(python3 -c "import json; print(len(json.load(open('$MAPFILE'))))" 2>/dev/null || echo "?")
-    if [ "$MAPPING_COUNT" = "0" ]; then
-        log_warn "Mapfile is empty (no user mappings) — mount a mapfile via XRD_MAPFILE_PATH for production use"
-    else
-        log_ok "Mapfile valid with $MAPPING_COUNT user mappings"
-    fi
-else
-    log_warn "python3 not available, skipping mapfile JSON validation"
-fi
-
-# Show first few mappings (without sensitive data)
-log_info "Configured mappings (first 5):"
-head -n 20 "$MAPFILE" | grep -E '"sub"|"result"' | head -n 10 | while read line; do
-    echo "    $line"
-done
-
-# ==========================================
 # Validate host user database
 # ==========================================
 # The multiuser plugin calls getpwnam() to resolve mapped usernames to UIDs.
@@ -263,24 +214,35 @@ if ! getent group xrootd >/dev/null 2>&1; then
     exit 1
 fi
 
-# Spot-check: verify a sample of mapped users are resolvable
-MISSING_USERS=0
-CHECKED=0
-MAP_USERS=$(grep -o '"result"[[:space:]]*:[[:space:]]*"[^"]*"' "$MAPFILE" 2>/dev/null | sed 's/"result"[[:space:]]*:[[:space:]]*"//;s/"$//')
-for USERNAME in $MAP_USERS; do
-    CHECKED=$((CHECKED + 1))
-    if ! getent passwd "$USERNAME" >/dev/null 2>&1; then
-        MISSING_USERS=$((MISSING_USERS + 1))
-        if [ "$MISSING_USERS" -le 3 ]; then
-            log_warn "Mapped user not found in /etc/passwd: $USERNAME"
+# Spot-check: in mapfile mode every mapped user must resolve on the host.
+# In claim mode the username only exists at request time (it comes from the
+# token), so there is nothing to pre-check here - the SSSD/nsswitch checks above
+# are what matter.
+if [ "$XRD_USER_MAPPING" = "mapfile" ]; then
+    MISSING_USERS=0
+    CHECKED=0
+    MAP_USERS=$(grep -o '"result"[[:space:]]*:[[:space:]]*"[^"]*"' "$XRD_MAPFILE" 2>/dev/null | sed 's/"result"[[:space:]]*:[[:space:]]*"//;s/"$//')
+    for USERNAME in $MAP_USERS; do
+        CHECKED=$((CHECKED + 1))
+        if ! getent passwd "$USERNAME" >/dev/null 2>&1; then
+            MISSING_USERS=$((MISSING_USERS + 1))
+            if [ "$MISSING_USERS" -le 3 ]; then
+                log_warn "Mapped user not found in /etc/passwd: $USERNAME"
+            fi
         fi
+    done
+    if [ "$CHECKED" -eq 0 ]; then
+        log_warn "No \"result\" entries could be parsed out of $XRD_MAPFILE"
+        log_warn "No mapped user was verified; the mapping may be unusable"
+    elif [ "$MISSING_USERS" -gt 0 ]; then
+        log_warn "$MISSING_USERS of $CHECKED mapped users not found in /etc/passwd"
+        log_warn "Ensure host /etc/passwd is bind-mounted into the container"
+    else
+        log_ok "All $CHECKED mapped users resolved successfully"
     fi
-done
-if [ "$MISSING_USERS" -gt 0 ]; then
-    log_warn "$MISSING_USERS of $CHECKED mapped users not found in /etc/passwd"
-    log_warn "Ensure host /etc/passwd is bind-mounted into the container"
 else
-    log_ok "All $CHECKED mapped users resolved successfully"
+    log_info "User mapping is claim-based: usernames are resolved per request via getpwnam()"
+    log_info "Every posix_username claim must resolve via 'getent passwd' on the host"
 fi
 
 # ==========================================
@@ -330,7 +292,7 @@ elif [ "$FS_TYPE" = "gpfs" ]; then
     log_ok "GPFS filesystem detected"
 elif [ "$FS_TYPE" = "nfs" ] || [ "$FS_TYPE" = "nfs4" ]; then
     log_ok "NFS filesystem detected"
-    log_warn "Ensure UIDs in mapfile match NFS server UIDs"
+    log_warn "Ensure every mapped Unix user resolves on the host with the UID the NFS server expects"
 fi
 
 log_ok "Data directory validated"

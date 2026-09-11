@@ -26,11 +26,12 @@ create_test_files() {
 This directory belongs to user: ${user}
 
 Files in this directory can only be accessed when:
-- Your JWT token's 'sub' claim is mapped to '${user}' in the mapfile
+- Your access token's 'posix_username' claim is '${user}'
+  (or, with XRD_USER_MAPPING=mapfile, your 'sub' maps to it)
 - The SciTokens plugin successfully maps your identity
 
 Test the mapping by:
-1. Login with your token (sub claim in JWT)
+1. Login with your token
 2. Browse to /data/${user}
 3. If you see this file, mapping worked!
 EOF

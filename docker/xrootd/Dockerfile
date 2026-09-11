@@ -88,8 +88,9 @@ LABEL org.opencontainers.image.title="DataHarbor XRootD Server (Development)" \
 	xrootd.mode="development"
 
 # Minimal runtime dependencies + dos2unix for Windows/WSL compatibility
+# gettext provides envsubst, used by the entrypoint to render the SciTokens config
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-	dnf install -y openssl ca-certificates dos2unix && \
+	dnf install -y openssl ca-certificates dos2unix gettext && \
 	dnf clean all
 
 # Copy XRootD binaries and libraries from builder
@@ -139,28 +140,30 @@ RUN mkdir -p \
 	chmod 700 /data/testuser1 /data/testuser2 /data/manafov
 
 # Copy configuration files
+# NOTE: no mapfile is baked in. The default (XRD_USER_MAPPING=claim) needs none;
+# mapfile mode mounts one via docker-compose.mapfile.yml.
 COPY docker/xrootd/configs/xrootd-dev.cfg /etc/xrootd/xrootd-dev.cfg
 COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
-COPY docker/xrootd/configs/scitokens_dev.cfg /etc/xrootd/scitokens_dev.cfg
-COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
-COPY docker/xrootd/configs/mapfile /etc/xrootd/mapfile
+COPY docker/xrootd/configs/scitokens.cfg.tmpl /etc/xrootd/scitokens.cfg.tmpl
 
 # Copy scripts
 COPY docker/xrootd/scripts/setup-test-data.sh /usr/local/bin/setup-test-data.sh
+COPY docker/xrootd/scripts/render-scitokens-config.sh /usr/local/bin/render-scitokens-config.sh
 COPY docker/xrootd/scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY docker/xrootd/scripts/docker-entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh
 
 # Convert line endings for all config files and scripts (fixes WSL/Windows CRLF issues)
 RUN dos2unix /etc/xrootd/*.cfg \
-	/etc/xrootd/mapfile \
+	/etc/xrootd/scitokens.cfg.tmpl \
 	/usr/local/bin/setup-test-data.sh \
+	/usr/local/bin/render-scitokens-config.sh \
 	/usr/local/bin/docker-entrypoint.sh \
 	/usr/local/bin/docker-entrypoint-prod.sh && \
 	chmod +x /usr/local/bin/setup-test-data.sh \
 	/usr/local/bin/docker-entrypoint.sh \
 	/usr/local/bin/docker-entrypoint-prod.sh && \
 	chown -R xrootd:xrootd /etc/xrootd && \
-	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
+	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/scitokens.cfg.tmpl
 
 EXPOSE 1094
 
