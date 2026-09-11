@@ -1189,18 +1189,19 @@ func DownloadMultipleFiles(c *gin.Context) {
 
 	// If any files failed, add an error manifest to the archive
 	if len(failedFiles) > 0 {
-		errContent := "The following files could not be fully downloaded:\n"
+		var errContent strings.Builder
+		errContent.WriteString("The following files could not be fully downloaded:\n")
 		for _, name := range failedFiles {
-			errContent += "  - " + name + "\n"
+			errContent.WriteString("  - " + name + "\n")
 		}
 		errHeader := &tar.Header{
 			Name:    "_DOWNLOAD_ERRORS.txt",
-			Size:    int64(len(errContent)),
+			Size:    int64(len(errContent.String())),
 			Mode:    0o644,
 			ModTime: time.Now(),
 		}
 		if writeErr := tarWriter.WriteHeader(errHeader); writeErr == nil {
-			_, _ = tarWriter.Write([]byte(errContent))
+			_, _ = tarWriter.Write([]byte(errContent.String()))
 		}
 	}
 
