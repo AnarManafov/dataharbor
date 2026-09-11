@@ -1077,6 +1077,35 @@ docker compose exec nginx nginx -s reload
 
 ## Troubleshooting
 
+
+### Login fails with `{"code":500,"error":"Failed to authenticate with provider"}`
+
+The IdP rejected the backend's client credentials during the code-for-token
+exchange. The backend log shows the reason, e.g.
+`Token endpoint returned status 401: {"error":"unauthorized_client","error_description":"Invalid client or Invalid client credentials"}`
+and, at container start, `OIDC client credential check FAILED`.
+
+Almost always the container is running a different `OIDC_CLIENT_SECRET` than
+the one in `docker/.env`. Compose gives **shell-exported variables precedence
+over `.env`**, so a stale `export OIDC_CLIENT_SECRET=...` in the terminal that
+ran `docker compose up` wins over the file. Check and fix:
+
+```bash
+# What Compose will actually pass to the container
+docker compose config | grep CLIENT_SECRET
+
+# What the running container has
+docker exec dataharbor-backend-dev printenv DATAHARBOR_AUTH_OIDC_CLIENT_SECRET
+
+# If they differ from .env: drop the shell override and recreate the service.
+# (docker restart is not enough — it keeps the old environment.)
+unset OIDC_CLIENT_SECRET
+docker compose up -d --no-deps --force-recreate backend
+```
+
+Providing the secret via the shell environment is still supported; just make
+sure it is the one you mean.
+
 ### Container Won't Start
 
 ```bash

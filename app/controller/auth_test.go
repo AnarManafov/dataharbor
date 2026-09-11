@@ -2576,3 +2576,261 @@ func TestDiscoveryDocCache_TTLExpiry(t *testing.T) {
 	assert.Equal(t, 2, callCount)
 	assert.Equal(t, float64(2), doc["call"])
 }
+
+func TestSafeRedirectPath(t *testing.T) {
+	cases := map[string]string{
+		"":                                 "/",
+		"/":                                "/",
+		"/browse":                          "/browse",
+		"/browse/data/run 1?sort=name#top": "/browse/data/run 1?sort=name#top",
+		"browse":                           "/",
+		"//evil.example.com/phish":         "/",
+		"/\\evil.example.com":              "/",
+		"https://evil.example.com/":        "/",
+		"javascript:alert(1)":              "/",
+		"/browse\r\nSet-Cookie: x=y":       "/",
+		"/%2F%2Fevil.example.com":          "/%2F%2Fevil.example.com",
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, safeRedirectPath(in), "input %q", in)
+	}
+}
+
+// The IdP round trip carries no app state, so the path the user was heading
+// to must survive in the session between LoginInit and AuthCallback.
+func TestPostLoginRedirect(t *testing.T) {
+	newMockIdP := func() *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/openid-configuration":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"issuer":                 "http://" + r.Host,
+					"authorization_endpoint": "https://test-issuer.com/auth",
+					"token_endpoint":         "http://" + r.Host + "/token",
+				})
+			case "/token":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(TokenResponse{
+					AccessToken: "at", RefreshToken: "rt", IDToken: "idt", TokenType: "Bearer", ExpiresIn: 3600,
+				})
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+	}
+	setup := func(issuer string) {
+		config.SetConfig(&config.Config{
+			Env:    "production",
+			Server: config.ServerConfig{Address: ":8080"},
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC: config.OIDCConfig{
+					Issuer: issuer, ClientID: "cid", ClientSecret: "csecret", SessionSecret: "test-session-secret",
+				},
+			},
+			Frontend: config.FrontendConfig{URL: "https://dataharbor.example.com/"},
+		})
+		InitAuth()
+		clearTokenStore()
+	}
+	// runCallback replays the cookies from a prior response into the callback request.
+	runCallback := func(t *testing.T, cookies []*http.Cookie, state string) *httptest.ResponseRecorder {
+		t.Helper()
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/api/auth/callback?code=test-code&state="+state, nil)
+		req.Host = "dataharbor.example.com"
+		for _, ck := range cookies {
+			req.AddCookie(ck)
+		}
+		c, _ := gin.CreateTestContext(w)
+		c.Request = req
+		AuthCallback(c)
+		return w
+	}
+
+	t.Run("LoginInit stores a same-origin redirect_path in the session", func(t *testing.T) {
+		idp := newMockIdP()
+		defer idp.Close()
+		setup(idp.URL)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login?redirect_path=/browse/data?sort=name", nil)
+		LoginInit(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		readBack := httptest.NewRequest("GET", "/", nil)
+		for _, ck := range w.Result().Cookies() {
+			readBack.AddCookie(ck)
+		}
+		session, err := SessionStore.Get(readBack, sessionName)
+		require.NoError(t, err)
+		assert.Equal(t, "/browse/data?sort=name", session.Values[sessionKeyPostLoginRedirect])
+		assert.NotEmpty(t, session.Values["oidc_state"])
+	})
+
+	t.Run("LoginInit drops a foreign redirect_path", func(t *testing.T) {
+		idp := newMockIdP()
+		defer idp.Close()
+		setup(idp.URL)
+
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/api/auth/login?redirect_path=//evil.example.com/x", nil)
+		LoginInit(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		readBack := httptest.NewRequest("GET", "/", nil)
+		for _, ck := range w.Result().Cookies() {
+			readBack.AddCookie(ck)
+		}
+		session, err := SessionStore.Get(readBack, sessionName)
+		require.NoError(t, err)
+		_, present := session.Values[sessionKeyPostLoginRedirect]
+		assert.False(t, present)
+	})
+
+	t.Run("AuthCallback redirects to the stored path and consumes it", func(t *testing.T) {
+		idp := newMockIdP()
+		defer idp.Close()
+		setup(idp.URL)
+
+		seed := httptest.NewRecorder()
+		seedReq := httptest.NewRequest("GET", "/", nil)
+		session, _ := SessionStore.Get(seedReq, sessionName)
+		session.Values["oidc_state"] = "st"
+		session.Values[sessionKeyPostLoginRedirect] = "/browse/data?sort=name"
+		require.NoError(t, session.Save(seedReq, seed))
+
+		w := runCallback(t, seed.Result().Cookies(), "st")
+		require.Equal(t, http.StatusTemporaryRedirect, w.Code, w.Body.String())
+		assert.Equal(t, "https://dataharbor.example.com/browse/data?sort=name", w.Header().Get("Location"))
+
+		after := httptest.NewRequest("GET", "/", nil)
+		for _, ck := range w.Result().Cookies() {
+			after.AddCookie(ck)
+		}
+		saved, err := SessionStore.Get(after, sessionName)
+		require.NoError(t, err)
+		_, present := saved.Values[sessionKeyPostLoginRedirect]
+		assert.False(t, present, "path must not leak into the next login")
+		assert.NotEmpty(t, saved.Values["token_id"])
+	})
+
+	t.Run("AuthCallback falls back to the app root without a stored path", func(t *testing.T) {
+		idp := newMockIdP()
+		defer idp.Close()
+		setup(idp.URL)
+
+		seed := httptest.NewRecorder()
+		seedReq := httptest.NewRequest("GET", "/", nil)
+		session, _ := SessionStore.Get(seedReq, sessionName)
+		session.Values["oidc_state"] = "st"
+		require.NoError(t, session.Save(seedReq, seed))
+
+		w := runCallback(t, seed.Result().Cookies(), "st")
+		require.Equal(t, http.StatusTemporaryRedirect, w.Code, w.Body.String())
+		assert.Equal(t, "https://dataharbor.example.com/", w.Header().Get("Location"))
+	})
+
+	t.Run("AuthCallback never follows a foreign stored path", func(t *testing.T) {
+		idp := newMockIdP()
+		defer idp.Close()
+		setup(idp.URL)
+
+		seed := httptest.NewRecorder()
+		seedReq := httptest.NewRequest("GET", "/", nil)
+		session, _ := SessionStore.Get(seedReq, sessionName)
+		session.Values["oidc_state"] = "st"
+		session.Values[sessionKeyPostLoginRedirect] = "https://evil.example.com/"
+		require.NoError(t, session.Save(seedReq, seed))
+
+		w := runCallback(t, seed.Result().Cookies(), "st")
+		require.Equal(t, http.StatusTemporaryRedirect, w.Code, w.Body.String())
+		assert.Equal(t, "https://dataharbor.example.com/", w.Header().Get("Location"))
+	})
+}
+
+func TestIsClientCredentialRejection(t *testing.T) {
+	keycloakWrongSecret := []byte(`{"error":"unauthorized_client","error_description":"Invalid client or Invalid client credentials"}`)
+	keycloakGrantDisabled := []byte(`{"error":"unauthorized_client","error_description":"Client not enabled to retrieve service account"}`)
+	rfcInvalidClient := []byte(`{"error":"invalid_client"}`)
+	badCode := []byte(`{"error":"invalid_grant","error_description":"Code not valid"}`)
+
+	assert.True(t, isClientCredentialRejection(401, keycloakWrongSecret))
+	assert.True(t, isClientCredentialRejection(400, rfcInvalidClient))
+	assert.True(t, isClientCredentialRejection(401, rfcInvalidClient))
+	assert.False(t, isClientCredentialRejection(401, keycloakGrantDisabled), "grant disabled means the client authenticated")
+	assert.False(t, isClientCredentialRejection(400, badCode))
+	assert.False(t, isClientCredentialRejection(500, keycloakWrongSecret))
+	assert.False(t, isClientCredentialRejection(401, []byte("not json")))
+}
+
+func TestCheckOIDCClientCredentials(t *testing.T) {
+	// idp returns the given token-endpoint reply for a client_credentials probe.
+	idp := func(t *testing.T, status int, body string, wantSecret string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/openid-configuration":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"issuer":         "http://" + r.Host,
+					"token_endpoint": "http://" + r.Host + "/token",
+				})
+			case "/token":
+				require.NoError(t, r.ParseForm())
+				assert.Equal(t, "client_credentials", r.Form.Get("grant_type"))
+				assert.Equal(t, "cid", r.Form.Get("client_id"))
+				if wantSecret != "" {
+					assert.Equal(t, wantSecret, r.Form.Get("client_secret"))
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(body))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+	}
+	cfgFor := func(issuer string) *config.Config {
+		return &config.Config{
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC:    config.OIDCConfig{Issuer: issuer, ClientID: "cid", ClientSecret: "s3cret"},
+			},
+		}
+	}
+
+	t.Run("wrong secret is reported as rejected", func(t *testing.T) {
+		srv := idp(t, 401, `{"error":"unauthorized_client","error_description":"Invalid client or Invalid client credentials"}`, "s3cret")
+		defer srv.Close()
+		verdict, detail := checkOIDCClientCredentials(cfgFor(srv.URL))
+		assert.Equal(t, ClientCredentialsRejected, verdict)
+		assert.Contains(t, detail, "Invalid client credentials")
+	})
+
+	t.Run("grant disabled still means the secret is right", func(t *testing.T) {
+		srv := idp(t, 401, `{"error":"unauthorized_client","error_description":"Client not enabled to retrieve service account"}`, "")
+		defer srv.Close()
+		verdict, _ := checkOIDCClientCredentials(cfgFor(srv.URL))
+		assert.Equal(t, ClientCredentialsVerified, verdict)
+	})
+
+	t.Run("token issued means verified", func(t *testing.T) {
+		srv := idp(t, 200, `{"access_token":"x","token_type":"Bearer","expires_in":60}`, "")
+		defer srv.Close()
+		verdict, _ := checkOIDCClientCredentials(cfgFor(srv.URL))
+		assert.Equal(t, ClientCredentialsVerified, verdict)
+	})
+
+	t.Run("IdP outage is inconclusive, never rejected", func(t *testing.T) {
+		srv := idp(t, 503, `upstream down`, "")
+		defer srv.Close()
+		verdict, _ := checkOIDCClientCredentials(cfgFor(srv.URL))
+		assert.Equal(t, ClientCredentialsInconclusive, verdict)
+
+		verdict, _ = checkOIDCClientCredentials(cfgFor("http://127.0.0.1:1"))
+		assert.Equal(t, ClientCredentialsInconclusive, verdict)
+	})
+}

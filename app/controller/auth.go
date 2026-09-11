@@ -24,8 +24,10 @@ import (
 )
 
 const (
-	sessionName   = "dataharbor-session"
-	sessionMaxAge = 86400 * 7 // 7 days - chosen to balance user convenience with security risks
+	sessionName = "dataharbor-session"
+	// Session key holding the in-app path to return to after the IdP round trip.
+	sessionKeyPostLoginRedirect = "post_login_redirect"
+	sessionMaxAge               = 86400 * 7 // 7 days - chosen to balance user convenience with security risks
 )
 
 // Will be initialized in init()
@@ -265,6 +267,15 @@ func LoginInit(c *gin.Context) {
 	session.Values["oidc_state"] = state
 	logger.Infof("Setting state in session: %s", state)
 
+	// Remember where the user was heading so the callback can send them back
+	// there. The IdP round trip carries no app state, so the session is the only
+	// place this survives. Only same-origin paths are accepted (see safeRedirectPath).
+	delete(session.Values, sessionKeyPostLoginRedirect)
+	if redirectPath := safeRedirectPath(c.Query("redirect_path")); redirectPath != "/" {
+		session.Values[sessionKeyPostLoginRedirect] = redirectPath
+		logger.Infof("Post-login redirect path: %s", redirectPath)
+	}
+
 	// Use centralized cookie options with request context for accurate HTTPS detection
 	session.Options = sessionCookieOptions(cfg, c)
 	logger.Infof("Cookie options — Secure: %v, SameSite: %v, HttpOnly: %v",
@@ -396,9 +407,15 @@ func AuthCallback(c *gin.Context) {
 		}
 	}
 
-	// Clear state after use to prevent replay attacks
+	// Clear state after use to prevent replay attacks. The post-login path is
+	// consumed here too so it cannot leak into a later, unrelated login.
+	postLoginPath := "/"
 	if sessionState != "" {
 		delete(session.Values, "oidc_state")
+	}
+	if v, ok := session.Values[sessionKeyPostLoginRedirect].(string); ok {
+		postLoginPath = safeRedirectPath(v)
+		delete(session.Values, sessionKeyPostLoginRedirect)
 	}
 
 	// The redirect_uri must exactly match what was used in the initial request
@@ -457,7 +474,10 @@ func AuthCallback(c *gin.Context) {
 
 	if tokenResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tokenResp.Body)
-		logger.Error("Token endpoint returned error", "status", tokenResp.StatusCode, "body", string(body))
+		logger.Errorf("Token endpoint returned status %d: %s", tokenResp.StatusCode, string(body))
+		if isClientCredentialRejection(tokenResp.StatusCode, body) {
+			logger.Error(clientCredentialHint(cfg))
+		}
 		response.Error(c, http.StatusInternalServerError, "Failed to authenticate with provider")
 		return
 	}
@@ -487,34 +507,25 @@ func AuthCallback(c *gin.Context) {
 		return
 	}
 
-	// Determine the frontend URL to redirect to after authentication
-	frontendURL := c.Query("redirect")
+	// Determine the frontend URL to redirect to after authentication.
+	// The IdP callback carries no app state, so the origin comes from config
+	// (or the request) and the path from what LoginInit stored in the session.
+	frontendURL := cfg.Frontend.URL
 	if frontendURL == "" {
-		// Use the frontend URL from configuration or fall back to a default
-		frontendURL = cfg.Frontend.URL
-		if frontendURL == "" {
-			// In development, we're likely using Vite at port 5173
-			if cfg.Env == "development" {
-				// Use HTTPS for development since Keycloak now requires it
-				scheme := "https"
-				if !cfg.Server.SSL.Enabled {
-					scheme = "http"
-				}
-				frontendURL = fmt.Sprintf("%s://localhost:5173", scheme)
-			} else {
-				// In production, default to same host but assume it's being served from root
-				frontendURL = fmt.Sprintf("%s://%s", schemeFromRequest(c), c.Request.Host)
+		// In development, we're likely using Vite at port 5173
+		if cfg.Env == "development" {
+			// Use HTTPS for development since Keycloak now requires it
+			scheme := "https"
+			if !cfg.Server.SSL.Enabled {
+				scheme = "http"
 			}
+			frontendURL = fmt.Sprintf("%s://localhost:5173", scheme)
+		} else {
+			// In production, default to same host but assume it's being served from root
+			frontendURL = fmt.Sprintf("%s://%s", schemeFromRequest(c), c.Request.Host)
 		}
 	}
-
-	// If a specific path was requested, append it
-	redirectPath := c.Query("redirect_path")
-	if redirectPath != "" && redirectPath != "/" {
-		frontendURL = frontendURL + redirectPath
-	} else {
-		frontendURL = frontendURL + "/"
-	}
+	frontendURL = strings.TrimSuffix(frontendURL, "/") + postLoginPath
 
 	logger.Infof("Redirecting authenticated user to frontend: %s", frontendURL)
 
@@ -943,4 +954,136 @@ func schemeFromRequest(c *gin.Context) string {
 	}
 
 	return "http"
+}
+
+// safeRedirectPath reduces a caller-supplied post-login destination to a
+// same-origin path. Anything that could leave the app — an absolute URL, a
+// protocol-relative "//host" path, a backslash trick — collapses to "/", so the
+// value can be stored and later used in a redirect without becoming an open
+// redirect. Query and fragment are preserved so deep links round-trip intact.
+func safeRedirectPath(raw string) string {
+	if raw == "" || raw[0] != '/' || strings.HasPrefix(raw, "//") || strings.ContainsAny(raw, "\\\r\n") {
+		return "/"
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil {
+		return "/"
+	}
+	return raw
+}
+
+// ClientCredentialCheck is the outcome of probing the IdP with the configured
+// client ID and secret.
+type ClientCredentialCheck int
+
+const (
+	// ClientCredentialsInconclusive: the IdP could not be reached or answered
+	// in a way that says nothing about the secret.
+	ClientCredentialsInconclusive ClientCredentialCheck = iota
+	// ClientCredentialsVerified: the IdP authenticated the client.
+	ClientCredentialsVerified
+	// ClientCredentialsRejected: the IdP explicitly refused the client ID/secret.
+	ClientCredentialsRejected
+)
+
+// oidcErrorResponse is the RFC 6749 error body returned by the token endpoint.
+type oidcErrorResponse struct {
+	Error       string `json:"error"`
+	Description string `json:"error_description"`
+}
+
+// isClientCredentialRejection reports whether a token-endpoint failure means
+// the IdP refused the client itself (wrong client_id or client_secret), as
+// opposed to a bad code, grant or scope. Keycloak answers a wrong secret with
+// 401 {"error":"unauthorized_client","error_description":"Invalid client or
+// Invalid client credentials"}; other providers use "invalid_client".
+func isClientCredentialRejection(status int, body []byte) bool {
+	if status != http.StatusUnauthorized && status != http.StatusBadRequest {
+		return false
+	}
+	var e oidcErrorResponse
+	if err := json.Unmarshal(body, &e); err != nil {
+		return false
+	}
+	if e.Error == "invalid_client" {
+		return true
+	}
+	desc := strings.ToLower(e.Description)
+	return e.Error == "unauthorized_client" && strings.Contains(desc, "credential")
+}
+
+// clientCredentialHint tells an operator where a rejected secret usually comes
+// from. Shell-exported variables take precedence over docker/.env in Compose
+// interpolation, which is by design (CI, secret managers) but also the most
+// common way a stale secret survives a .env update.
+func clientCredentialHint(cfg *config.Config) string {
+	return fmt.Sprintf("OIDC client %q was REJECTED by %s: check DATAHARBOR_AUTH_OIDC_CLIENT_SECRET. "+
+		"With docker compose, a shell-exported OIDC_CLIENT_SECRET overrides docker/.env; "+
+		"run 'docker compose config | grep CLIENT_SECRET' to see the effective value",
+		cfg.Auth.OIDC.ClientID, cfg.Auth.OIDC.Issuer)
+}
+
+// checkOIDCClientCredentials probes the token endpoint with a
+// client_credentials grant. The grant itself is usually disabled for a
+// browser-login client, but the IdP authenticates the client *before* looking
+// at the grant, so the reply still tells us whether the secret is right:
+//   - 200                                        -> verified
+//   - client rejected (see isClientCredentialRejection) -> rejected
+//   - anything else (grant disabled, unreachable) -> verified / inconclusive
+func checkOIDCClientCredentials(cfg *config.Config) (ClientCredentialCheck, string) {
+	discoveryDoc, err := fetchOIDCDiscoveryDocument(cfg.Auth.OIDC.Issuer)
+	if err != nil {
+		return ClientCredentialsInconclusive, "discovery document unavailable: " + err.Error()
+	}
+	tokenEndpoint, _ := discoveryDoc["token_endpoint"].(string)
+	if tokenEndpoint == "" {
+		return ClientCredentialsInconclusive, "no token_endpoint in discovery document"
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", cfg.Auth.OIDC.ClientID)
+	form.Set("client_secret", cfg.Auth.OIDC.ClientSecret)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.PostForm(tokenEndpoint, form)
+	if err != nil {
+		return ClientCredentialsInconclusive, "token endpoint unreachable: " + err.Error()
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+
+	switch {
+	case resp.StatusCode == http.StatusOK:
+		return ClientCredentialsVerified, "client_credentials grant accepted"
+	case isClientCredentialRejection(resp.StatusCode, body):
+		return ClientCredentialsRejected, strings.TrimSpace(string(body))
+	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusBadRequest:
+		// Client authenticated; the grant is simply not enabled for it.
+		return ClientCredentialsVerified, strings.TrimSpace(string(body))
+	default:
+		return ClientCredentialsInconclusive, fmt.Sprintf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+}
+
+// VerifyOIDCClientCredentials runs the credential probe once at startup and
+// logs the verdict. A wrong secret otherwise only surfaces as a generic 500 in
+// the middle of a user's login, long after the misconfiguration happened.
+// Never fatal: an unreachable IdP at boot must not take the service down.
+func VerifyOIDCClientCredentials() {
+	cfg := config.GetConfig()
+	logger := common.GetLogger()
+	if !cfg.Auth.Enabled || cfg.Auth.OIDC.Issuer == "" || cfg.Auth.OIDC.ClientID == "" || cfg.Auth.OIDC.ClientSecret == "" {
+		return
+	}
+	verdict, detail := checkOIDCClientCredentials(cfg)
+	switch verdict {
+	case ClientCredentialsRejected:
+		logger.Errorf("OIDC client credential check FAILED: %s", detail)
+		logger.Error(clientCredentialHint(cfg))
+	case ClientCredentialsVerified:
+		logger.Infof("OIDC client credentials verified against %s (client %q)", cfg.Auth.OIDC.Issuer, cfg.Auth.OIDC.ClientID)
+	default:
+		logger.Warnf("OIDC client credential check inconclusive: %s", detail)
+	}
 }

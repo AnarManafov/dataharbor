@@ -14,6 +14,36 @@ const error = ref(null);
 // Enable cookie-based auth across domains
 axios.defaults.withCredentials = true;
 
+// Loop guard for automatic sign-in. If the IdP sends us back and the session
+// still doesn't validate (cookie blocked, clock skew, backend restart), a page
+// that auto-starts login would bounce forever. Remember when we last started an
+// automatic attempt so the login page can fall back to a manual button.
+const AUTO_LOGIN_KEY = 'dh_auto_login_started_at';
+const AUTO_LOGIN_COOLDOWN_MS = 60 * 1000;
+
+const markAutoLoginStarted = () => {
+    try { sessionStorage.setItem(AUTO_LOGIN_KEY, String(Date.now())); } catch { /* storage unavailable */ }
+};
+const clearAutoLoginMark = () => {
+    try { sessionStorage.removeItem(AUTO_LOGIN_KEY); } catch { /* storage unavailable */ }
+};
+// True when an automatic attempt was started recently and never completed.
+export const autoLoginRecentlyFailed = () => {
+    try {
+        const at = Number(sessionStorage.getItem(AUTO_LOGIN_KEY) || 0);
+        return at > 0 && Date.now() - at < AUTO_LOGIN_COOLDOWN_MS;
+    } catch {
+        return false;
+    }
+};
+
+// Only same-origin paths may be used as a post-login destination. The backend
+// enforces the same rule; this keeps the UI from ever asking for anything else.
+export const sanitizeReturnPath = (path) => {
+    if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//')) return '/';
+    return path;
+};
+
 // Main composable function for authentication
 export default function useAuth() {
     const router = useRouter();
@@ -36,6 +66,7 @@ export default function useAuth() {
             if (response && response.data) {
                 isAuthenticated.value = true;
                 user.value = response.data;
+                clearAutoLoginMark();
 
                 // Debug user data for troubleshooting permissions issues
                 console.log('User data from auth response:', response.data);
@@ -55,21 +86,33 @@ export default function useAuth() {
         return isAuthenticated.value;
     };
 
-    // Initiate OIDC authentication flow while preserving intended destination
-    const login = async () => {
+    // Where to land after login when the caller didn't say: the current page,
+    // or — on the login page itself — whatever it was asked to return to.
+    const defaultReturnPath = () => {
+        const current = router?.currentRoute?.value;
+        if (!current) return '/';
+        if (current.path === '/login') return current.query?.redirect || '/';
+        return current.fullPath;
+    };
+
+    // Initiate the OIDC flow. This is the one and only "sign in" action: it
+    // sends the browser straight to the identity provider, which owns the
+    // credentials UI. There is deliberately no in-app login form in between.
+    // @param {string} [returnPath] in-app path to come back to after login
+    // @param {object} [opts] { automatic: true } when started without a click
+    const login = async (returnPath, opts = {}) => {
         isLoading.value = true;
         error.value = null;
 
         try {
-            // Preserve navigation context for post-login redirection
-            const currentPath = router?.currentRoute?.value?.path || '/';
-            const redirectPath = currentPath !== '/login' ? currentPath : '/';
+            const redirectPath = sanitizeReturnPath(returnPath ?? defaultReturnPath());
 
             // Backend generates the proper auth URL with correct parameters
             const response = await apiLogin(redirectPath);
 
             if (response && response.data && response.data.auth_url) {
                 console.log('Redirecting to auth URL:', response.data.auth_url);
+                if (opts.automatic) markAutoLoginStarted();
                 window.location.href = response.data.auth_url;
             } else {
                 console.error('Invalid login response', response);
@@ -92,7 +135,9 @@ export default function useAuth() {
             await apiLogout();
             isAuthenticated.value = false;
             user.value = null;
-            router.push('/login');
+            // Land on the public home page. Sending a user who just signed out
+            // to a "sign in" page reads as if the sign-out didn't take.
+            router.push('/');
         } catch (err) {
             error.value = 'Logout failed';
             console.error('Logout error:', err);
