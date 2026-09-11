@@ -97,7 +97,7 @@ docker compose -f docker-compose.deploy.yml up -d
 docker compose -f docker-compose.deploy.yml ps
 ```
 
-> **Note:** All configuration (backend `application.yaml`, XRootD `xrootd-prod.cfg`, SciTokens `scitokens_prod.cfg`) is baked into the Docker images. You only need to provide environment variables in the `.env` file.
+> **Note:** All configuration (backend `application.yaml`, XRootD `xrootd-prod.cfg`, the SciTokens template `scitokens.cfg.tmpl`) is baked into the Docker images. You only need to provide environment variables in the `.env` file.
 
 ### Available Images
 
@@ -142,7 +142,7 @@ Before deploying, ensure the following are set up on the **host machine**:
    sudo useradd -r -g xrootd -s /sbin/nologin -d /var/spool/xrootd xrootd
    ```
 
-2. **Mapped users must be resolvable on the host** — Every username listed as `"result"` in the mapfile must be resolvable via `getent passwd <username>` on the host, with the correct UID matching the data filesystem (Lustre/GPFS/NFS). On HPC/enterprise hosts, these users typically come from LDAP/AD via SSSD.
+2. **Token users must be resolvable on the host** — XRootD takes the Unix account from the access token's `posix_username` claim (`XRD_USER_MAPPING=claim`, the default). Every `posix_username` your IdP can issue must be resolvable via `getent passwd <username>` on the host, with the correct UID matching the data filesystem (Lustre/GPFS/NFS). On HPC/enterprise hosts, these users typically come from LDAP/AD via SSSD. A token without a usable `posix_username` is denied.
 
 3. **SSSD must be running** — The XRootD multiuser plugin calls `getpwnam()` to resolve mapped usernames to UIDs. On hosts where users come from LDAP/AD (i.e., most HPC environments), the container needs access to the host's SSSD daemon. The container mounts the SSSD socket and `nsswitch.conf` from the host:
 
@@ -172,8 +172,9 @@ XROOTD_DATA_DIR=/lustre/dataharbor
 XRD_CERT_PATH=/etc/grid-security/hostcert.pem
 XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 
-# User mapping file
-XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+# User mapping: claim (default) takes the Unix user from the token's
+# posix_username claim. No mapfile needed.
+XRD_USER_MAPPING=claim
 
 # Host user database and SSSD (for XRootD multiuser plugin)
 # The xrootd user must exist on the host (see Host Prerequisites above)
@@ -210,6 +211,17 @@ XROOTD_TLS_CA_VERIFY=true
 ```
 
 > **Note:** Backend and XRootD configuration files are baked into the Docker images. All settings that vary between deployments (OIDC credentials, certificate paths, hostnames, etc.) are controlled exclusively through the `.env` file. See [`.env.production.example`](../docker/.env.production.example) for the full list of available variables.
+
+> **IdP requirements:** the access token must carry `posix_username` (plus the
+> usual `iss`, `aud`, `exp`, `scope`, `sub`), and the OIDC scopes requested at
+> login are configurable via `auth.oidc.scopes` (default `openid profile email`)
+> for clients that do not offer all three. The full list of claims DataHarbor
+> relies on is in the
+> [XRootD README](../docker/xrootd/README.md#required-token-contents).
+
+> **Deploying against an IdP that cannot emit `posix_username`?** Use the opt-in
+> static mapfile instead — one override compose file, no image change. See
+> [Alternative: static mapfile](../docker/xrootd/README.md#alternative-static-mapfile-xrd_user_mappingmapfile).
 
 ### Updating Deployment
 

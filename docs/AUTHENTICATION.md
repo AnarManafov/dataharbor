@@ -181,6 +181,13 @@ auth:
     client_id: "dataharbor-client"
     client_secret: "${OIDC_CLIENT_SECRET}"
     redirect_uri: "https://dataharbor.example.com/api/v1/auth/callback"
+    # Scopes requested at login. Defaults to ["openid", "profile", "email"];
+    # trim it if the IdP client does not offer one of them (an unassigned scope
+    # makes the IdP reject the whole authorization request with invalid_scope).
+    # "openid" is always requested even if omitted here - without it the IdP
+    # answers with plain OAuth2 (no id_token, no userinfo) and login breaks.
+    # Override per deployment with DATAHARBOR_AUTH_OIDC_SCOPES; setting it to
+    # an empty value requests "openid" alone rather than reverting to defaults.
     scopes: ["openid", "profile", "email"]
   session:
     secret: "${SESSION_SECRET}"
@@ -189,6 +196,26 @@ auth:
     http_only: true
     same_site: "strict"
 ```
+
+### Token Claims DataHarbor Relies On
+
+The access token is validated by XRootD, not just by the backend, so trimming
+claims on the IdP client can break file access even while login still works.
+
+| Where          | Claim / field                                                              | Used for                                        |
+| -------------- | -------------------------------------------------------------------------- | ----------------------------------------------- |
+| Access token   | `iss`, `aud`, `exp`, `iat`                                                  | SciTokens validation (`aud` = the issuer URL)   |
+| Access token   | `scope` (`read:/`, `write:/`)                                               | Browse/download and upload authorization        |
+| Access token   | `sub`                                                                       | Per-user rate limiting in `SessionAuthMiddleware` |
+| Access token   | `posix_username`                                                            | The Unix account XRootD switches to             |
+| Access token   | `ver` (`scitoken:2.0`)                                                      | SciTokens profile version                       |
+| Userinfo       | `sub`, `preferred_username`, `given_name`, `family_name`, `name`            | User display in the UI                          |
+| Userinfo       | `posix_username`                                                            | Shown in the user menu for diagnostics          |
+
+`email` is optional: the UI falls back to other fields, and the requested scopes
+are configurable. `posix_username` is not optional in the default XRootD user
+mapping — see
+[user mapping](../docker/xrootd/README.md#user-mapping).
 
 ### SciToken Scopes for XRootD Uploads
 

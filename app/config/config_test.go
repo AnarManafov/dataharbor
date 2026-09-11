@@ -291,6 +291,7 @@ func TestSetDefaults(t *testing.T) {
 	// Auth defaults
 	assert.False(t, v.GetBool("auth.enabled"))
 	assert.Equal(t, []string{"/health"}, v.GetStringSlice("auth.skip_auth_paths"))
+	assert.Equal(t, []string{"openid", "profile", "email"}, v.GetStringSlice("auth.oidc.scopes"))
 
 	// Frontend defaults
 	assert.Equal(t, "http://localhost:5173", v.GetString("frontend.url"))
@@ -746,5 +747,185 @@ func TestValidateConfig_Upload(t *testing.T) {
 		cfg := base()
 		cfg.XRD.Upload = UploadConfig{Enabled: true, MaxFileSize: 1, MaxBatchSize: 1, MaxFilesPerBatch: 1, ChunkSize: 1, ChecksumAlgo: "sha256"}
 		assert.NoError(t, ValidateConfig(cfg))
+	})
+}
+
+// TestOIDCConfig_ScopeString covers the scope string handed to the IdP. Scopes
+// are configurable so a client that no longer offers one (e.g. 'email') cannot
+// lock every user out of DataHarbor.
+func TestOIDCConfig_ScopeString(t *testing.T) {
+	tests := []struct {
+		name     string
+		scopes   []string
+		expected string
+	}{
+		{
+			name:     "unset falls back to the defaults",
+			scopes:   nil,
+			expected: "openid profile email",
+		},
+		{
+			name:     "empty list falls back to the defaults",
+			scopes:   []string{},
+			expected: "openid profile email",
+		},
+		{
+			name:     "yaml list is joined with spaces",
+			scopes:   []string{"openid", "profile", "email"},
+			expected: "openid profile email",
+		},
+		{
+			name:     "client without the email scope",
+			scopes:   []string{"openid", "profile"},
+			expected: "openid profile",
+		},
+		{
+			name:     "comma-separated env var value",
+			scopes:   []string{"openid,profile"},
+			expected: "openid profile",
+		},
+		{
+			name:     "space-separated env var value",
+			scopes:   []string{"openid profile email"},
+			expected: "openid profile email",
+		},
+		{
+			name:     "blank entries are dropped",
+			scopes:   []string{"openid", "", "  ", "profile"},
+			expected: "openid profile",
+		},
+		{
+			name:     "duplicates are dropped",
+			scopes:   []string{"openid", "profile", "openid"},
+			expected: "openid profile",
+		},
+		{
+			// Set, but emptied on purpose: an IdP client that offers nothing
+			// but 'openid' must be able to say so. Falling back to the full
+			// default set here would keep producing invalid_scope.
+			name:     "only blanks resolves to openid alone",
+			scopes:   []string{"", " "},
+			expected: "openid",
+		},
+		{
+			name:     "a single empty entry resolves to openid alone",
+			scopes:   []string{""},
+			expected: "openid",
+		},
+		{
+			// Without 'openid' the IdP answers with plain OAuth2: no id_token
+			// and a userinfo call that fails, i.e. nobody can log in.
+			name:     "openid is prepended when the list omits it",
+			scopes:   []string{"profile", "email"},
+			expected: "openid profile email",
+		},
+		{
+			name:     "openid is prepended to a comma-separated env var value",
+			scopes:   []string{"profile,email"},
+			expected: "openid profile email",
+		},
+		{
+			name:     "openid is prepended to a single unrelated scope",
+			scopes:   []string{"profile"},
+			expected: "openid profile",
+		},
+		{
+			name:     "openid is not duplicated when already present",
+			scopes:   []string{"profile", "openid", "email"},
+			expected: "openid profile email",
+		},
+		{
+			name:     "openid already first keeps the configured order",
+			scopes:   []string{"openid", "email", "profile"},
+			expected: "openid email profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := OIDCConfig{Scopes: tt.scopes}
+			assert.Equal(t, tt.expected, cfg.ScopeString())
+		})
+	}
+}
+
+// TestDefaultOIDCScopes verifies callers cannot mutate the shared defaults.
+func TestDefaultOIDCScopes(t *testing.T) {
+	scopes := DefaultOIDCScopes()
+	assert.Equal(t, []string{"openid", "profile", "email"}, scopes)
+
+	scopes[0] = "mutated"
+	assert.Equal(t, []string{"openid", "profile", "email"}, DefaultOIDCScopes())
+}
+
+// TestLoadConfig_ScopesFromEnv verifies auth.oidc.scopes can be overridden with
+// DATAHARBOR_AUTH_OIDC_SCOPES, the escape hatch for an IdP client whose scopes
+// were changed.
+func TestLoadConfig_ScopesFromEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `
+env: development
+server:
+  address: :8080
+logging:
+  level: info
+xrd:
+  host: localhost
+  port: 1094
+auth:
+  enabled: false
+`
+	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0o644))
+
+	t.Setenv("DATAHARBOR_AUTH_OIDC_SCOPES", "openid,profile")
+
+	cfg, err := LoadConfig(configFile)
+	require.NoError(t, err)
+	assert.Equal(t, "openid profile", cfg.Auth.OIDC.ScopeString())
+}
+
+// TestLoadConfig_EmptyScopesFromEnv covers the operator whose IdP client offers
+// only 'openid' and writes OIDC_SCOPES= in .env. Viper treats an empty env var
+// as unset, so without applyExplicitlyEmptyScopes the full default set would be
+// requested and the IdP would keep answering invalid_scope.
+func TestLoadConfig_EmptyScopesFromEnv(t *testing.T) {
+	configContent := `
+env: development
+server:
+  address: :8080
+logging:
+  level: info
+xrd:
+  host: localhost
+  port: 1094
+auth:
+  enabled: false
+`
+
+	t.Run("explicitly empty requests openid only", func(t *testing.T) {
+		configFile := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0o644))
+
+		t.Setenv("DATAHARBOR_AUTH_OIDC_SCOPES", "")
+
+		cfg, err := LoadConfig(configFile)
+		require.NoError(t, err)
+		assert.Equal(t, "openid", cfg.Auth.OIDC.ScopeString())
+	})
+
+	t.Run("unset still falls back to the defaults", func(t *testing.T) {
+		if prev, ok := os.LookupEnv("DATAHARBOR_AUTH_OIDC_SCOPES"); ok {
+			require.NoError(t, os.Unsetenv("DATAHARBOR_AUTH_OIDC_SCOPES"))
+			t.Cleanup(func() { _ = os.Setenv("DATAHARBOR_AUTH_OIDC_SCOPES", prev) })
+		}
+
+		configFile := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0o644))
+
+		cfg, err := LoadConfig(configFile)
+		require.NoError(t, err)
+		assert.Equal(t, "openid profile email", cfg.Auth.OIDC.ScopeString())
 	})
 }

@@ -319,12 +319,17 @@ func LoginInit(c *gin.Context) {
 
 	logger.Infof("Using authorization endpoint: %s", authEndpoint)
 
-	// Use Keycloak-specific paths for the authorization endpoint
-	authURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=openid%%20profile%%20email",
+	// Scopes are configurable (auth.oidc.scopes) so an IdP client that drops a
+	// scope cannot lock every user out; default: openid profile email.
+	scopes := cfg.Auth.OIDC.ScopeString()
+	logger.Infof("Requesting OIDC scopes: %s", scopes)
+
+	authURL := fmt.Sprintf("%s?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=%s",
 		authEndpoint,
 		url.QueryEscape(cfg.Auth.OIDC.ClientID),
 		url.QueryEscape(redirectURI),
-		state)
+		state,
+		url.QueryEscape(scopes))
 
 	logger.Infof("Generated auth URL: %s", authURL)
 

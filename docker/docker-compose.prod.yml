@@ -34,6 +34,10 @@ services:
       DATAHARBOR_AUTH_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       DATAHARBOR_AUTH_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
       DATAHARBOR_AUTH_OIDC_SESSION_SECRET: ${OIDC_SESSION_SECRET}
+      # Scopes requested at login; trim if the IdP client lacks one (e.g. email)
+      # Unset-only default (`-`, not `:-`): an intentional empty OIDC_SCOPES must
+      # reach the backend as empty, which means "request only openid".
+      DATAHARBOR_AUTH_OIDC_SCOPES: ${OIDC_SCOPES-openid profile email}
 
       # Logging — stdout only (Docker handles rotation)
       DATAHARBOR_LOGGING_LEVEL: ${LOG_LEVEL:-info}
@@ -183,6 +187,11 @@ services:
       SCITOKENS_AUDIENCE: ${SCITOKENS_AUDIENCE:-${OIDC_ISSUER}}
       # TLS CA verification (set to false for self-signed certs in staging/testing)
       XROOTD_TLS_CA_VERIFY: ${XROOTD_TLS_CA_VERIFY:-true}
+      # Token-to-Unix-user mapping:
+      #   claim   (default) - Unix user comes from the token's posix_username claim
+      #   mapfile (opt-in)  - static JSON file, add docker-compose.mapfile.yml:
+      #     docker compose -f docker-compose.prod.yml -f docker-compose.mapfile.yml up -d
+      XRD_USER_MAPPING: ${XRD_USER_MAPPING:-claim}
 
     volumes:
       # ==========================================
@@ -226,20 +235,9 @@ services:
       - ${HOST_NSSWITCH_PATH:-/etc/nsswitch.conf}:/etc/nsswitch.conf:ro
       - ${HOST_SSSD_PIPES:-/var/lib/sss/pipes}:/var/lib/sss/pipes:ro
 
-      # ==========================================
-      # USER MAPFILE - Token-to-Unix-user mapping
-      # ==========================================
-      # CRITICAL: UIDs in mapfile MUST match filesystem UIDs (especially for Lustre/NFS)
-      # Example: {"sub": "username", "result": "unixuser"}
-      # The "result" user must exist on host and have proper permissions on XROOTD_DATA_DIR
-      # Long-form bind ensures Docker fails (instead of creating a directory)
-      # if the host file is missing
-      - type: bind
-        source: ${XRD_MAPFILE_PATH}
-        target: /etc/xrootd/mapfile
-        read_only: true
-        bind:
-          create_host_path: false
+      # NOTE: no user mapfile is mounted. Users are mapped from the token's
+      # posix_username claim. For the opt-in static mapfile, add
+      # docker-compose.mapfile.yml (see docker/xrootd/README.md).
 
     # Port 1094 is NOT exposed externally - only accessible by backend via internal network
     # If external XRootD access is needed, uncomment:

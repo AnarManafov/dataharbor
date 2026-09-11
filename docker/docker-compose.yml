@@ -45,6 +45,10 @@ services:
       DATAHARBOR_AUTH_OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       DATAHARBOR_AUTH_OIDC_DISCOVERY_URL: ${OIDC_DISCOVERY_URL}
       DATAHARBOR_AUTH_OIDC_SESSION_SECRET: ${OIDC_SESSION_SECRET}
+      # Scopes requested at login; trim if the IdP client lacks one (e.g. email)
+      # Unset-only default (`-`, not `:-`): an intentional empty OIDC_SCOPES must
+      # reach the backend as empty, which means "request only openid".
+      DATAHARBOR_AUTH_OIDC_SCOPES: ${OIDC_SCOPES-openid profile email}
 
       # Frontend URL - must be HTTPS for OAuth redirect validation
       DATAHARBOR_FRONTEND_URL: "https://localhost"
@@ -203,6 +207,12 @@ services:
     environment:
       XROOTD_HOSTNAME: ${XROOTD_HOSTNAME:-xrootd}
       TZ: Europe/Berlin
+      # SciTokens: OIDC issuer and audience for token validation
+      SCITOKENS_ISSUER: ${OIDC_ISSUER:-https://id.gsi.de/realms/wl}
+      SCITOKENS_AUDIENCE: ${SCITOKENS_AUDIENCE:-${OIDC_ISSUER:-https://id.gsi.de/realms/wl}}
+      # Token-to-Unix-user mapping: claim (default) reads posix_username from the
+      # token; mapfile is opt-in via docker-compose.mapfile.yml
+      XRD_USER_MAPPING: ${XRD_USER_MAPPING:-claim}
 
     volumes:
       # Use XROOTD_DATA_DIR from .env if set, otherwise use named volume

@@ -13,7 +13,7 @@ graph TB
     subgraph "Host System"
         HostFS[Lustre/GPFS/Local Storage<br/>/lustre/dataharbor]
         HostCerts[TLS Certificates<br/>/etc/grid-security/]
-        HostMap[User Mapfile<br/>/opt/xrootd/mapfile]
+        HostUsers[User database<br/>/etc/passwd + SSSD]
     end
 
     subgraph "Docker Network"
@@ -24,7 +24,7 @@ graph TB
 
         HostFS -.->|bind mount<br/>rslave propagation| XRD1
         HostCerts -.->|read-only mount| XRD1
-        HostMap -.->|read-only mount| XRD1
+        HostUsers -.->|read-only mount| XRD1
     end
 
     style NGX1 fill:#90EE90
@@ -33,11 +33,11 @@ graph TB
     style XRD1 fill:#FFB6C1
     style HostFS fill:#FFF9C4
     style HostCerts fill:#FFF9C4
-    style HostMap fill:#FFF9C4
+    style HostUsers fill:#FFF9C4
 ```
 
 **Containers:** Nginx Gateway • Backend (Go) • Frontend (Nginx) • XRootD Server
-**Host Mounts:** Data directory (Lustre/GPFS/local) • TLS certificates • User mapfile
+**Host Mounts:** Data directory (Lustre/GPFS/local) • TLS certificates • Host user database (`/etc/passwd`, SSSD socket)
 **Configuration:** All config files baked into images; deployment settings via `.env` file
 **Security:** ZTN (Zero Trust Networking) + TLS encryption • User mapping • Resource limits
 
@@ -118,7 +118,7 @@ Production deployment includes a **containerized XRootD server** that serves dat
 
 - **Lustre/GPFS Support**: Bind mount with proper propagation (`rslave`)
 - **Host Certificates**: TLS certificates mounted from host system
-- **User Mapping**: External mapfile for token-to-Unix-user mapping
+- **User Mapping**: Unix user taken from the token's `posix_username` claim
 - **Performance**: Near-zero overhead (~1% CPU), respects Lustre striping
 - **Security**: SELinux/AppArmor aware, resource limits, TLS verification
 
@@ -127,7 +127,7 @@ Production deployment includes a **containerized XRootD server** that serves dat
 - Bind mount with `rslave` propagation ensures Lustre mount changes propagate to container
 - No data copying - direct I/O path: XRootD → Lustre client → Network → Lustre servers
 - Extended attributes enabled for Lustre striping information
-- User mapping via external mapfile (UIDs must match host filesystem UIDs)
+- User mapping from the token's `posix_username` claim (the user must resolve on the host, with UIDs matching the filesystem)
 
 **Path Mapping (Production):**
 - Your `XROOTD_DATA_DIR` (e.g., `/lustre/dataharbor`) is mounted at `/data` inside the container
@@ -361,6 +361,7 @@ docker/
 ├── docker-compose.yml          # Development deployment
 ├── docker-compose.prod.yml     # Production build (builds images locally)
 ├── docker-compose.deploy.yml   # Production deployment (pulls from GHCR)
+├── docker-compose.mapfile.yml  # Optional override: static mapfile user mapping
 ├── .env.example                # Development environment template
 ├── .env.production.example     # Production environment template
 ├── .dockerignore               # Docker ignore patterns
@@ -386,15 +387,15 @@ docker/
 │   ├── README.md
 │   ├── configs/                # XRootD configuration files (baked into images)
 │   │   ├── xrootd-dev.cfg      # Development config
-│   │   ├── xrootd-prod.cfg     # Production config (envsubst template)
-│   │   ├── scitokens.cfg       # SciTokens base config
-│   │   ├── scitokens_dev.cfg   # SciTokens dev config
-│   │   ├── scitokens_prod.cfg  # SciTokens prod config (envsubst template)
-│   │   └── mapfile             # Default empty user mapping file
+│   │   ├── xrootd-prod.cfg     # Production config
+│   │   ├── scitokens.cfg.tmpl  # SciTokens template, rendered at startup (dev + prod)
+│   │   └── mapfile.example     # Sample mapfile for XRD_USER_MAPPING=mapfile
 │   └── scripts/                # Setup scripts
-│       ├── docker-entrypoint.sh      # Development entrypoint
-│       ├── docker-entrypoint-prod.sh # Production entrypoint (envsubst rendering)
-│       └── setup-test-data.sh        # Test data generator
+│       ├── docker-entrypoint.sh       # Development entrypoint
+│       ├── docker-entrypoint-prod.sh  # Production entrypoint
+│       ├── render-scitokens-config.sh # Renders the SciTokens template
+│       ├── test-render-scitokens.sh   # Render test (CI)
+│       └── setup-test-data.sh         # Test data generator
 ├── cert-init/                  # Certificate initialization
 │   ├── Dockerfile
 │   ├── generate-dev-certs.sh   # Self-signed cert generator
@@ -471,8 +472,9 @@ XROOTD_DATA_DIR=/lustre/dataharbor  # or /data/xrootd
 XRD_CERT_PATH=/etc/grid-security/hostcert.pem
 XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 
-# XRootD User Mapfile (REQUIRED)
-XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+# XRootD user mapping: claim (default) reads posix_username from the token.
+# Use 'mapfile' only with docker-compose.mapfile.yml (see XRootD README).
+XRD_USER_MAPPING=claim
 
 # XRootD TLS CA Verification
 # Set to false for self-signed certs in staging/testing
@@ -543,7 +545,7 @@ XRD_INITIAL_DIR=/                    # Initial directory path
 **Production Notes:**
 
 - XRootD runs as a container with **production certificates** mounted from the host
-- XRootD configuration (`xrootd-prod.cfg`, `scitokens_prod.cfg`) is **baked into the Docker image**
+- XRootD configuration (`xrootd-prod.cfg`, `scitokens.cfg.tmpl`) is **baked into the Docker image**
 - Environment-specific values (SciTokens issuer/audience, TLS CA settings) are rendered at container startup via `envsubst`
 - Configure **`XRD_HOST`** to point to your XRootD service
 - Ensure **`XRD_ENABLE_ZTN`** matches the server configuration
@@ -552,7 +554,7 @@ XRD_INITIAL_DIR=/                    # Initial directory path
 
 Backend uses `config/application.yaml` which is **baked into the Docker image** at build time. All values are overridable at runtime via `DATAHARBOR_*` environment variables (Viper's `AutomaticEnv`), which are set from the `.env` file through the Compose environment section.
 
-The XRootD configuration (`xrootd-prod.cfg`, `scitokens_prod.cfg`) is also baked into the image. The production entrypoint uses `envsubst` to render environment-specific values (like `SCITOKENS_ISSUER`, `SCITOKENS_AUDIENCE`) and generates the TLS CA config based on the `XROOTD_TLS_CA_VERIFY` setting.
+The XRootD configuration (`xrootd-prod.cfg`, `scitokens.cfg.tmpl`) is also baked into the image. The entrypoint uses `envsubst` to render the SciTokens template to `/etc/xrootd/scitokens_rendered.cfg` with environment-specific values (`SCITOKENS_ISSUER`, `SCITOKENS_AUDIENCE`, and the user-mapping block selected by `XRD_USER_MAPPING`) and generates the TLS CA config based on the `XROOTD_TLS_CA_VERIFY` setting.
 
 **You do not need to mount or manage configuration files.** All deployment-specific settings are controlled via the `.env` file.
 
@@ -711,13 +713,13 @@ Production deployment uses pre-built images and containerized XRootD server serv
    - **Data directory**: Lustre/GPFS mount or local filesystem (e.g., `/lustre/dataharbor`)
    - **XRootD TLS certificates**: Host certificate and private key
    - **Nginx SSL certificates**: For HTTPS gateway (can be same as XRootD certs)
-   - **User mapfile**: JSON file mapping token usernames to Unix users
    - **CA certificates**: For TLS verification (optional for testing)
 
-   > **Note:** Application configuration files (backend `application.yaml`, XRootD `xrootd-prod.cfg`, SciTokens `scitokens_prod.cfg`) are baked into the Docker images. You do not need to create or manage them on the host.
+   > **Note:** Application configuration files (backend `application.yaml`, XRootD `xrootd-prod.cfg`, the SciTokens template) are baked into the Docker images. You do not need to create or manage them on the host. No user mapfile is needed in the default configuration.
 
 3. **User Mapping Requirements**:
-   - Unix users in mapfile **must exist on host system**
+   - Every `posix_username` your IdP can issue **must resolve on the host**
+     (`getent passwd <name>`) — usually via LDAP/AD through SSSD
    - UIDs must match between host and filesystem (critical for Lustre/NFS)
    - Users must have proper permissions on data directory
 
@@ -736,9 +738,10 @@ XROOTD_DATA_DIR=/lustre/dataharbor    # Lustre mount
 XRD_CERT_PATH=/etc/grid-security/hostcert.pem
 XRD_KEY_PATH=/etc/grid-security/hostkey.pem
 
-# === USER MAPFILE (REQUIRED) ===
-# Path on HOST to user mapping file
-XRD_MAPFILE_PATH=/opt/xrootd/mapfile
+# === USER MAPPING ===
+# claim (default): the Unix user comes from the token's posix_username claim
+# mapfile: opt-in, requires docker-compose.mapfile.yml + XRD_MAPFILE_PATH
+XRD_USER_MAPPING=claim
 
 # === NGINX SSL CERTIFICATES (REQUIRED) ===
 # Paths on HOST to SSL certificate for HTTPS gateway
@@ -776,40 +779,34 @@ XROOTD_TLS_CA_VERIFY=true
 # FRONTEND_URL=https://yourdomain.com
 ```
 
-### User Mapfile Setup
+### User Mapping Setup
 
-Create mapfile at `/opt/xrootd/mapfile` on host:
-
-```bash
-sudo mkdir -p /opt/xrootd
-sudo nano /opt/xrootd/mapfile
-```
-
-**Format** (JSON):
-```json
-[
-  {
-    "sub": "alice",
-    "result": "alice"
-  },
-  {
-    "sub": "bob.smith",
-    "result": "bobsmith"
-  }
-]
-```
+XRootD takes the Unix account from the access token's `posix_username` claim
+(`XRD_USER_MAPPING=claim`, the default). There is no per-user file to maintain —
+but the host must be able to resolve each name:
 
 **Critical Requirements**:
-1. `"result"` users **must exist on host**: `id alice` should work
-2. UIDs must match filesystem (especially for Lustre/NFS)
-3. Users must have permissions on `XROOTD_DATA_DIR`
+1. The `posix_username` user **must exist on the host**: `getent passwd alice`
+2. UIDs must match the filesystem (especially for Lustre/NFS)
+3. The user must have permissions on `XROOTD_DATA_DIR`
+4. A token without a usable `posix_username` is **denied** (fail-closed)
 
 **Example for Lustre**:
 ```bash
 # On host where Lustre is mounted
-sudo useradd -u 1001 alice
+getent passwd alice                       # resolves via LDAP/SSSD, or create locally
 sudo chown alice:alice /lustre/dataharbor/alice-data
-ls -ln /lustre/dataharbor/alice-data  # Should show UID 1001
+ls -ln /lustre/dataharbor/alice-data      # Should show alice's UID
+```
+
+Need the old static mapfile instead (IdP cannot emit the claim, or as a rollback
+lever)? See
+[Alternative: static mapfile](xrootd/README.md#alternative-static-mapfile-xrd_user_mappingmapfile)
+— one override file, no image change:
+
+```bash
+XRD_MAPFILE_PATH=/opt/xrootd/mapfile \
+  docker compose -f docker-compose.prod.yml -f docker-compose.mapfile.yml up -d
 ```
 
 ### Lustre-Specific Configuration
@@ -884,13 +881,10 @@ sudo cp /path/to/hostkey.pem /etc/xrootd-prod/
 sudo chmod 644 /etc/xrootd-prod/hostcert.pem
 sudo chmod 600 /etc/xrootd-prod/hostkey.pem
 
-# Create user mapfile
-sudo nano /opt/xrootd/mapfile
-# (Add JSON user mappings as shown above)
-
-# Create users on host
-sudo useradd -u 1001 alice
-sudo useradd -u 1002 bob
+# Make sure every DataHarbor user resolves on the host with the right UID.
+# On HPC hosts these come from LDAP/AD via SSSD; otherwise create them:
+getent passwd alice || sudo useradd -u 1001 alice
+getent passwd bob   || sudo useradd -u 1002 bob
 ```
 
 #### 2. Configure Environment
@@ -910,7 +904,6 @@ nano .env
 Set these required variables:
 - `XROOTD_DATA_DIR`
 - `XRD_CERT_PATH`, `XRD_KEY_PATH`
-- `XRD_MAPFILE_PATH`
 - `SSL_CERT_PATH`, `SSL_KEY_PATH`
 - `OIDC_*` variables
 - `CORS_ALLOW_ORIGINS`, `FRONTEND_URL` (if not using localhost)
@@ -940,7 +933,7 @@ docker logs dataharbor-xrootd-prod
 
 # Look for these confirmations:
 # [+] TLS Certificates verified
-# [+] User mapfile verified
+# [OK] User mapping: posix_username claim
 # [+] Data directory verified
 # [+] Filesystem type: lustre (if using Lustre)
 
@@ -1140,8 +1133,8 @@ curl -v -k https://localhost:443/health
 ### Permission Issues (XRootD)
 
 ```bash
-# Check XRootD user mapping
-docker compose exec xrootd cat /etc/xrootd/mapfile
+# Check the SciTokens config XRootD actually loaded (incl. user mapping)
+docker compose exec xrootd cat /etc/xrootd/scitokens_rendered.cfg
 
 # Check file permissions in mounted directory
 docker compose exec xrootd ls -la /data
@@ -1183,8 +1176,9 @@ id alice
 ls -ln /lustre/dataharbor/alice-data        # On host
 docker exec dataharbor-xrootd-prod ls -ln /data/alice-data  # In container
 
-# Check mapfile syntax
-cat /opt/xrootd/mapfile | python3 -m json.tool
+# Confirm the token actually carries posix_username (decode the access token)
+# Denied tokens log 'Failed to get token username' in the XRootD log
+docker logs dataharbor-xrootd-prod | grep -i 'token username'
 ```
 
 #### Lustre Mount Changes Not Reflected
@@ -1338,7 +1332,7 @@ healthcheck:
 7. **Enable firewall** - Only expose port 443 (HTTPS)
 8. **Use HTTPS only** - Port 80 is NOT exposed externally
 9. **TLS verification** - Always use CA verification in production (`XROOTD_TLS_CA_VERIFY=true`)
-10. **User mapping audit** - Only authorized users in mapfile
+10. **User mapping audit** - Review which accounts the IdP may issue `posix_username` for
 11. **Resource limits** - Enable CPU/memory limits to prevent DoS
 12. **Lustre quotas** - User quotas on Lustre are enforced by XRootD
 13. **SELinux/AppArmor** - Use confinement when possible, only disable if necessary
@@ -1350,7 +1344,7 @@ healthcheck:
 **For Lustre/GPFS deployments**:
 
 - **User synchronization**: Ensure UIDs match between host, container, and filesystem
-- **Mapfile protection**: Restrict access to mapfile on host (`chmod 600 /opt/xrootd/mapfile`)
+- **IdP hygiene**: The `posix_username` claim decides which Unix account a request runs as — restrict who can set it in the IdP
 - **Data directory permissions**: Use Lustre ACLs for fine-grained access control
 - **Network security**: XRootD port (1094) is internal to Docker network, not exposed externally
 - **Audit logging**: Enable XRootD audit plugin for compliance requirements

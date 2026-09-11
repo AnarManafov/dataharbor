@@ -75,6 +75,7 @@ auth:
     client_id: "xrootd"
     client_secret: ""
     discovery_url: "https://id.gsi.de/realms/wl/.well-known/openid-configuration"
+    scopes: ["openid", "profile", "email"]
     allowed_roles:
       - "xrootd-user"
     session_secret: "5f9d7b8e-3a1c-4d86-9f2e-6b7c8d9e4f3a"

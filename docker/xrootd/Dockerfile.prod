@@ -4,7 +4,7 @@
 # Optimized for production environments with:
 # - External data directory mount (Lustre/GPFS/NFS)
 # - Host-provided TLS certificates
-# - External user mapfile
+# - Users mapped from the token's posix_username claim (static mapfile optional)
 # - Minimal runtime footprint
 # - Security hardening
 #
@@ -16,8 +16,10 @@
 # Required mounts at runtime:
 #   - /data                    : Host data directory (Lustre/GPFS)
 #   - /var/run/xrootd/certs/   : TLS certificate and key
-#   - /etc/xrootd/mapfile      : User mapping file
 #   - /etc/grid-security/certificates/ : CA certificates (optional)
+#   - /etc/xrootd/mapfile      : User mapping file - ONLY when
+#                                XRD_USER_MAPPING=mapfile (see
+#                                docker/docker-compose.mapfile.yml)
 # ============================================
 
 # Global build argument for XRootD version
@@ -154,19 +156,23 @@ RUN mkdir -p \
 	&& chmod 700 /var/run/xrootd/certs
 
 # Copy production configuration
-# Note: mapfile is expected to be mounted from host, not baked in
+# The SciTokens config is a template: the entrypoint renders it to
+# /etc/xrootd/scitokens_rendered.cfg, which xrootd-prod.cfg points at.
 COPY docker/xrootd/configs/xrootd-prod.cfg /etc/xrootd/xrootd-prod.cfg
-COPY docker/xrootd/configs/scitokens_prod.cfg /etc/xrootd/scitokens_prod.cfg
+COPY docker/xrootd/configs/scitokens.cfg.tmpl /etc/xrootd/scitokens.cfg.tmpl
 
-# Create default mapfile with empty array (overridden by host mount at deploy time)
-# This ensures Docker mounts a file (not directory) when host mapfile is mounted
-RUN echo '[]' > /etc/xrootd/mapfile
+# NOTE: no mapfile is baked in - deliberately. An empty '[]' placeholder would
+# let XRD_USER_MAPPING=mapfile start "successfully" while denying every user
+# when the operator forgets `-f docker-compose.mapfile.yml`. Docker creates the
+# bind-mount target itself, and docker-compose.mapfile.yml uses a long-form bind
+# with create_host_path: false, so the HOST file must exist.
 
 # Set proper permissions on configs
 RUN chown -R ${XROOTD_UID}:${XROOTD_GID} /etc/xrootd && \
-	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/mapfile
+	chmod 644 /etc/xrootd/*.cfg /etc/xrootd/scitokens.cfg.tmpl
 
-# Copy production entrypoint
+# Copy production entrypoint and the shared SciTokens renderer
+COPY docker/xrootd/scripts/render-scitokens-config.sh /usr/local/bin/render-scitokens-config.sh
 COPY docker/xrootd/scripts/docker-entrypoint-prod.sh /usr/local/bin/docker-entrypoint-prod.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint-prod.sh
 

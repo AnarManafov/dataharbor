@@ -1,0 +1,48 @@
+# DataHarbor - Static mapfile user mapping (OPT-IN OVERRIDE)
+#
+# By default DataHarbor maps XRootD users from the access token's
+# `posix_username` claim (XRD_USER_MAPPING=claim); no mapfile is involved.
+#
+# This override switches the XRootD container to the static JSON mapfile instead
+# and mounts it read-only. Use it when:
+#   - your IdP cannot emit a POSIX-username claim, or
+#   - you need to roll back quickly without rebuilding or re-tagging an image.
+#
+# It layers on top of any of the three base compose files:
+#
+#   # development (XRD_MAPFILE_PATH is required; the checked-in example works)
+#   XRD_MAPFILE_PATH=./xrootd/configs/mapfile.example \
+#     docker compose -f docker-compose.yml -f docker-compose.mapfile.yml up -d
+#
+#   # production, building locally
+#   XRD_MAPFILE_PATH=/opt/xrootd/mapfile \
+#     docker compose -f docker-compose.prod.yml -f docker-compose.mapfile.yml up -d
+#
+#   # production, pre-built images
+#   XRD_MAPFILE_PATH=/opt/xrootd/mapfile \
+#     docker compose -f docker-compose.deploy.yml -f docker-compose.mapfile.yml up -d
+#
+# Mapfile format (JSON array). "result" is the Unix user the token maps to; it
+# must be resolvable via `getent passwd` on the host with the UID the data
+# filesystem expects:
+#   [{"sub": "a.manafov", "result": "manafov"}]
+#
+# An unmapped token is denied (default_user = ""). See docker/xrootd/README.md,
+# section "Alternative: static mapfile (XRD_USER_MAPPING=mapfile)".
+
+services:
+  xrootd:
+    environment:
+      XRD_USER_MAPPING: mapfile
+
+    volumes:
+      # Long-form bind so Docker fails (instead of silently creating a
+      # directory) when the host mapfile is missing. XRD_MAPFILE_PATH has no
+      # default on purpose: a default would silently mount the development
+      # example mapfile in production and deny every real user.
+      - type: bind
+        source: "${XRD_MAPFILE_PATH:?XRD_MAPFILE_PATH must point at the host mapfile, e.g. ./xrootd/configs/mapfile.example for development}"
+        target: /etc/xrootd/mapfile
+        read_only: true
+        bind:
+          create_host_path: false

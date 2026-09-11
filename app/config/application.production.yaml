@@ -71,6 +71,7 @@ auth:
     client_id: "dataharbor-prod"
     client_secret: "${DATAHARBOR_CLIENT_SECRET}"  # Fill this in with your secret or use ${DATAHARBOR_CLIENT_SECRET}
     discovery_url: "https://id.yourdomain.com/realms/prod/.well-known/openid-configuration"
+    scopes: ["openid", "profile", "email"]  # Trim if the IdP client lacks a scope
     allowed_roles:
       - "xrootd-user"
     session_secret: "${DATAHARBOR_SESSION_SECRET}"  # Fill this in with a secure random string or use ${DATAHARBOR_SESSION_SECRET}

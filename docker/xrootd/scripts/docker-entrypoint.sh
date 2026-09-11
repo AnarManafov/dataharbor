@@ -13,8 +13,28 @@ chmod 755 /var/spool/xrootd /var/run/xrootd /home/xrootd /var/log/xrootd /data
 # Make grid-security readable by xrootd user
 chmod 755 /etc/grid-security /etc/grid-security/certificates
 
+# ==========================================
+# Render the SciTokens configuration
+# ==========================================
+# Same template and same renderer as production, so the dev stack exercises the
+# configuration that actually ships. One dev-specific value only:
+#   - base_path = /data  (production exports / and maps it with oss.localroot)
+#
+# onmissing is deliberately NOT overridden: it stays at the renderer's `deny`.
+# xrootd-dev.cfg loads `ofs.authlib libXrdAccSciTokens.so` without `++`, so
+# SciTokens is the only authorizer and there is no chain for `passthrough` to
+# pass through to - it would deny anyway. Dev now runs production's value.
+# Dev is also token-only (`sec.protbind * only ztn`), so no tokenless request
+# reaches the authorizer. If dev ever allows tokenless access, revisit this.
+SCITOKENS_ISSUER="${SCITOKENS_ISSUER:-https://id.gsi.de/realms/wl}"
+SCITOKENS_BASE_PATH="${SCITOKENS_BASE_PATH:-/data}"
+# shellcheck source=./render-scitokens-config.sh
+. /usr/local/bin/render-scitokens-config.sh
+render_scitokens_config
+
 # Create test users for multiuser plugin (for development) if they don't exist
-# These users will be used when tokens are mapped via the mapfile
+# In claim mode these are the Unix accounts the posix_username claim resolves to;
+# in mapfile mode they are the "result" users of the mounted mapfile.
 echo "Setting up test users for multiuser plugin..."
 # Note: UIDs must match those in Dockerfile
 if ! id -u testuser1 &>/dev/null; then

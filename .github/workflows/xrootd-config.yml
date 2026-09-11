@@ -1,0 +1,37 @@
+name: XRootD Config CI
+
+# Renders the SciTokens configuration in every supported user-mapping mode.
+# Mapfile mode is opt-in (XRD_USER_MAPPING=mapfile), so nothing exercises it in
+# day-to-day development — this keeps it from rotting.
+
+on:
+  # No paths filter on pull_request (matching backend.yml/frontend.yml): user
+  # mapping is rewired from outside docker/xrootd/ too - the compose overrides,
+  # the .env templates, the release bundle - and this is the only test guarding
+  # mapfile mode. A paths filter would also leave the check run uncreated, so a
+  # required status check would hang forever on those PRs.
+  pull_request:
+    branches: ["master"]
+  push:
+    branches: ["master"]
+    paths:
+      - "docker/xrootd/**"
+      - ".github/workflows/xrootd-config.yml"
+    tags-ignore:
+      - "**"
+
+concurrency:
+  group: xrootd-config-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    name: SciTokens render test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Render SciTokens config in all modes
+        run: ./docker/xrootd/scripts/test-render-scitokens.sh
