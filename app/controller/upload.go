@@ -1134,7 +1134,7 @@ func validateRelPath(rel string) error {
 	if strings.ContainsAny(rel, "\x00\r\n") {
 		return errors.New("relPath contains invalid characters")
 	}
-	for _, seg := range strings.Split(rel, "/") {
+	for seg := range strings.SplitSeq(rel, "/") {
 		if seg == "" || seg == "." || seg == ".." {
 			return fmt.Errorf("relPath contains forbidden segment %q", seg)
 		}

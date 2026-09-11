@@ -70,7 +70,7 @@ func TestJoinXRDPath(t *testing.T) {
 
 func TestNewOpaqueID_UniqueAndPrefixed(t *testing.T) {
 	seen := make(map[string]bool)
-	for i := 0; i < 1000; i++ {
+	for range 1000 {
 		id := newOpaqueID("up_")
 		require.True(t, strings.HasPrefix(id, "up_"))
 		require.Len(t, id, 3+32) // prefix + 16 bytes hex

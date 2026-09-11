@@ -99,10 +99,10 @@ func TestSlotManager_ConcurrentAcquireRelease(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < iterations; j++ {
+			for range iterations {
 				rel, err := sm.Acquire("shared")
 				if err != nil {
 					continue
