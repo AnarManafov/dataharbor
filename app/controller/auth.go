@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
+	"go.uber.org/zap"
 
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
@@ -1070,9 +1071,15 @@ func checkOIDCClientCredentials(cfg *config.Config) (ClientCredentialCheck, stri
 // logs the verdict. A wrong secret otherwise only surfaces as a generic 500 in
 // the middle of a user's login, long after the misconfiguration happened.
 // Never fatal: an unreachable IdP at boot must not take the service down.
-func VerifyOIDCClientCredentials() {
-	cfg := config.GetConfig()
-	logger := common.GetLogger()
+//
+// It is meant to run in its own goroutine, so cfg and logger are passed in by
+// the caller rather than read from the package globals here: a goroutine that
+// read config.GetConfig()/common.GetLogger() after start-up would race with a
+// later re-initialisation of those globals.
+func VerifyOIDCClientCredentials(cfg *config.Config, logger *zap.SugaredLogger) {
+	if cfg == nil || logger == nil {
+		return
+	}
 	if !cfg.Auth.Enabled || cfg.Auth.OIDC.Issuer == "" || cfg.Auth.OIDC.ClientID == "" || cfg.Auth.OIDC.ClientSecret == "" {
 		return
 	}

@@ -406,8 +406,9 @@ func LoadConfig(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
-	// Set the loaded config as the global config
-	config = &cfg
+	// Set the loaded config as the global config (under configMu, like every
+	// other access to it)
+	SetConfig(&cfg)
 
 	return &cfg, nil
 }
