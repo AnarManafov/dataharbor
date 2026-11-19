@@ -37,7 +37,7 @@ jobs:
           fetch-depth: 0 # Fetch all history and tags
 
       - name: Download version info from previous workflow
-        uses: dawidd6/action-download-artifact@v24
+        uses: dawidd6/action-download-artifact@v28
         with:
           workflow: version-tag-processor.yml
           name: version-info
@@ -71,7 +71,7 @@ jobs:
           retention-days: 1
 
       - name: Download changelog from version-tag-processor workflow
-        uses: dawidd6/action-download-artifact@v24
+        uses: dawidd6/action-download-artifact@v28
         with:
           workflow: version-tag-processor.yml
           name: version-changelog

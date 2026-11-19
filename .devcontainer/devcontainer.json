@@ -145,8 +145,8 @@
   "features": {
     // Go development with tools (gopls, dlv, staticcheck, etc.)
     "ghcr.io/devcontainers/features/go:1": {
-      "version": "1.27.1",
-      "golangciLintVersion": "2.13.2"
+      "version": "1.27.4",
+      "golangciLintVersion": "2.15.0"
     },
     // Node.js for Vue.js frontend
     "ghcr.io/devcontainers/features/node:2": {
@@ -179,10 +179,10 @@
     "ghcr.io/szkiba/devcontainer-features/gosec:1": {},
     // Go vulnerability scanner
     // Pinned: the feature resolves "latest" from golang/vuln's GitHub *releases*,
-    // which lag the module tags (v1.1.4 vs v1.8.0). v1.1.4 links x/tools v0.29.0,
+    // which lag the module tags (v1.1.4 vs v1.10.0). v1.1.4 links x/tools v0.29.0,
     // whose SSA builder panics ("unexpected expr: *ast.KeyValueExpr") on Go 1.27 source.
     "ghcr.io/szkiba/devcontainer-features/govulncheck:1": {
-      "version": "1.8.0"
+      "version": "1.10.0"
     }
   },
   // Commands to run after container is created
