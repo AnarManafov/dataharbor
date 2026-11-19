@@ -6,7 +6,7 @@
 # repo. Pin it here so local `make lint` and CI agree.
 #
 # Requires golangci-lint >= 2.x built with a Go toolchain at least as new as
-# the `go` directive in go.mod (currently 1.27.1) -- an older binary cannot
+# the `go` directive in go.mod (currently 1.27.4) -- an older binary cannot
 # parse newer language constructs.
 version: "2"
 

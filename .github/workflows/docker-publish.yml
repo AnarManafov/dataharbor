@@ -35,7 +35,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download version info from release workflow
-        uses: dawidd6/action-download-artifact@v24
+        uses: dawidd6/action-download-artifact@v28
         with:
           workflow: publish-release.yml
           name: version-info

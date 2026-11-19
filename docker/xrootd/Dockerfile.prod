@@ -23,7 +23,7 @@
 # ============================================
 
 # Global build argument for XRootD version
-ARG XROOTD_VERSION=6.1.1
+ARG XROOTD_VERSION=6.2.1
 
 # ---------------------------------------------
 # Build stage: Install XRootD and dependencies
@@ -34,30 +34,26 @@ FROM rockylinux/rockylinux:10 AS builder
 # Using BuildKit cache mount for faster rebuilds
 # - dnf-plugins-core provides `dnf config-manager` (not preinstalled on EL10)
 # - CERN repo provides the core xrootd 6.x packages (xrootd, server, libs, scitokens)
-# - OSG repo provides xrootd-multiuser; the 6.x-ABI build currently lives in the
-#   `osg-upcoming-development` channel (enabled per-install below)
-# - Stay on the 25-main series. An `osg/26-main` el10 series exists but is still an
-#   empty bootstrap skeleton (verified 2026-08-27): its release/development/
-#   upcoming-development/testing channels together ship only osg-release,
-#   buildsys-macros and osg-ca-certs -- no xrootd-multiuser, and osg-upcoming and
-#   osg-contrib 404 outright. Re-check before bumping to 26-main.
+# - OSG 26-main repo provides xrootd-multiuser. Since OSG 26 the 6.x-ABI build
+#   ships in the stable `osg` (release) channel, so no extra channel is needed
+#   (verified 2026-11-19: xrootd-multiuser-2.2.1-1.3.osg26.el10).
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
 	dnf install -y epel-release dnf-plugins-core && \
 	curl -L https://xrootd.web.cern.ch/xrootd.repo -o /etc/yum.repos.d/xrootd.repo && \
-	dnf install -y https://repo.opensciencegrid.org/osg/25-main/osg-25-main-el10-release-latest.rpm && \
+	dnf install -y https://repo.opensciencegrid.org/osg/26-main/osg-26-main-el10-release-latest.rpm && \
 	dnf config-manager --set-enabled crb && \
 	dnf clean all
 
 # Install XRootD and required plugins
 # Pinned version for reproducible builds
-# Note: xrootd-multiuser comes from the OSG `osg-upcoming-development` channel,
-# which carries the build linked against the XRootD 6.x plugin ABI
-# (libXrdMultiuser-6.so -> libXrdUtils.so.6). The OSG stable/main channels still
-# ship the 5.x-ABI build, which will not load under XRootD 6.x. The core xrootd
-# packages still resolve from the higher-priority CERN repo.
+# Note: xrootd-multiuser comes from the OSG 26-main stable channel, which carries
+# the build linked against the XRootD 6.x plugin ABI
+# (libXrdMultiuser-6.so -> libXrdUtils.so.6). The core xrootd packages resolve
+# from the higher-priority CERN repo (OSG 26 also ships xrootd 6.x, but lags
+# behind CERN stable).
 ARG XROOTD_VERSION
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
-	dnf install -y --enablerepo=osg-upcoming-development \
+	dnf install -y \
 	xrootd-${XROOTD_VERSION} \
 	xrootd-server-${XROOTD_VERSION} \
 	xrootd-libs-${XROOTD_VERSION} \

@@ -240,8 +240,8 @@ logs a warning so it does not look effective.
 
 #### Why a switch and not "claim first, mapfile as fallback"
 
-From `XrdSciTokens/XrdSciTokensAccess.cc` at v6.1.1 (the version pinned in both
-Dockerfiles):
+From `XrdSciTokens/XrdSciTokensAccess.cc` at v6.2.1 (the version pinned in both
+Dockerfiles; the file is unchanged since v6.1.1):
 
 - With `username_claim` set and the claim **missing**, `GenerateAcls()` logs
   `Failed to get token username` and returns `false`. The token is rejected
@@ -465,27 +465,26 @@ xrootd.trace auth login debug
 | Component        | Version / Source                                                   |
 | ---------------- | ------------------------------------------------------------------ |
 | Base image       | `rockylinux/rockylinux:10` (builder), `:10-minimal` (prod runtime) |
-| XRootD           | `6.1.1` — CERN stable repo (`xrootd.web.cern.ch`, el10)            |
-| xrootd-multiuser | `2.2.1` (osg25up) — OSG `osg-upcoming-development` channel, el10   |
+| XRootD           | `6.2.1` — CERN stable repo (`xrootd.web.cern.ch`, el10)            |
+| xrootd-multiuser | `2.2.1` (osg26) — OSG `26-main` stable (`osg`) channel, el10       |
 
 Pin a different XRootD version with `--build-arg XROOTD_VERSION=<x.y.z>`.
 
-> **Why the OSG `osg-upcoming-development` channel?** XRootD 6.0 bumped the
-> plugin ABI suffix from `-5` to `-6` (`libXrd*.so.3` → `.so.6`). The
-> `xrootd-multiuser` plugin is only distributed by OSG, and at the time of this
-> upgrade the 6.x-ABI build (`libXrdMultiuser-6.so`) ships **only** in OSG's
-> pre-release `osg-upcoming-development` channel — the stable `osg-*-main`
-> channels still carry the 5.x-ABI build, which will not load under XRootD 6.x.
-> Once OSG promotes the 6.x multiuser build to a `main`/`release` channel, drop
-> the `--enablerepo=osg-upcoming-development` flag in the Dockerfiles.
-
-> **Why still the `25-main` series?** An `osg/26-main` el10 series exists and its
-> release RPM installs, but the repositories behind it are still an empty
-> bootstrap skeleton (verified 2026-08-27): `osg`, `osg-development`,
-> `osg-upcoming-development` and `osg-testing` together publish only
-> `osg-release`, `buildsys-macros` and `osg-ca-certs` (2–5 packages each, versus
-> 97–170 in `25-main`), and `osg-upcoming` / `osg-contrib` return HTTP 404. There
-> is no `xrootd-multiuser` in any `26-main` channel yet. Re-check before bumping.
+> **Why OSG `26-main`?** XRootD 6.0 bumped the plugin ABI suffix from `-5` to
+> `-6` (`libXrd*.so.3` → `.so.6`). The `xrootd-multiuser` plugin is only
+> distributed by OSG. In the `25-main` series the 6.x-ABI build
+> (`libXrdMultiuser-6.so`) shipped only in the pre-release
+> `osg-upcoming-development` channel, while `25-main` stable still carries the
+> 5.x-ABI build, which will not load under XRootD 6.x. Since OSG 26 the 6.x-ABI
+> build ships in the stable `osg` channel of `26-main` (verified 2026-11-19:
+> `xrootd-multiuser-2.2.1-1.3.osg26.el10`), so no extra channel is enabled.
+>
+> OSG 26 also publishes its own `xrootd` 6.x packages, but they lag behind CERN
+> (6.2.0 vs 6.2.1 at the time of writing). The CERN repo has the higher priority
+> (`priority=10`), so the pinned core packages resolve from CERN; only
+> `xrootd-multiuser` comes from OSG. Under XRootD 6.2.1 the plugin loads and
+> initialises cleanly but reports itself as `osg-multiuser v6.1.1` in the log
+> (observed 2026-11-19).
 
 ## Building Images
 
