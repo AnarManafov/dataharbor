@@ -2,104 +2,88 @@ package config
 
 import (
 	"flag"
-	"os"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// newTestFlagSet returns a private FlagSet so the tests never replace the
+// process-wide flag.CommandLine (it also carries the test binary's -test.*
+// flags; replacing it panics on `go test -count=N`).
+func newTestFlagSet() *flag.FlagSet {
+	fs := flag.NewFlagSet("cmd", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	return fs
+}
+
+// keepConfigFile restores the ConfigFile global that initCmd sets.
+func keepConfigFile(t *testing.T) {
+	t.Helper()
+	orig := ConfigFile
+	t.Cleanup(func() { ConfigFile = orig })
+}
+
 // TestInitCmd_Version tests the version flag
 func TestInitCmd_Version(t *testing.T) {
+	keepConfigFile(t)
+
 	// Save original values
 	origVersion := Version
 	origBuildTime := BuildTime
 	origGitCommit := GitCommit
-	origArgs := os.Args
+	t.Cleanup(func() {
+		Version = origVersion
+		BuildTime = origBuildTime
+		GitCommit = origGitCommit
+	})
 
 	// Set test values
 	Version = "1.2.3"
 	BuildTime = "2024-01-01T00:00:00Z"
 	GitCommit = "abc123def456"
 
-	defer func() {
-		Version = origVersion
-		BuildTime = origBuildTime
-		GitCommit = origGitCommit
-		os.Args = origArgs
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	}()
-
-	// Simulate --version flag
-	os.Args = []string{"cmd", "--version"}
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	shouldContinue := InitCmd()
+	shouldContinue := initCmd(newTestFlagSet(), []string{"--version"})
 	assert.False(t, shouldContinue, "InitCmd should return false when --version is passed")
 }
 
 // TestInitCmd_NoFlags tests InitCmd without flags
 func TestInitCmd_NoFlags(t *testing.T) {
-	// Save original values
-	origArgs := os.Args
-	origConfigFile := ConfigFile
+	keepConfigFile(t)
 
-	defer func() {
-		os.Args = origArgs
-		ConfigFile = origConfigFile
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	}()
-
-	// Simulate no flags
-	os.Args = []string{"cmd"}
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	shouldContinue := InitCmd()
+	shouldContinue := initCmd(newTestFlagSet(), nil)
 	assert.True(t, shouldContinue, "InitCmd should return true when no flags are passed")
 	assert.Equal(t, "./config/application.yaml", ConfigFile, "ConfigFile should be set to default value")
 }
 
 // TestInitCmd_ConfigFlag tests custom config path
 func TestInitCmd_ConfigFlag(t *testing.T) {
-	// Save original values
-	origArgs := os.Args
-	origConfigFile := ConfigFile
-
-	defer func() {
-		os.Args = origArgs
-		ConfigFile = origConfigFile
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	}()
-
-	// Simulate --config flag
+	keepConfigFile(t)
 	customPath := "/custom/path/config.yaml"
-	os.Args = []string{"cmd", "--config", customPath}
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-	shouldContinue := InitCmd()
+	shouldContinue := initCmd(newTestFlagSet(), []string{"--config", customPath})
 	assert.True(t, shouldContinue, "InitCmd should return true with --config flag")
 	assert.Equal(t, customPath, ConfigFile, "ConfigFile should be set to custom path")
 }
 
 // TestInitCmd_ConfigFlagShort tests short form of config flag
 func TestInitCmd_ConfigFlagShort(t *testing.T) {
-	// Save original values
-	origArgs := os.Args
-	origConfigFile := ConfigFile
-
-	defer func() {
-		os.Args = origArgs
-		ConfigFile = origConfigFile
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	}()
-
-	// Simulate -config flag (short form)
+	keepConfigFile(t)
 	customPath := "/another/config.yaml"
-	os.Args = []string{"cmd", "-config", customPath}
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-	shouldContinue := InitCmd()
+	shouldContinue := initCmd(newTestFlagSet(), []string{"-config", customPath})
 	assert.True(t, shouldContinue, "InitCmd should return true with -config flag")
 	assert.Equal(t, customPath, ConfigFile, "ConfigFile should be set to custom path")
+}
+
+// TestInitCmd_UnknownFlag tests that a parse error stops start-up
+func TestInitCmd_UnknownFlag(t *testing.T) {
+	keepConfigFile(t)
+	ConfigFile = "unchanged"
+
+	shouldContinue := initCmd(newTestFlagSet(), []string{"--no-such-flag"})
+	assert.False(t, shouldContinue, "InitCmd should return false on an unknown flag")
+	assert.Equal(t, "unchanged", ConfigFile, "ConfigFile must not change on a parse error")
 }
 
 // TestVersionVariables tests that version variables can be set

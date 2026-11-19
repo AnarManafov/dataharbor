@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"os"
 )
 
 var (
@@ -20,12 +21,24 @@ var (
 // InitCmd initializes and parses command-line arguments
 // Returns true if the application should continue, false if it should exit
 func InitCmd() bool {
-	// Set up command-line flags
-	configPathPtr := flag.String("config", "./config/application.yaml", "Path to config file")
-	versionFlag := flag.Bool("version", false, "Print version information")
+	return initCmd(flag.CommandLine, os.Args[1:])
+}
 
-	// Parse command-line flags
-	flag.Parse()
+// initCmd registers the backend's flags on fs and parses args. It is separate
+// from InitCmd so tests can use a private FlagSet instead of replacing the
+// process-wide flag.CommandLine (which also holds the test binary's -test.*
+// flags; swapping it out breaks `go test -count=N`).
+func initCmd(fs *flag.FlagSet, args []string) bool {
+	// Set up command-line flags
+	configPathPtr := fs.String("config", "./config/application.yaml", "Path to config file")
+	versionFlag := fs.Bool("version", false, "Print version information")
+
+	// Parse command-line flags. With flag.ExitOnError (as flag.CommandLine
+	// uses) a parse error exits the process, so the error is only seen by
+	// callers that pass a ContinueOnError FlagSet.
+	if err := fs.Parse(args); err != nil {
+		return false
+	}
 
 	// Handle --version flag
 	if *versionFlag {
