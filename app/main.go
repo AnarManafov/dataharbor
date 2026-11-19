@@ -80,7 +80,9 @@ func initialize() {
 	// 7. Initialize authentication system
 	controller.InitAuth()
 	// Surface a wrong client secret at boot instead of as a 500 mid-login.
-	go controller.VerifyOIDCClientCredentials()
+	// cfg and the logger are captured here, before the goroutine starts, so it
+	// never reads the (re-assignable) globals concurrently.
+	go controller.VerifyOIDCClientCredentials(cfg, common.GetLogger())
 
 	// 8. Initialize snowflake ID generator
 	if err := util.InitSnowflake(); err != nil {

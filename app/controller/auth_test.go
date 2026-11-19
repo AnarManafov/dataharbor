@@ -12,6 +12,9 @@ import (
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/AnarManafov/dataharbor/app/config"
 )
@@ -2832,5 +2835,93 @@ func TestCheckOIDCClientCredentials(t *testing.T) {
 
 		verdict, _ = checkOIDCClientCredentials(cfgFor("http://127.0.0.1:1"))
 		assert.Equal(t, ClientCredentialsInconclusive, verdict)
+	})
+}
+
+// VerifyOIDCClientCredentials runs in a background goroutine at start-up, so it
+// must log through the cfg/logger it is handed and never fall back to the
+// package globals (reading those concurrently is a data race).
+func TestVerifyOIDCClientCredentials(t *testing.T) {
+	tokenIdP := func(status int, body string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/.well-known/openid-configuration":
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"issuer":         "http://" + r.Host,
+					"token_endpoint": "http://" + r.Host + "/token",
+				})
+			case "/token":
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(body))
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+	}
+	enabledCfg := func(issuer string) *config.Config {
+		return &config.Config{
+			Auth: config.AuthConfig{
+				Enabled: true,
+				OIDC:    config.OIDCConfig{Issuer: issuer, ClientID: "cid", ClientSecret: "s3cret"},
+			},
+		}
+	}
+	newLogger := func() (*zap.SugaredLogger, *observer.ObservedLogs) {
+		core, logs := observer.New(zapcore.DebugLevel)
+		return zap.New(core).Sugar(), logs
+	}
+
+	t.Run("nil arguments are a no-op", func(t *testing.T) {
+		logger, logs := newLogger()
+		assert.NotPanics(t, func() {
+			VerifyOIDCClientCredentials(nil, logger)
+			VerifyOIDCClientCredentials(enabledCfg("http://127.0.0.1:1"), nil)
+		})
+		assert.Zero(t, logs.Len())
+	})
+
+	t.Run("auth disabled logs nothing", func(t *testing.T) {
+		logger, logs := newLogger()
+		cfg := enabledCfg("http://127.0.0.1:1")
+		cfg.Auth.Enabled = false
+		VerifyOIDCClientCredentials(cfg, logger)
+		assert.Zero(t, logs.Len())
+	})
+
+	t.Run("uses the passed config, not the global one", func(t *testing.T) {
+		srv := tokenIdP(http.StatusUnauthorized, `{"error":"invalid_client"}`)
+		defer srv.Close()
+
+		// The global config has auth disabled; if the function consulted it,
+		// it would return without probing or logging anything.
+		prev := config.GetConfig()
+		config.SetConfig(&config.Config{})
+		defer config.SetConfig(prev)
+
+		logger, logs := newLogger()
+		VerifyOIDCClientCredentials(enabledCfg(srv.URL), logger)
+
+		errs := logs.FilterLevelExact(zapcore.ErrorLevel).All()
+		require.Len(t, errs, 2)
+		assert.Contains(t, errs[0].Message, "OIDC client credential check FAILED")
+		assert.Contains(t, errs[1].Message, `OIDC client "cid" was REJECTED`)
+	})
+
+	t.Run("verified credentials log at info", func(t *testing.T) {
+		srv := tokenIdP(http.StatusOK, `{"access_token":"x"}`)
+		defer srv.Close()
+		logger, logs := newLogger()
+		VerifyOIDCClientCredentials(enabledCfg(srv.URL), logger)
+		require.Equal(t, 1, logs.FilterLevelExact(zapcore.InfoLevel).Len())
+		assert.Contains(t, logs.All()[0].Message, "OIDC client credentials verified")
+	})
+
+	t.Run("unreachable IdP is inconclusive, not fatal", func(t *testing.T) {
+		logger, logs := newLogger()
+		VerifyOIDCClientCredentials(enabledCfg("http://127.0.0.1:1"), logger)
+		require.Equal(t, 1, logs.FilterLevelExact(zapcore.WarnLevel).Len())
+		assert.Contains(t, logs.All()[0].Message, "inconclusive")
 	})
 }
