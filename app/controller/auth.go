@@ -144,7 +144,7 @@ func InitAuth() {
 		b := make([]byte, 32)
 		_, err := rand.Read(b)
 		if err != nil {
-			logger.Error("Failed to generate random session secret", "error", err)
+			logger.Errorw("Failed to generate random session secret", "error", err)
 			// Last resort fallback with explicit warning
 			sessionSecret = "default-session-secret-replace-in-production"
 		} else {
@@ -186,30 +186,12 @@ type TokenResponse struct {
 func LoginInit(c *gin.Context) {
 	cfg := config.GetConfig()
 	logger := common.GetLogger() // Log detailed request info to help diagnose auth integration issues
-	logger.Infof("LOGIN REQUEST - Headers: %v", c.Request.Header)
-	logger.Infof("LOGIN REQUEST - Query params: %v", c.Request.URL.Query())
 	logger.Infof("LOGIN REQUEST - Remote addr: %v", c.Request.RemoteAddr)
 	logger.Infof("Auth configuration - Enabled: %v", cfg.Auth.Enabled)
 	logger.Infof("Auth configuration - OIDC Issuer: %v", cfg.Auth.OIDC.Issuer)
 	logger.Infof("Auth configuration - OIDC ClientID: %v", cfg.Auth.OIDC.ClientID)
 	logger.Infof("Auth configuration - OIDC ClientSecret set: %v", cfg.Auth.OIDC.ClientSecret != "")
 	logger.Infof("Auth configuration - Session Secret set: %v", cfg.Auth.OIDC.SessionSecret != "")
-
-	// Show part of secret for debugging while maintaining security
-	secretForLog := "not-set"
-	if cfg.Auth.OIDC.ClientSecret != "" {
-		if len(cfg.Auth.OIDC.ClientSecret) >= 4 {
-			secretForLog = cfg.Auth.OIDC.ClientSecret[:4] + "..."
-		} else {
-			secretForLog = "[too short]"
-		}
-	}
-
-	// Confirm OIDC settings are properly loaded
-	logger.Infof("OIDC Config - Issuer: %s, ClientID: %s, ClientSecret: %s",
-		cfg.Auth.OIDC.Issuer,
-		cfg.Auth.OIDC.ClientID,
-		secretForLog)
 
 	// Identify missing OIDC configuration early
 	if cfg.Auth.Enabled {
@@ -260,13 +242,12 @@ func LoginInit(c *gin.Context) {
 	// Create a new session for this login attempt
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err != nil {
-		logger.Warn("Failed to get existing session, creating new one: %s", err.Error())
+		logger.Warnw("Failed to get existing session, creating new one", "error", err)
 		// This is fine, we'll create a new session
 	}
 
 	// Store the state in the session
 	session.Values["oidc_state"] = state
-	logger.Infof("Setting state in session: %s", state)
 
 	// Remember where the user was heading so the callback can send them back
 	// there. The IdP round trip carries no app state, so the session is the only
@@ -274,7 +255,7 @@ func LoginInit(c *gin.Context) {
 	delete(session.Values, sessionKeyPostLoginRedirect)
 	if redirectPath := safeRedirectPath(c.Query("redirect_path")); redirectPath != "/" {
 		session.Values[sessionKeyPostLoginRedirect] = redirectPath
-		logger.Infof("Post-login redirect path: %s", redirectPath)
+		logger.Infof("Post-login redirect path: %s", common.RedactURL(redirectPath))
 	}
 
 	// Use centralized cookie options with request context for accurate HTTPS detection
@@ -284,15 +265,12 @@ func LoginInit(c *gin.Context) {
 
 	// Save the session
 	if err := session.Save(c.Request, c.Writer); err != nil {
-		logger.Error("Failed to save session", "error", err)
+		logger.Errorw("Failed to save session", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to initialize login flow: " + err.Error(),
 		})
 		return
 	}
-
-	// Log the cookie header that was set
-	logger.Infof("Set-Cookie header: %v", c.Writer.Header().Get("Set-Cookie"))
 
 	// Build redirect_uri: prefer configured FRONTEND_URL for stable behavior behind
 	// reverse proxies, SSH tunnels, and load balancers. Fall back to request Host.
@@ -312,7 +290,7 @@ func LoginInit(c *gin.Context) {
 	// Try to load discovery document to ensure issuer is reachable
 	discoveryDoc, err := fetchOIDCDiscoveryDocument(issuerURL)
 	if err != nil {
-		logger.Error("Failed to load OIDC discovery document", "error", err)
+		logger.Errorw("Failed to load OIDC discovery document", "error", common.RedactError(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Failed to initialize OIDC provider: " + err.Error(),
 		})
@@ -343,8 +321,6 @@ func LoginInit(c *gin.Context) {
 		state,
 		url.QueryEscape(scopes))
 
-	logger.Infof("Generated auth URL: %s", authURL)
-
 	// Return authorization URL to frontend for redirect
 	c.JSON(http.StatusOK, gin.H{
 		"auth_url": authURL,
@@ -364,13 +340,12 @@ func AuthCallback(c *gin.Context) {
 		return
 	}
 
-	logger.Infof("Auth callback received with code and state: %s", state)
-	logger.Infof("Cookies: %v", c.Request.Cookies())
+	logger.Info("Auth callback received with code and state")
 
 	// Validate state to ensure request integrity and prevent CSRF
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err != nil {
-		logger.Error("Failed to get session", "error", err)
+		logger.Errorw("Failed to get session", "error", err)
 		// In development, we'll skip state validation if we can't get the session
 		// This helps when testing cross-domain authentication
 		if cfg.Env == "development" {
@@ -384,7 +359,6 @@ func AuthCallback(c *gin.Context) {
 	var sessionState string
 	if v, ok := session.Values["oidc_state"].(string); ok && v != "" {
 		sessionState = v
-		logger.Infof("Found state in session: %s", sessionState)
 	} else {
 		logger.Error("No state in session")
 		// In development, we'll continue even without state validation
@@ -398,7 +372,7 @@ func AuthCallback(c *gin.Context) {
 
 	// Only validate state if we have one from the session
 	if sessionState != "" && sessionState != state {
-		logger.Error("State mismatch", "session", sessionState, "callback", state)
+		logger.Error("State mismatch between session and callback")
 		// In development, we'll continue even with state mismatch
 		if cfg.Env == "development" {
 			logger.Warn("Development mode: Ignoring state mismatch")
@@ -432,7 +406,7 @@ func AuthCallback(c *gin.Context) {
 
 	discoveryDoc, err := fetchOIDCDiscoveryDocument(issuerURL)
 	if err != nil {
-		logger.Error("Failed to load discovery document", "error", err)
+		logger.Errorw("Failed to load discovery document", "error", common.RedactError(err))
 		response.Error(c, http.StatusInternalServerError, "Failed to complete authentication")
 		return
 	}
@@ -457,7 +431,7 @@ func AuthCallback(c *gin.Context) {
 
 	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
-		logger.Error("Failed to create token request", "error", err)
+		logger.Errorw("Failed to create token request", "error", err)
 		response.Error(c, http.StatusInternalServerError, "Failed to process authentication")
 		return
 	}
@@ -467,7 +441,7 @@ func AuthCallback(c *gin.Context) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	tokenResp, err := client.Do(req)
 	if err != nil {
-		logger.Error("Failed to exchange code for tokens", "error", err)
+		logger.Errorw("Failed to exchange code for tokens", "error", common.RedactError(err))
 		response.Error(c, http.StatusInternalServerError, "Failed to process authentication")
 		return
 	}
@@ -475,7 +449,7 @@ func AuthCallback(c *gin.Context) {
 
 	if tokenResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tokenResp.Body)
-		logger.Errorf("Token endpoint returned status %d: %s", tokenResp.StatusCode, string(body))
+		logger.Errorf("Token endpoint returned status %d: %s", tokenResp.StatusCode, common.RedactBody(tokenResp.Header.Get("Content-Type"), body))
 		if isClientCredentialRejection(tokenResp.StatusCode, body) {
 			logger.Error(clientCredentialHint(cfg))
 		}
@@ -485,7 +459,7 @@ func AuthCallback(c *gin.Context) {
 
 	var tokenResponse TokenResponse
 	if err := json.NewDecoder(tokenResp.Body).Decode(&tokenResponse); err != nil {
-		logger.Error("Failed to parse token response", "error", err)
+		logger.Errorw("Failed to parse token response", "error", err)
 		response.Error(c, http.StatusInternalServerError, "Failed to process authentication")
 		return
 	}
@@ -503,7 +477,7 @@ func AuthCallback(c *gin.Context) {
 	session.Values["token_id"] = tokenID
 
 	if err := session.Save(c.Request, c.Writer); err != nil {
-		logger.Error("Failed to save session with token ID", "error", err)
+		logger.Errorw("Failed to save session with token ID", "error", err)
 		response.Error(c, http.StatusInternalServerError, "Failed to complete authentication")
 		return
 	}
@@ -528,7 +502,7 @@ func AuthCallback(c *gin.Context) {
 	}
 	frontendURL = strings.TrimSuffix(frontendURL, "/") + postLoginPath
 
-	logger.Infof("Redirecting authenticated user to frontend: %s", frontendURL)
+	logger.Infof("Redirecting authenticated user to frontend: %s", common.RedactURL(frontendURL))
 
 	// Redirect user to the frontend application
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL)
@@ -567,33 +541,33 @@ func Logout(c *gin.Context) {
 							go func() {
 								resp, err := client.Do(req)
 								if err != nil {
-									logger.Warnf("Failed to logout from OIDC provider: %v", err)
+									logger.Warnf("Failed to logout from OIDC provider: %s", common.RedactError(err))
 								} else {
 									defer func() { _ = resp.Body.Close() }()
 
 									// HTTP status validation ensures the token is properly invalidated at the IdP level
 									// This prevents potential security issues with lingering active sessions
 									if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-										logger.Info("Successfully logged out from OIDC provider, status: %d", resp.StatusCode)
+										logger.Infow("Successfully logged out from OIDC provider", "status", resp.StatusCode)
 									} else {
 										// Error details help diagnose integration issues with the OIDC provider
 										body, readErr := io.ReadAll(resp.Body)
 										if readErr != nil {
 											logger.Warnf("OIDC provider logout returned status %d, but couldn't read response body: %v", resp.StatusCode, readErr)
 										} else {
-											logger.Warnf("OIDC provider logout failed with status %d: %s", resp.StatusCode, string(body))
+											logger.Warnf("OIDC provider logout failed with status %d: %s", resp.StatusCode, common.RedactBody(resp.Header.Get("Content-Type"), body))
 										}
 									}
 								}
 							}()
 						} else {
-							logger.Warnf("Failed to create request to OIDC logout endpoint: %v", err)
+							logger.Warnf("Failed to create request to OIDC logout endpoint: %s", common.RedactError(err))
 						}
 					} else {
 						logger.Warn("No end session endpoint found in OIDC discovery document")
 					}
 				} else {
-					logger.Warnf("Failed to fetch OIDC discovery document for logout: %v", err)
+					logger.Warnf("Failed to fetch OIDC discovery document for logout: %s", common.RedactError(err))
 				}
 			}
 			// Invalidate cached userinfo for this token before deleting
@@ -611,7 +585,7 @@ func Logout(c *gin.Context) {
 	session.Options.MaxAge = -1
 
 	if err := session.Save(c.Request, c.Writer); err != nil {
-		logger.Error("Failed to clear session", "error", err)
+		logger.Errorw("Failed to clear session", "error", err)
 		response.Error(c, http.StatusInternalServerError, "Failed to complete logout")
 		return
 	}
@@ -637,7 +611,7 @@ func refreshToken(c *gin.Context) error {
 	// Get session
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err != nil {
-		logger.Error("Failed to get session during token refresh", "error", err)
+		logger.Errorw("Failed to get session during token refresh", "error", err)
 		return fmt.Errorf("failed to get session: %w", err)
 	}
 
@@ -663,7 +637,7 @@ func refreshToken(c *gin.Context) error {
 
 	discoveryDoc, err := fetchOIDCDiscoveryDocument(issuerURL)
 	if err != nil {
-		logger.Error("Failed to load discovery document during token refresh", "error", err)
+		logger.Errorw("Failed to load discovery document during token refresh", "error", common.RedactError(err))
 		return fmt.Errorf("failed to load discovery document: %w", err)
 	}
 
@@ -685,7 +659,7 @@ func refreshToken(c *gin.Context) error {
 
 	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
-		logger.Error("Failed to create refresh token request", "error", err)
+		logger.Errorw("Failed to create refresh token request", "error", err)
 		return fmt.Errorf("failed to create refresh token request: %w", err)
 	}
 
@@ -693,23 +667,24 @@ func refreshToken(c *gin.Context) error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	refreshResp, err := client.Do(req)
 	if err != nil {
-		logger.Error("Failed to execute refresh token request", "error", err)
+		logger.Errorw("Failed to execute refresh token request", "error", common.RedactError(err))
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
 	defer func() { _ = refreshResp.Body.Close() }()
 
 	if refreshResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(refreshResp.Body)
-		logger.Error("Token endpoint returned error during refresh",
+		redactedBody := common.RedactBody(refreshResp.Header.Get("Content-Type"), body)
+		logger.Errorw("Token endpoint returned error during refresh",
 			"status", refreshResp.StatusCode,
-			"body", string(body))
-		return fmt.Errorf("token refresh failed with status %d: %s", refreshResp.StatusCode, string(body))
+			"body", redactedBody)
+		return fmt.Errorf("token refresh failed with status %d: %s", refreshResp.StatusCode, redactedBody)
 	}
 
 	// Parse the token response
 	var tokenResponse TokenResponse
 	if err := json.NewDecoder(refreshResp.Body).Decode(&tokenResponse); err != nil {
-		logger.Error("Failed to parse refresh token response", "error", err)
+		logger.Errorw("Failed to parse refresh token response", "error", err)
 		return fmt.Errorf("failed to parse refresh token response: %w", err)
 	}
 
@@ -776,7 +751,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 		// Verify session integrity
 		session, err := SessionStore.Get(c.Request, sessionName)
 		if err != nil {
-			logger.Error("Failed to get session", "error", err)
+			logger.Errorw("Failed to get session", "error", err)
 			response.Error(c, http.StatusUnauthorized, "Invalid session")
 			c.Abort()
 			return
@@ -811,7 +786,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 		if currentTime > tokens.ExpiresAt || (tokens.ExpiresAt-currentTime) < refreshBuffer {
 			logger.Info("Token expired or expiring soon, refreshing")
 			if err := refreshToken(c); err != nil {
-				logger.Error("Failed to refresh token", "error", err)
+				logger.Errorw("Failed to refresh token", "error", common.RedactError(err))
 
 				// If token is already expired, return unauthorized
 				if currentTime > tokens.ExpiresAt {
@@ -839,7 +814,7 @@ func SessionAuthMiddleware() gin.HandlerFunc {
 				userClaims["sub"] = sub
 			}
 		} else {
-			logger.Warn("Failed to fetch user info for claims", "error", err)
+			logger.Warnw("Failed to fetch user info for claims", "error", common.RedactError(err))
 		}
 
 		// Make token available to downstream handlers for authorization
@@ -1049,7 +1024,7 @@ func checkOIDCClientCredentials(cfg *config.Config) (ClientCredentialCheck, stri
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.PostForm(tokenEndpoint, form)
 	if err != nil {
-		return ClientCredentialsInconclusive, "token endpoint unreachable: " + err.Error()
+		return ClientCredentialsInconclusive, "token endpoint unreachable: " + common.RedactError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
@@ -1058,12 +1033,12 @@ func checkOIDCClientCredentials(cfg *config.Config) (ClientCredentialCheck, stri
 	case resp.StatusCode == http.StatusOK:
 		return ClientCredentialsVerified, "client_credentials grant accepted"
 	case isClientCredentialRejection(resp.StatusCode, body):
-		return ClientCredentialsRejected, strings.TrimSpace(string(body))
+		return ClientCredentialsRejected, strings.TrimSpace(common.RedactBody(resp.Header.Get("Content-Type"), body))
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusBadRequest:
 		// Client authenticated; the grant is simply not enabled for it.
-		return ClientCredentialsVerified, strings.TrimSpace(string(body))
+		return ClientCredentialsVerified, strings.TrimSpace(common.RedactBody(resp.Header.Get("Content-Type"), body))
 	default:
-		return ClientCredentialsInconclusive, fmt.Sprintf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return ClientCredentialsInconclusive, fmt.Sprintf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(common.RedactBody(resp.Header.Get("Content-Type"), body)))
 	}
 }
 

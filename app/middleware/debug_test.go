@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,6 +10,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/AnarManafov/dataharbor/app/common"
 )
 
 func TestDebugRequestBody(t *testing.T) {
@@ -291,8 +297,17 @@ func TestShouldSkipPath(t *testing.T) {
 			expected: true, // starts with /health
 		},
 		{
+			// Still true: shouldSkipPath is the full skip (no log lines at
+			// all) and matches prefixes only. Real download routes are
+			// handled by shouldSkipBody instead, which keeps the request
+			// line logged and skips only body capture.
 			name:     "should not skip /api/download (not starting with /download/)",
 			path:     "/api/download",
+			expected: false,
+		},
+		{
+			name:     "should not fully skip the real download route",
+			path:     "/api/v1/xrd/download",
 			expected: false,
 		},
 	}
@@ -400,4 +415,148 @@ func TestShouldLogResponseBody(t *testing.T) {
 func createTestResponseWriter(w *httptest.ResponseRecorder) gin.ResponseWriter {
 	c, _ := gin.CreateTestContext(w)
 	return c.Writer
+}
+
+func TestShouldSkipBody(t *testing.T) {
+	tests := []struct {
+		method, path string
+		expected     bool
+	}{
+		{http.MethodGet, "/api/v1/xrd/download", true},
+		{http.MethodPost, "/api/v1/xrd/download/batch", true},
+		{http.MethodPut, "/api/v1/xrd/upload/abc123/chunk", true},
+		// Small JSON upload routes keep their body logs.
+		{http.MethodGet, "/api/v1/xrd/upload/limits", false},
+		{http.MethodPost, "/api/v1/xrd/upload/session", false},
+		{http.MethodPost, "/api/v1/xrd/upload/abc123/complete", false},
+		{http.MethodGet, "/api/v1/xrd/upload/abc123/status", false},
+		{http.MethodDelete, "/api/v1/xrd/upload/abc123", false},
+		{http.MethodPost, "/api/v1/xrd/ls/paged", false},
+		{http.MethodGet, "/api/v1/xrd/downloads", false},
+		{http.MethodPut, "/api/v1/other/chunk", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.method+" "+tt.path, func(t *testing.T) {
+			assert.Equal(t, tt.expected, shouldSkipBody(tt.method, tt.path))
+		})
+	}
+}
+
+// observeDebugLogs swaps in an observed debug-level logger for one test.
+func observeDebugLogs(t *testing.T) *observer.ObservedLogs {
+	t.Helper()
+	core, logs := observer.New(zapcore.DebugLevel)
+	prev := common.Logger
+	common.Logger = zap.New(core).Sugar()
+	t.Cleanup(func() { common.Logger = prev })
+	return logs
+}
+
+func loggedMessages(logs *observer.ObservedLogs) string {
+	var b strings.Builder
+	for _, e := range logs.All() {
+		b.WriteString(e.Message)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// countingReader records how many bytes were read from it.
+type countingReader struct {
+	r io.Reader
+	n int
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += n
+	return n, err
+}
+
+func TestDebugRequestBody_StreamingRoutes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("large streamed download is not buffered", func(t *testing.T) {
+		logs := observeDebugLogs(t)
+		const chunk = 64 << 10
+		const chunks = 128 // 8 MiB
+		router := gin.New()
+		router.Use(DebugRequestBody())
+		router.GET("/api/v1/xrd/download", func(c *gin.Context) {
+			_, buffered := c.Writer.(*bodyLogWriter)
+			assert.False(t, buffered, "download response writer must not be the capturing bodyLogWriter")
+			c.Header("Content-Type", "text/plain")
+			c.Status(http.StatusOK)
+			buf := bytes.Repeat([]byte("d"), chunk)
+			for i := 0; i < chunks; i++ {
+				_, _ = c.Writer.Write(buf)
+			}
+		})
+
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/xrd/download?path=/data/big.bin", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, chunk*chunks, w.Body.Len())
+		msgs := loggedMessages(logs)
+		assert.Contains(t, msgs, "Request: GET /api/v1/xrd/download")
+		assert.Contains(t, msgs, "Response Status: 200")
+		assert.NotContains(t, msgs, "Response Body:")
+	})
+
+	t.Run("batch download is not buffered", func(t *testing.T) {
+		router := gin.New()
+		router.Use(DebugRequestBody())
+		router.POST("/api/v1/xrd/download/batch", func(c *gin.Context) {
+			_, buffered := c.Writer.(*bodyLogWriter)
+			assert.False(t, buffered)
+			c.Status(http.StatusOK)
+		})
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/xrd/download/batch", strings.NewReader(`{"files":["/a"]}`))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("upload chunk body is not consumed by the middleware", func(t *testing.T) {
+		logs := observeDebugLogs(t)
+		payload := bytes.Repeat([]byte{0xAB}, 1<<20)
+		body := &countingReader{r: bytes.NewReader(payload)}
+		router := gin.New()
+		router.Use(DebugRequestBody())
+		router.PUT("/api/v1/xrd/upload/:uploadId/chunk", func(c *gin.Context) {
+			assert.Equal(t, 0, body.n, "middleware read the chunk body before the handler")
+			got, err := io.ReadAll(c.Request.Body)
+			assert.NoError(t, err)
+			assert.Equal(t, len(payload), len(got))
+			c.JSON(http.StatusOK, gin.H{"ok": true})
+		})
+
+		req, _ := http.NewRequest(http.MethodPut, "/api/v1/xrd/upload/abc123/chunk?index=0", body)
+		req.Header.Set("Content-Type", "application/octet-stream")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		msgs := loggedMessages(logs)
+		assert.Contains(t, msgs, "Request: PUT /api/v1/xrd/upload/abc123/chunk")
+		assert.NotContains(t, msgs, "Request Body:")
+	})
+
+	t.Run("upload session create still logs its body", func(t *testing.T) {
+		logs := observeDebugLogs(t)
+		router := gin.New()
+		router.Use(DebugRequestBody())
+		router.POST("/api/v1/xrd/upload/session", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"uploadId": "u1"})
+		})
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/xrd/upload/session", strings.NewReader(`{"files":[]}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		msgs := loggedMessages(logs)
+		assert.Contains(t, msgs, "Request Body:")
+		assert.Contains(t, msgs, "Response Body:")
+	})
 }

@@ -86,6 +86,8 @@ response.Error(c, http.StatusBadRequest, "message")
 
 **Writing logs** — use `common.GetLogger().Infof(...)`, not `fmt.Print` (allowed only before logger init during startup).
 
+**Never log a credential** — at any level. Do not pass headers, cookies, query strings, full URLs, request or response bodies, tokens, OIDC `state`/`code`, identity-provider responses, or errors from HTTP calls to a log statement directly. Use the helpers in `common/redact.go`: `RedactHeaders`, `RedactBody`, `RedactURL`, `RedactError`, `RedactText`, and `Fingerprint` when two log lines must be correlated by a secret. Never log a prefix, suffix or length of a secret. `controller/log_redaction_e2e_test.go` sends sentinel secrets through the real middleware chain and fails if one reaches the log; extend it when adding an endpoint that handles credentials.
+
 **Frontend serving**: `route/routes.go:SetupRouter` calls `setupStaticFiles()` which searches `web/dist/` via multiple fallback paths. On non-API unmatched routes, serves `index.html` for SPA routing. API 404s return JSON `{"message": "API endpoint not found"}`.
 
 ### Frontend — Vue 3 SPA (`web/`)

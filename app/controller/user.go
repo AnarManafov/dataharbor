@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -63,14 +64,10 @@ func GetCurrentUser(c *gin.Context) {
 	logger := common.GetLogger()
 	cfg := config.GetConfig()
 
-	// Debug information to track authentication issues
-	logger.Infof("GetCurrentUser called - Headers: %v", c.Request.Header)
-	logger.Infof("GetCurrentUser called - Cookies: %v", c.Request.Cookies())
-
 	// Get session
 	session, err := SessionStore.Get(c.Request, sessionName)
 	if err != nil {
-		logger.Error("Failed to get session", "error", err)
+		logger.Errorw("Failed to get session", "error", err)
 
 		// CORS headers needed for cross-domain authentication flows
 		c.Header("Access-Control-Allow-Credentials", "true")
@@ -134,7 +131,7 @@ func GetCurrentUser(c *gin.Context) {
 		if currentTime > tokens.ExpiresAt || timeRemaining < refreshBuffer {
 			logger.Info("Token expired or expiring soon, attempting refresh")
 			if err := refreshToken(c); err != nil {
-				logger.Error("Failed to refresh token", "error", err)
+				logger.Errorw("Failed to refresh token", "error", common.RedactError(err))
 
 				// If token is actually expired, return unauthorized
 				if currentTime > tokens.ExpiresAt {
@@ -157,7 +154,7 @@ func GetCurrentUser(c *gin.Context) {
 
 	userInfo, err := fetchUserInfo(tokens.AccessToken, cfg)
 	if err != nil {
-		logger.Error("Failed to fetch user info", "error", err)
+		logger.Errorw("Failed to fetch user info", "error", common.RedactError(err))
 
 		// CORS headers needed for cross-domain authentication flows
 		c.Header("Access-Control-Allow-Credentials", "true")
@@ -173,6 +170,10 @@ func GetCurrentUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, userInfo)
 }
+
+// userInfoErrorBodyLimit caps how much of a non-200 userinfo body is read
+// into the (redacted) error message.
+const userInfoErrorBodyLimit = 4 << 10
 
 // fetchUserInfo gets the user profile from Keycloak's userinfo endpoint.
 // Results are cached per access token with a configurable TTL (default 60s)
@@ -221,8 +222,8 @@ func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]any, erro
 	defer func() { _ = userInfoResp.Body.Close() }()
 
 	if userInfoResp.StatusCode != http.StatusOK {
-		body, _ := json.Marshal(userInfoResp.Body)
-		return nil, fmt.Errorf("userinfo endpoint returned status %d: %s", userInfoResp.StatusCode, string(body))
+		body, _ := io.ReadAll(io.LimitReader(userInfoResp.Body, userInfoErrorBodyLimit))
+		return nil, fmt.Errorf("userinfo endpoint returned status %d: %s", userInfoResp.StatusCode, common.RedactBody(userInfoResp.Header.Get("Content-Type"), body))
 	}
 
 	var userInfo map[string]any
@@ -234,7 +235,7 @@ func fetchUserInfo(accessToken string, cfg *config.Config) (map[string]any, erro
 	userInfo["authenticated"] = true
 
 	// Debug information to help troubleshoot authentication issues
-	logger.Infof("User info fetched successfully: %+v", userInfo)
+	logger.Info("User info fetched successfully")
 
 	// Cache the result
 	ttl := cfg.Auth.OIDC.UserInfoCacheTTL

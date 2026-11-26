@@ -114,10 +114,10 @@ func (xc *XRDClient) createClient(ctx context.Context, authToken string) (*xroot
 			return nil, fmt.Errorf("ZTN protocol enabled (enable_ztn=true) but no authentication token provided")
 		}
 		opts = append(opts, xrootd.WithAuth(ztn.WithToken(authToken)))
-		xc.logger.Debug("Creating XRootD client with ZTN (TLS + token)", "address", xc.address)
+		xc.logger.Debugw("Creating XRootD client with ZTN (TLS + token)", "address", xc.address)
 	} else {
 		// Plain XRootD protocol: No TLS, no authentication
-		xc.logger.Debug("Creating XRootD client with plain protocol (no ZTN)", "address", xc.address)
+		xc.logger.Debugw("Creating XRootD client with plain protocol (no ZTN)", "address", xc.address)
 	}
 
 	client, err := xrootd.NewClient(ctx, xc.address, xc.username, opts...)
@@ -169,7 +169,7 @@ func isAuthorizationError(err error) bool {
 // ListDirectory lists directory contents using a fresh client per request
 // This matches the approach of our successful test programs
 func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToken string) ([]xrdfs.EntryStat, error) {
-	xc.logger.Info("Starting directory listing", "path", dirPath, "server", xc.address)
+	xc.logger.Infow("Starting directory listing", "path", dirPath, "server", xc.address)
 	start := time.Now()
 
 	// Create a fresh client for this request - no pooling complexity
@@ -179,7 +179,7 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 	}
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
-			xc.logger.Warn("Error closing client", "error", closeErr)
+			xc.logger.Warnw("Error closing client", "error", closeErr)
 		}
 	}()
 
@@ -187,11 +187,11 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 	fs := client.FS()
 
 	// Perform the directory listing - simple and direct
-	xc.logger.Debug("Calling fs.Dirlist", "path", dirPath)
+	xc.logger.Debugw("Calling fs.Dirlist", "path", dirPath)
 	entries, err := fs.Dirlist(ctx, dirPath)
 	if err != nil {
 		duration := time.Since(start)
-		xc.logger.Error("Directory listing failed", "path", dirPath, "duration", duration, "error", err)
+		xc.logger.Errorw("Directory listing failed", "path", dirPath, "duration", duration, "error", err)
 
 		// Check if this is an authorization error
 		if isAuthorizationError(err) {
@@ -204,7 +204,7 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 
 		// Check for protocol errors
 		if strings.Contains(err.Error(), "wrong response size for the dirlist request") {
-			xc.logger.Error("XRootD protocol parsing error - possibly files with newlines in names", "path", dirPath)
+			xc.logger.Errorw("XRootD protocol parsing error - possibly files with newlines in names", "path", dirPath)
 		}
 
 		// Check for common XRootD error patterns that might indicate empty directories
@@ -221,7 +221,7 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 		if strings.Contains(errStr, "empty directory") ||
 			strings.Contains(errStr, "no entries") ||
 			strings.Contains(errStr, "directory is empty") {
-			xc.logger.Info("XRootD reported empty directory as error, treating as empty", "path", dirPath)
+			xc.logger.Infow("XRootD reported empty directory as error, treating as empty", "path", dirPath)
 			return []xrdfs.EntryStat{}, nil // Return empty slice for empty directory
 		}
 
@@ -229,13 +229,13 @@ func (xc *XRDClient) ListDirectory(ctx context.Context, dirPath string, authToke
 	}
 
 	duration := time.Since(start)
-	xc.logger.Info("Successfully listed directory", "path", dirPath, "entries", len(entries), "duration", duration)
+	xc.logger.Infow("Successfully listed directory", "path", dirPath, "entries", len(entries), "duration", duration)
 
 	// Validate file names for protocol compatibility (but don't filter - let caller decide)
 	for i, entry := range entries {
 		entryName := entry.Name()
 		if strings.Contains(entryName, "\n") {
-			xc.logger.Warn("File with newline in name detected", "filename", entryName, "path", dirPath, "index", i)
+			xc.logger.Warnw("File with newline in name detected", "filename", entryName, "path", dirPath, "index", i)
 		}
 	}
 
@@ -253,7 +253,7 @@ func (xc *XRDClient) GetFileSystem(ctx context.Context, authToken string) (xrdfs
 
 	cleanup := func() {
 		if closeErr := client.Close(); closeErr != nil {
-			xc.logger.Warn("Error closing client", "error", closeErr)
+			xc.logger.Warnw("Error closing client", "error", closeErr)
 		}
 	}
 
@@ -283,7 +283,7 @@ func (xc *XRDClient) ListDirectoryLegacy(ctx context.Context, dirPath string) ([
 
 // VirtualStat returns virtual filesystem statistics for the given path
 func (xc *XRDClient) VirtualStat(ctx context.Context, path string, authToken string) (xrdfs.VirtualFSStat, error) {
-	xc.logger.Info("Fetching virtual filesystem stats", "path", path, "server", xc.address)
+	xc.logger.Infow("Fetching virtual filesystem stats", "path", path, "server", xc.address)
 	start := time.Now()
 
 	client, err := xc.createClient(ctx, authToken)
@@ -292,7 +292,7 @@ func (xc *XRDClient) VirtualStat(ctx context.Context, path string, authToken str
 	}
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
-			xc.logger.Warn("Error closing client", "error", closeErr)
+			xc.logger.Warnw("Error closing client", "error", closeErr)
 		}
 	}()
 
@@ -301,7 +301,7 @@ func (xc *XRDClient) VirtualStat(ctx context.Context, path string, authToken str
 	stat, err := fs.VirtualStat(ctx, path)
 	if err != nil {
 		duration := time.Since(start)
-		xc.logger.Error("VirtualStat failed", "path", path, "duration", duration, "error", err)
+		xc.logger.Errorw("VirtualStat failed", "path", path, "duration", duration, "error", err)
 
 		if isAuthorizationError(err) {
 			return xrdfs.VirtualFSStat{}, &XRootDAuthError{
@@ -314,7 +314,7 @@ func (xc *XRDClient) VirtualStat(ctx context.Context, path string, authToken str
 	}
 
 	duration := time.Since(start)
-	xc.logger.Info("Successfully retrieved virtual filesystem stats", "path", path, "duration", duration)
+	xc.logger.Infow("Successfully retrieved virtual filesystem stats", "path", path, "duration", duration)
 
 	return stat, nil
 }

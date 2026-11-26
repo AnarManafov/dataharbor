@@ -288,6 +288,50 @@ func TestFetchUserInfo_BadStatusCode(t *testing.T) {
 	assert.Contains(t, err.Error(), "userinfo endpoint returned status 401")
 }
 
+// TestFetchUserInfo_BadStatusIncludesRedactedBody pins GH-82: a non-200
+// userinfo body is read (not marshalled as an io.ReadCloser, which yields
+// "{}") and passed through RedactBody, so the IdP's error code survives but a
+// token echoed in the body does not.
+func TestFetchUserInfo_BadStatusIncludesRedactedBody(t *testing.T) {
+	const sentinel = "SENTINEL-userinfo-access-token-7f3a9c"
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			serverURL := "http://" + r.Host
+			response := map[string]any{
+				"issuer":            serverURL,
+				"userinfo_endpoint": serverURL + "/userinfo",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(response)
+		case "/userinfo":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"error":"invalid_token","access_token":"` + sentinel + `"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer mockServer.Close()
+
+	testConfig := &config.Config{
+		Env: "test",
+		Auth: config.AuthConfig{
+			Enabled: true,
+			OIDC: config.OIDCConfig{
+				Issuer: mockServer.URL,
+			},
+		},
+	}
+
+	_, err := fetchUserInfo("test-token-bad-status-body", testConfig)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "userinfo endpoint returned status 401")
+		assert.Contains(t, err.Error(), "invalid_token")
+		assert.NotContains(t, err.Error(), sentinel)
+	}
+}
+
 func TestGetCurrentUser_WithTokensButExpired(t *testing.T) {
 	// Create a fully functional mock OIDC server
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

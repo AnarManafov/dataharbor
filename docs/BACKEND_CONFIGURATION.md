@@ -90,7 +90,7 @@ flowchart TD
 | Key                       | Type   | Default   | Description                             |
 | ------------------------- | ------ | --------- | --------------------------------------- |
 | `server.address`          | string | `":8080"` | Server bind address and port            |
-| `server.debug`            | bool   | `false`   | Enable debug mode with detailed logging |
+| `server.debug`            | bool   | `false`   | Enable debug mode: logs request and response headers and bodies at debug level, with credentials redacted (see [Log redaction](#log-redaction)) |
 | `server.shutdown_timeout` | string | `"30s"`   | Graceful shutdown timeout duration      |
 
 #### CORS Settings (`server.cors`)
@@ -137,6 +137,44 @@ flowchart TD
 | `logging.file.maxbackups` | int    | `5`                      | Number of backup files to retain           |
 | `logging.file.maxage`     | int    | `30`                     | Days to retain old log files               |
 | `logging.file.compress`   | bool   | `true`                   | Compress rotated log files                 |
+
+#### Log redaction
+
+The backend never writes a credential to its log, at any level. This is not
+configurable.
+
+- **Headers.** `Authorization` and `Proxy-Authorization` keep only the scheme
+  (`Bearer [REDACTED]`). `Cookie` keeps the cookie names, never the values. `Set-Cookie`
+  keeps the cookie name and its attributes (`Path`, `Domain`, ...), never the value. Any
+  other header with a sensitive name is replaced entirely.
+- **Bodies** (debug mode only). JSON and form bodies are logged with the values of
+  sensitive fields replaced by `[REDACTED]`, at any nesting depth. Any other body (HTML,
+  plain text, binary, unparseable JSON) is not logged; only its size and media type are.
+  File downloads and upload chunks are streamed: their bodies are never read or logged.
+- **Sensitive names.** Anything containing `token`, `secret`, `password`, `cookie`,
+  `session`, `credential`, `authorization`, `signature` or `api key`, plus `code`,
+  `state`, `nonce`, `key`, `auth` and similar. In JSON, `code` and `state` are redacted
+  only when they hold a string, so the numeric `code` of the API envelope stays visible.
+  The upload status field `"state": "uploading"` is therefore shown as `[REDACTED]` in
+  debug body logs.
+- **URLs and error text.** Sensitive query parameters (`code`, `state`,
+  `id_token_hint`, `access_token`, …) are redacted wherever a URL is logged, including
+  inside error messages and identity-provider responses.
+- **Safety net.** Every log message also passes through a filter that removes bearer
+  credentials, JWTs, `dh_cli_` tokens, PEM blocks, URL userinfo (`https://user@host` is
+  logged as `https://[REDACTED]@host`) and `key=value` pairs with a sensitive key, in
+  case a log statement forgets to redact. It can occasionally hide a harmless word that
+  follows such a key: a session-cookie error such as `securecookie: the value is not
+  valid` is logged as `securecookie: [REDACTED] value is not valid`.
+- **Panics.** A recovered panic is logged through the backend logger with the method,
+  path and stack. The request itself (headers, query string) is not dumped.
+
+The helpers live in `app/common/redact.go`. To check a running development backend,
+run `make log-redaction-probe`: it sends requests carrying a one-off sentinel as bearer
+token, cookie, query parameter and JSON field, then searches the log file and prints
+`PASS`, `FAIL` or `INCONCLUSIVE`. It needs `server.debug: true` and debug-level logging;
+set `LOG_PROBE_BASE_URL` and `LOG_PROBE_LOG_FILE` if the defaults
+(`https://localhost:22000`, `app/log/dataharbor_app.log`) do not match.
 
 ### XRootD Configuration (`xrd`)
 

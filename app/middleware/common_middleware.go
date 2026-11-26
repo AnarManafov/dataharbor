@@ -3,6 +3,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/AnarManafov/dataharbor/app/common"
@@ -14,7 +15,10 @@ import (
 // This prevents the entire application from crashing when a single request handler fails,
 // improving overall system stability and availability under unexpected conditions.
 func Recovery() gin.HandlerFunc {
-	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
+	// A nil writer disables gin's own panic/request dump to stderr, which would
+	// bypass our logger and leak Cookie headers and raw query strings.
+	return gin.CustomRecoveryWithWriter(nil, func(c *gin.Context, recovered any) {
+		common.Errorf(c, "Panic recovered: %s %s: %s\n%s", c.Request.Method, c.Request.URL.Path, common.RedactText(fmt.Sprint(recovered)), debug.Stack())
 		if err, ok := recovered.(string); ok {
 			c.String(http.StatusInternalServerError, fmt.Sprintf("Server error: %s", err))
 		}

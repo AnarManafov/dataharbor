@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
 	"github.com/AnarManafov/dataharbor/app/request"
 	"go-hep.org/x/hep/xrootd/xrdfs"
@@ -205,6 +208,39 @@ func TestGetUserKey(t *testing.T) {
 	assert.NotEqual(t, key3, key4, "Different tokens should produce different keys when no sub claim")
 	assert.NotEqual(t, "anonymous", key3, "Should not be anonymous when token is available")
 	assert.NotEqual(t, "anonymous", key4, "Should not be anonymous when token is available")
+
+	// GH-82: the no-sub fallback is a keyed common.Fingerprint, not an unkeyed
+	// truncated hash of the bearer token. It must be deterministic within the
+	// process (it keys download slots and upload-session ownership).
+	assert.Equal(t, "user_"+common.Fingerprint("token123456789"), key3)
+	assert.Equal(t, key3, getUserKey(createMockContext("", "token123456789")), "Same token should produce same key")
+
+	// The key is logged under "user"; the redacting logger must leave it intact
+	// so log lines stay correlatable.
+	assert.Equal(t, key3, common.RedactText(key3))
+	// Through the real production logger (redacting core over a JSON file core):
+	logFile := filepath.Join(t.TempDir(), "user-key.log")
+	origLogger := common.Logger
+	defer func() { common.Logger = origLogger }()
+	common.InitLogger(&config.LoggingConfig{
+		Level: "debug",
+		File: config.FileConfig{
+			Enabled:  true,
+			Level:    "debug",
+			Format:   "json",
+			Filename: logFile,
+			MaxSize:  10,
+		},
+	})
+	common.GetLogger().Infow("download", "user", key3)
+	_ = common.GetLogger().Sync()
+	logged, err := os.ReadFile(logFile)
+	if assert.NoError(t, err) {
+		var entry map[string]any
+		if assert.NoError(t, json.Unmarshal(bytes.TrimSpace(logged), &entry)) {
+			assert.Equal(t, key3, entry["user"])
+		}
+	}
 }
 
 // ============================================
@@ -629,51 +665,6 @@ func TestDownloadFile(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
-}
-
-// ============================================
-// maskToken Tests
-// ============================================
-
-func TestMaskToken(t *testing.T) {
-	testCases := []struct {
-		name     string
-		token    string
-		expected string
-	}{
-		{
-			name:     "empty token",
-			token:    "",
-			expected: "anonymous",
-		},
-		{
-			name:     "short token (8 chars or less)",
-			token:    "short",
-			expected: "***",
-		},
-		{
-			name:     "exactly 8 chars",
-			token:    "12345678",
-			expected: "***",
-		},
-		{
-			name:     "normal token",
-			token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-			expected: "eyJh...VCJ9",
-		},
-		{
-			name:     "longer token",
-			token:    "abcdefghijklmnopqrstuvwxyz1234567890",
-			expected: "abcd...7890",
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := maskToken(tc.token)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
 }
 
 // ============================================
