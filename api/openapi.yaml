@@ -1,0 +1,2028 @@
+# DataHarbor backend API, OpenAPI 3.1.
+#
+# This file is written by hand and describes what the backend returns today,
+# including its inconsistencies (unwrapped listing responses, several error
+# shapes). It is the contract the CLI client is built against. Do not "fix" a
+# response here: change the handler and this file in the same commit.
+#
+# Kept honest by:
+#   - app/route/openapi_test.go     routes and paths must match exactly
+#   - app/route/contract_test.go    in-process responses validate against it
+#   - make api-lint                 the document is valid OpenAPI 3.1
+#   - make api-probe                live responses validate against it
+openapi: 3.1.0
+
+info:
+  title: DataHarbor API
+  version: 1.0.0
+  summary: REST API of the DataHarbor backend (XRootD file browser, download and upload).
+  description: |
+    Describes every route registered in `app/route/routes.go` as currently implemented.
+    `info.version` is the version of this contract, not of the backend build.
+
+    ## Response shapes
+
+    The API is not uniform. Each operation documents exactly what it returns; the shapes are:
+
+    - **Success envelope** `{code: 200, data, message: "success"}` (`response.Success`): health,
+      `initialDir`, `hostname`, `vstat`, `ping` and all upload endpoints.
+    - **Bare success objects** without the envelope: `GET /api/v1/xrd/ls`
+      (`{directory, entries}`), `POST /api/v1/xrd/ls/paged` (flat object with a top-level
+      `code: 200`), `GET /api/auth/login`, `POST /api/auth/logout` and `GET /api/auth/user`.
+    - **Binary streams** for the two download endpoints.
+    - **Error envelope** `{code, error}` (`ErrorResponse`), where `code` repeats the HTTP status:
+      almost every error.
+    - **Bare error** `{error}` without `code` (`LoginError`): errors of `GET /api/auth/login` only.
+    - **Not found** `{message: "API endpoint not found"}` (`components.responses.ApiNotFound`):
+      any unmatched path starting with `/api`, and a wrong method on an existing path (there
+      is no 405). It is returned without authentication and is not listed per operation.
+
+    Errors carry no machine-readable code beyond the HTTP status; clients currently have to
+    match on the `error` text.
+
+    ## Behaviour that applies to every operation
+
+    - JSON bodies are sent as `application/json; charset=utf-8`.
+    - A panic in a handler is turned by the recovery middleware into a 500 that is not JSON.
+      It is not listed per operation.
+    - CORS headers are added to every response, and `OPTIONS` requests are answered by the
+      CORS middleware.
+    - When `auth.enabled` is false the session middleware lets every request through, so
+      the 401 responses of protected operations do not occur.
+  license:
+    name: GNU General Public License v3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+
+servers:
+  - url: /
+    description: Same origin as the web UI. The development backend listens on https://localhost:22000.
+
+tags:
+  - name: system
+    description: Liveness checks.
+  - name: auth
+    description: OIDC login flow and the session.
+  - name: files
+    description: Browsing and downloading files on the XRootD server.
+  - name: upload
+    description: Chunked, resumable uploads with SHA-256 verification.
+
+# Operations are protected unless they say otherwise with their own `security`.
+security:
+  - sessionCookie: []
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      tags: [system]
+      summary: Liveness check (root path)
+      description: |
+        Describes the backend's own response. In the docker deployments the nginx gateway
+        answers `GET /health` itself with a plain-text `healthy` body and never forwards it
+        to the backend, so clients behind the gateway see that response instead. Use
+        `GET /api/health`, which the gateway forwards, to reach this handler.
+      security: []
+      responses:
+        '200':
+          description: Always returns the string "ok" inside the standard success envelope.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  data: {type: string, const: ok}
+                  message: {type: string, const: success}
+
+  /api/health:
+    get:
+      operationId: healthCheckApi
+      tags: [system]
+      summary: Liveness check (alias under /api)
+      description: Same handler as /health. Public; registered outside the session-protected /api group.
+      security: []
+      responses:
+        '200':
+          description: Always returns the string "ok" inside the standard success envelope.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  data: {type: string, const: ok}
+                  message: {type: string, const: success}
+
+  /api/auth/login:
+    get:
+      operationId: login
+      tags: [auth]
+      summary: Start the OIDC login flow (returns the IdP authorization URL as JSON)
+      description: |
+        Does NOT redirect. Returns HTTP 200 with a bare JSON object (no `code`/`data`
+        envelope) holding `auth_url`; the frontend navigates the browser to it.
+
+        Behaviour depends on configuration:
+        * `auth.enabled: false` -> 200 `{auth_url: "/auth/disabled", message: "Authentication is disabled"}`,
+          no cookie is set, the IdP is not contacted.
+        * `auth.enabled: true` but `auth.oidc.client_secret` empty (issuer and client_id are
+          enforced by config validation, so in a running server only an empty secret reaches
+          this branch) -> 200 `{auth_url: "/auth/disabled", message: "Authentication is disabled due to incomplete OIDC configuration"}`.
+        * otherwise a fresh `state` (UUID) is stored in the `dataharbor-session` cookie
+          (existing session values are kept; a cookie that fails to decode is silently replaced),
+          `redirect_path` is stored in the session when it is a safe same-origin path other
+          than `/`, and the cookie is written (Set-Cookie) BEFORE the IdP discovery document is
+          fetched — so the two discovery-failure 500 responses also carry Set-Cookie.
+          In `env: development` an extra `debug-cookie=test-value` cookie is set.
+
+        Error responses use a third error shape, `{error: string}` with no `code`
+        (see LoginError), unlike the `ErrorResponse` envelope used elsewhere.
+      security: []
+      parameters:
+        - name: redirect_path
+          in: query
+          required: false
+          description: |
+            In-app path to return to after login. Reduced by `safeRedirectPath`: anything that is
+            empty, does not start with `/`, starts with `//`, contains `\`, CR or LF, or parses with
+            a scheme/host/userinfo collapses to `/` (and `/` is not stored). Query and fragment are
+            preserved. Never rejected — an unsafe value is silently ignored.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: |
+            Authorization URL (auth enabled and configured) or the "auth disabled" marker.
+            When auth is enabled and configured the response carries `Set-Cookie: dataharbor-session=...`.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookieSet'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              examples:
+                enabled:
+                  value:
+                    auth_url: 'https://idp.example.org/realms/r/protocol/openid-connect/auth?client_id=dataharbor&redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fapi%2Fauth%2Fcallback&response_type=code&state=7b0c1c62-1d0e-4c8a-9a51-2f0f3f8d7e11&scope=openid+profile+email'
+                disabled:
+                  value:
+                    auth_url: /auth/disabled
+                    message: Authentication is disabled
+                incompleteConfig:
+                  value:
+                    auth_url: /auth/disabled
+                    message: Authentication is disabled due to incomplete OIDC configuration
+        '500':
+          description: |
+            Session could not be saved (no Set-Cookie), or the IdP discovery document could not be
+            loaded / lacks `authorization_endpoint` (Set-Cookie already sent). Bare `{error}` body,
+            no `code` field. The text after the colon is a Go error string and is not stable.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookieSet'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginError'
+              examples:
+                discoveryFailed:
+                  value:
+                    error: 'Failed to initialize OIDC provider: discovery document returned status 404'
+                noAuthEndpoint:
+                  value:
+                    error: 'Failed to initialize OIDC provider: no authorization endpoint found'
+
+  /api/auth/callback:
+    get:
+      operationId: authCallback
+      tags: [auth]
+      summary: OIDC redirect target; exchanges the authorization code and redirects to the frontend
+      description: |
+        Called by the browser when the IdP redirects back. Does NOT check `auth.enabled`.
+
+        Order of checks: (1) `code` missing -> 400, before the session is even read; (2) session
+        cookie decode failure -> 500 (skipped in `env: development`); (3) no `oidc_state` in the
+        session -> 400 (skipped in development); (4) `state` != session state -> 400 (skipped in
+        development); (5) discovery / token exchange with the IdP -> 500 on failure;
+        (6) tokens stored server-side (in memory), `token_id` written to the session cookie,
+        307 redirect.
+
+        In `env: development` ALL THREE state/CSRF checks are bypassed (only logged).
+
+        IdP error redirects (`?error=...&error_description=...`) are not handled specially: with no
+        `code` they produce the generic 400 "Authorization code is missing".
+
+        Error responses use the `ErrorResponse` envelope (`{code, error}`), unlike `/login` which
+        uses bare `{error}`. No Set-Cookie is sent on any error path.
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: false
+          description: Authorization code. Missing or empty -> 400. Not validated locally; forwarded to the IdP token endpoint.
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          description: Must equal the `oidc_state` stored by `/login` in the session cookie (outside development). Missing is treated as empty and therefore mismatches.
+          schema:
+            type: string
+      responses:
+        '307':
+          description: |
+            Login complete. `Location` = `frontend.url` (default `http://localhost:5173`; if configured
+            as empty: `http(s)://localhost:5173` in development, else `<request scheme>://<Host>`)
+            with trailing `/` trimmed, plus the post-login path stored by `/login` (default `/`).
+            Body is the Go net/http redirect stub for GET requests.
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+            Set-Cookie:
+              description: Session cookie now holding `token_id` (and with `oidc_state` / `post_login_redirect` removed). Attributes as in `components.headers.SessionCookieSet`; Secure flag from the store defaults (no per-request https detection, unlike `/login`).
+              required: true
+              schema:
+                type: string
+          content:
+            text/html:
+              schema:
+                type: string
+                description: '`<a href="{Location, HTML-escaped}">Temporary Redirect</a>.` followed by two newlines.'
+        '400':
+          description: Missing code, missing session state, or state mismatch (the latter two only outside development).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - properties:
+                      code:
+                        const: 400
+                      error:
+                        enum:
+                          - Authorization code is missing
+                          - Invalid session state
+                          - Invalid state parameter
+              examples:
+                noCode:
+                  value: {code: 400, error: Authorization code is missing}
+        '500':
+          description: |
+            Session cookie undecodable (outside development), IdP discovery failure, missing
+            `token_endpoint`, token request failure, non-200 from the token endpoint, unparsable
+            token response, or session save failure.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - properties:
+                      code:
+                        const: 500
+                      error:
+                        enum:
+                          - Failed to validate session
+                          - Failed to complete authentication
+                          - Failed to process authentication
+                          - Failed to authenticate with provider
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Clear the session cookie and drop server-side tokens
+      description: |
+        Always succeeds when called, with or without a session cookie, in both auth modes
+        (`auth.enabled` is not checked). If the cookie holds a `token_id` that is in the token
+        store, the tokens and the cached userinfo are deleted and — if an ID token and an
+        `end_session_endpoint` exist — an asynchronous GET to the IdP end-session endpoint is
+        fired (fire-and-forget; its result never affects the response).
+
+        The success body is a bare object `{success, message}` (no envelope); the only error
+        uses the `ErrorResponse` envelope.
+
+        Only POST is registered: GET /api/auth/logout falls through to the NoRoute 404
+        (`ApiNotFound`), not 405.
+      security:
+        - {}
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Logged out. Always carries a Set-Cookie that expires `dataharbor-session`.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookieClear'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '500':
+          description: Session cookie could not be encoded/written. Practically unreachable (securecookie encode of an empty map).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - properties:
+                      code:
+                        const: 500
+                      error:
+                        const: Failed to complete logout
+
+  /api/auth/user:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Return the IdP userinfo claims for the current session
+      description: |
+        Registered outside `SessionAuthMiddleware`, but performs the same session checks itself
+        and returns the same three 401 bodies. There is NO anonymous 200: without a valid session
+        the answer is always 401, also when `auth.enabled: false` (the flag is not checked here;
+        in that mode no session can normally exist, so the result is 401 "Not authenticated").
+
+        If the access token is expired or within `auth.oidc.token_refresh_buffer_sec` (default 60)
+        of expiry, a refresh against the IdP is attempted (server-side only, no Set-Cookie); if it
+        fails and the token is already expired -> 401 "Session expired", otherwise the old token
+        is used.
+
+        On success the body is the raw IdP userinfo JSON object (NOT the envelope) with
+        `authenticated: true` added. Userinfo is cached in memory per access token for
+        `auth.oidc.userinfo_cache_ttl` seconds (default 60).
+
+        CORS: on every response path this handler sets `Access-Control-Allow-Credentials: true`
+        and `Access-Control-Allow-Origin` to the request's `Origin` verbatim, overriding the CORS
+        middleware's allow-list (any origin is reflected). If the request has no `Origin`,
+        gin deletes the `Access-Control-Allow-Origin` header that the CORS middleware had set.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: "Authenticated. Userinfo claims (free-form, IdP-dependent) plus `authenticated: true`."
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: '#/components/headers/ReflectedOrigin'
+            Access-Control-Allow-Credentials:
+              $ref: '#/components/headers/AllowCredentialsTrue'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '401':
+          description: |
+            Same three bodies as `components.responses.Unauthorized`:
+            "Invalid session" (cookie present but fails signature/decode, e.g. after a restart with a
+            random session secret), "Not authenticated" (no cookie, no `token_id`, or `token_id`
+            unknown to the in-memory store, e.g. after a backend restart), "Session expired"
+            (token expired and refresh failed). CORS headers are overridden as described above.
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: '#/components/headers/ReflectedOrigin'
+            Access-Control-Allow-Credentials:
+              $ref: '#/components/headers/AllowCredentialsTrue'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+        '500':
+          description: Fetching userinfo from the IdP failed (discovery, missing `userinfo_endpoint`, network, non-200, or non-object JSON).
+          headers:
+            Access-Control-Allow-Origin:
+              $ref: '#/components/headers/ReflectedOrigin'
+            Access-Control-Allow-Credentials:
+              $ref: '#/components/headers/AllowCredentialsTrue'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ErrorResponse'
+                  - properties:
+                      code:
+                        const: 500
+                      error:
+                        const: Failed to fetch user information
+
+  /api/v1/xrd/initialDir:
+    get:
+      operationId: getInitialDir
+      tags: [files]
+      summary: Get the configured initial directory
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Configured xrd.initial_dir. May be an empty string if unconfigured (the empty string is still emitted as `data`).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  data: {type: string}
+                  message: {type: string, const: success}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /api/v1/xrd/hostname:
+    get:
+      operationId: getHostname
+      tags: [files]
+      summary: Get the XRootD server hostname
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Configured xrd.host.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  data: {type: string}
+                  message: {type: string, const: success}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /api/v1/xrd/vstat:
+    get:
+      operationId: getVirtualFsStat
+      tags: [files]
+      summary: Get virtual filesystem statistics for a path
+      description: The `path` value is passed to XRootD unvalidated (no validateFilePath call).
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: path
+          in: query
+          required: false
+          description: Path to stat. Empty or absent defaults to "/".
+          schema: {type: string, default: /}
+      responses:
+        '200':
+          description: Virtual filesystem statistics.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  data: {$ref: '#/components/schemas/VirtualFsStat'}
+                  message: {type: string, const: success}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: XRootD error classified as an authorization error. error is "You are not authorized to access filesystem statistics."
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Any other failure. error is "Failed to retrieve filesystem statistics".
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+  /api/v1/xrd/ping:
+    get:
+      operationId: pingXrd
+      tags: [files]
+      summary: Measure latency to the XRootD server
+      description: Connects and stats the configured initial directory (or "/" if unset). Takes no parameters.
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Ping result.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  data: {$ref: '#/components/schemas/PingResult'}
+                  message: {type: string, const: success}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: Connecting to XRootD failed with an authorization error. error is "Not authorized to access storage".
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: XRootD unavailable ("XRD server unavailable", connect failed, non-auth) or stat probe failed ("XRD server not responding"). A stat failure is 503 even if auth-related.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+  /api/v1/xrd/ls:
+    get:
+      operationId: listDirectory
+      tags: [files]
+      summary: List a directory (unpaginated, raw entries)
+      description: |
+        Lists every entry of a directory in one response.
+
+        Inconsistencies compared with `POST /api/v1/xrd/ls/paged`:
+        - The success body is NOT wrapped in the standard `{code, data, message}` envelope
+          (emitted via `response.JSON`), and it has no `code` field either.
+        - Field names and shapes differ from the paged listing (`isDir` boolean and a Unix
+          `mtime` here, against `type` "dir"/"file" and a formatted `date_time` string there).
+        - The `dir` value is NOT checked by `validateFilePath`: relative paths and `..` are
+          passed to XRootD unchanged.
+        - Entry names are passed through unchanged. Names containing newlines are NOT
+          skipped, and names are not sanitised. Invalid UTF-8 is replaced with U+FFFD by
+          encoding/json.
+        - When the listing fails for a reason other than authorisation, this endpoint returns 500.
+          The paged endpoint returns 400 in the same case, with the raw error text.
+
+        The XRootD credential comes from an `Authorization: Bearer <token>` request header
+        when one is present. Otherwise it is the session's access token (`middleware.GetUserToken`).
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: dir
+          in: query
+          required: true
+          description: |
+            Directory to list. The only check is that it is non-empty; any other
+            string is passed to XRootD as given. Note that the parameter is called `dir`
+            here, while the single-file download endpoint calls it `path`.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: Directory listing. This is a bare object with no envelope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListDirectoryResponse'
+        '400':
+          description: '`dir` query parameter missing or empty. Error text is "Directory parameter is required".'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            XRootD rejected the connection or listing as an authorisation failure, detected
+            by error-string heuristics in `common.isAuthorizationError`. Error text is
+            "You are not authorized to access this directory. Please check your credentials."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: |
+            Any other listing failure, such as a missing directory, a connection failure or a
+            ZTN setup with no token. The error text is always "Failed to list directory".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/xrd/ls/paged:
+    post:
+      operationId: listDirectoryPaged
+      tags: [files]
+      summary: List one page of a directory
+      description: |
+        Lists a directory and returns one page plus statistics for the whole directory.
+
+        Surprises:
+        - The success body is NOT the standard envelope. It is a flat object with a top-level
+          `code: 200`, and it has no `data` or `message` (`c.JSON` with a `gin.H`). The
+          `response.DirectoryResponse` struct is never used. Field widths follow the handler's
+          local variables (uint32/uint64/int64), not that struct's `int` fields.
+        - Every error, including XRootD failures that are server-side in nature, is HTTP 400
+          with in-body `code` 400. The only exception is the authorisation 403. The `error` text for
+          binding, validation and XRootD failures is the raw Go error string.
+        - There is no maximum `pageSize`. Values below 5 are raised to 5, but only when the
+          directory is non-empty. An empty directory echoes the requested `pageSize` as given
+          (possibly 0) and skips the page-range check, so any `page` ≥ 1 returns 200.
+        - Item order is whatever XRootD returned. The server does not sort.
+        - `path` is NOT checked by `validateFilePath`.
+
+        The XRootD credential comes from an `Authorization: Bearer` header when one is present,
+        otherwise from the session token.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        description: |
+          The body is decoded as JSON whatever the request `Content-Type` is
+          (`c.ShouldBindJSON`). Unknown fields are ignored.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PagedDirectoryRequest'
+      responses:
+        '200':
+          description: |
+            One page of the listing. Statistics (`totalItems`, `totalFileCount`,
+            `totalFolderCount`, `cumulativeFileSize`) cover every listed entry, not just this page.
+            Entries whose names contain `\n` or are empty are left out of all counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedDirectoryResponse'
+        '400':
+          description: |
+            HTTP 400 with in-body `code` 400 (`response.FailWithErr(SystemErr(err))`). Causes,
+            with the resulting `error` text:
+            - Body is not valid JSON, is empty, or a field has the wrong type or is outside the
+              uint32 range. The text is the Go decoder error, e.g. "EOF" or
+              "json: cannot unmarshal number -1 into Go struct field DirectoryItemsRequest.page of type uint32".
+            - `page` is missing, null or 0: "invalid page number".
+            - `path` is missing or empty: "empty directory path to list".
+            - The XRootD listing failed for a reason other than authorisation (missing directory,
+              connection failure, ZTN setup with no token). The text is the raw wrapped error, e.g.
+              "failed to list directory /x: ..." or "failed to create client: ...".
+            - `page` > `totalPages` for a non-empty directory: "page number out of range". This also
+              happens when every entry was filtered out (all names empty or containing `\n`), and
+              when a very large `pageSize` overflows the uint32 ceiling division
+              `(totalItems + pageSize - 1) / pageSize` so that `totalPages` becomes 0.
+            - More than 4294967295 entries: "directory contains too many items".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Authorisation failure detected by XRootD error-string heuristics. Error text is
+            "You are not authorized to access this directory. Please check your credentials."
+            (`response.Error`, in-body `code` 403).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/xrd/download:
+    get:
+      operationId: downloadFile
+      tags: [files]
+      summary: Stream a single file
+      description: |
+        Streams a file from XRootD as `application/octet-stream`.
+
+        Behaviour to know about:
+        - Every success is a full 200 response. The server sends `Accept-Ranges: bytes`, but
+          `Range` request headers are ignored: there is no 206 or 416.
+        - Headers, including `Content-Length` (the size XRootD reported from `Stat`), are
+          flushed before the file is opened. Any later failure therefore leaves a 200 whose body is
+          shorter than `Content-Length` (Go's net/http then closes the connection). This covers
+          an open failure, a read error, an early end of data or a client disconnect. No error
+          body is sent.
+        - Directories are not rejected, unlike in the batch endpoint. `Stat` succeeds on a
+          directory, headers are sent with the directory's size, and the open then fails. The
+          result is a truncated 200, or an empty, apparently successful 200 when the reported
+          size is 0.
+        - The handler sets `X-Download-Duration-Ms`, `X-Download-Speed-Mbps` and
+          `X-Download-Bytes-Total` after the body has been written, without declaring HTTP
+          trailers. net/http drops header changes made after the header has been written, so
+          clients should not expect these headers even though docs/API.md and the CORS
+          `Access-Control-Expose-Headers` list mention them.
+        - The 429 for the per-user concurrency limit carries no `Retry-After` header.
+        - `Content-Disposition` is built as `attachment; filename="<sanitised base name>"`.
+          Double quotes in the name are not escaped and non-ASCII bytes are sent raw, with no
+          RFC 6266 `filename*` form.
+
+        The XRootD credential comes from an `Authorization: Bearer` header when one is present,
+        otherwise from the session token.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: |
+            Absolute path of the file. Enforced by `validateFilePath`: it must start with `/`,
+            must not contain `..` anywhere (so `a..b` is rejected too), and must not
+            contain NUL, CR or LF.
+          schema:
+            type: string
+            minLength: 1
+            pattern: '^/[^\x00\r\n]*$'
+      responses:
+        '200':
+          description: |
+            File content stream. The body is truncated, with no change to status or headers,
+            if anything fails after the headers were flushed (see the operation description).
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="<sanitizeFilename(filepath.Base(path))>"`'
+              schema:
+                type: string
+            Content-Length:
+              description: File size as reported by XRootD `Stat` before streaming starts.
+              schema:
+                type: integer
+                format: int64
+                minimum: 0
+            Cache-Control:
+              schema:
+                type: string
+                const: no-cache, no-store, must-revalidate
+            Pragma:
+              schema:
+                type: string
+                const: no-cache
+            Expires:
+              schema:
+                type: string
+                const: '0'
+            Accept-Ranges:
+              description: Always `bytes`, but Range requests are NOT implemented.
+              schema:
+                type: string
+                const: bytes
+          content:
+            application/octet-stream: {}
+        '400':
+          description: |
+            Error text "File path parameter is required" when `path` is missing or empty, or
+            "Invalid file path" when `validateFilePath` rejects it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Connecting to XRootD failed with an authorisation error. Error text is "You are not
+            authorized to access the storage system. Please check your credentials." A
+            permission failure on `Stat` itself is reported as 404, not 403.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            XRootD `Stat` failed for any reason, including permission errors. Error text is
+            "File not found or inaccessible".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: |
+            The per-user concurrent download limit was reached. The limit is
+            `xrd.download.max_concurrent_per_user` (default 2; ≤ 0 disables it) and is shared with
+            batch downloads. Error text is "Too many concurrent downloads. Please wait for a current
+            download to complete." There is no `Retry-After` header. Users are keyed by the JWT
+            `sub` claim, then by a token hash, then by the literal "anonymous", so when auth is
+            disabled every caller shares one bucket.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: |
+            Connecting to XRootD failed for a reason other than authorisation, including ZTN with
+            no token. Error text is "Failed to connect to storage".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/xrd/download/batch:
+    post:
+      operationId: downloadBatch
+      tags: [files]
+      summary: Stream several files of one directory as a tar or tar.gz archive
+      description: |
+        Streams the named files of `basePath` as one archive. Files are read from XRootD and
+        written to the archive on the fly.
+
+        Archive format: the client CANNOT choose it. It depends only on the server setting
+        `xrd.download.batch_compression` (default `true`). When the setting is true the response
+        is `application/gzip` (`.tar.gz`); otherwise it is `application/x-tar` (`.tar`).
+        `Accept` is ignored. No `Content-Encoding` is set, because the gzip stream is the
+        content itself and not a transfer encoding.
+
+        Request body: the form variant is used only when `Content-Type` is
+        `application/x-www-form-urlencoded` or `multipart/form-data`. Any other or missing
+        Content-Type is decoded as JSON.
+
+        Validation, in order. Every check before the archive starts returns a JSON error:
+        1. bind,
+        2. file count (0, then more than `xrd.download.max_batch_files`, default 100),
+        3. `basePath`,
+        4. each file name,
+        5. each full path,
+        6. per-user concurrency slot (429),
+        7. XRootD connection (403/500),
+        8. `Stat` of every file (404; 400 for a directory),
+        9. total raw size against `xrd.download.max_batch_size_mb` (default 10240).
+
+        Streaming behaviour, after the 200 headers have been flushed:
+        - No `Content-Length` is sent, so the body uses chunked transfer encoding.
+        - Tar entry names are the names from `files`, exactly as given (duplicates allowed).
+          Entries have mode 0644 and the modification time from XRootD.
+        - When a file fails with a read error, a short read or a write failure, its entry is
+          padded with zero bytes to the size declared in its header. A `_DOWNLOAD_ERRORS.txt`
+          entry listing the failed names is appended at the end.
+        - When a file with a non-zero size cannot be OPENED, the entry header has already been
+          written and no padding follows. archive/tar then refuses every later `WriteHeader`
+          and the final `Close` ("missed writing N bytes"). Every remaining file, the error
+          manifest and the end-of-archive marker are then silently left out. The client gets a
+          200 whose tar stream is truncated or corrupt, with no manifest.
+        - If the client disconnects, the handler returns without closing the tar or gzip writers.
+        - `X-Download-Expected-Bytes` and `X-Download-File-Count` are not listed in CORS
+          `Access-Control-Expose-Headers`, so cross-origin JavaScript cannot read them.
+
+        The XRootD credential comes from an `Authorization: Bearer` header when one is present,
+        otherwise from the session token.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDownloadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BatchDownloadForm'
+            encoding:
+              files:
+                style: form
+                explode: true
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BatchDownloadForm'
+      responses:
+        '200':
+          description: |
+            Archive stream. Its media type is chosen by server configuration, never by the client.
+            Once streaming has started, failures are reported only inside the archive (or by a
+            corrupt archive). See the operation description.
+          headers:
+            Content-Disposition:
+              description: |
+                `attachment; filename="dataharbor-<dir>-<YYYYMMDD-HHMMSS>.tar.gz"` (or `.tar`).
+                `<dir>` is `sanitizeFilename(filepath.Base(basePath))`, which gives `_` for
+                basePath `/`. The timestamp is in the server's local time.
+              schema:
+                type: string
+                pattern: '^attachment; filename="dataharbor-.*-[0-9]{8}-[0-9]{6}\.tar(\.gz)?"$'
+            Cache-Control:
+              schema:
+                type: string
+                const: no-cache, no-store, must-revalidate
+            X-Download-Expected-Bytes:
+              description: Sum of the raw file sizes from `Stat`. This is NOT the archive size.
+              schema:
+                type: string
+                pattern: '^[0-9]+$'
+            X-Download-File-Count:
+              description: Number of files requested, all of which passed `Stat`.
+              schema:
+                type: string
+                pattern: '^[0-9]+$'
+          content:
+            application/gzip: {}
+            application/x-tar: {}
+        '400':
+          description: |
+            Error text by cause:
+            - "Invalid request body": JSON decode error, `basePath` missing or empty, or
+              `files` missing or null (binding `required`). For form posts, a missing or empty
+              `basePath`, or no `files` field.
+            - "No files specified for download": JSON `files: []` (only reachable through JSON).
+            - "Too many files: <n> exceeds maximum of <max>".
+            - "Invalid base path": `basePath` fails `validateFilePath`.
+            - `Invalid filename "<name>": <reason>`. The name is Go-quoted with `%q`. Reasons:
+              empty filename, filename contains path separator, filename contains directory
+              traversal, filename contains invalid characters, filename contains invalid UTF-8.
+            - `Invalid file path for "<name>"`: the joined path fails `validateFilePath`. In
+              practice the earlier checks make this unreachable.
+            - "Cannot download directory: <name>".
+            - "Total download size (<MB> MB) exceeds maximum allowed (<max> MB)".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Connecting to XRootD failed with an authorisation error. Error text is "You are not
+            authorized to access the storage system. Please check your credentials." A
+            permission failure on `Stat` is reported as 404.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: |
+            `Stat` failed for one of the files, for any reason including permissions. Error text is
+            "File not found or inaccessible: <name>". This fails fast at the first such file.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: |
+            Per-user download concurrency limit, shared with `GET /api/v1/xrd/download`. Error text is
+            "Too many concurrent downloads. Please wait for a current download to complete."
+            There is no `Retry-After` header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Connecting to XRootD failed for a reason other than authorisation. Error text is "Failed to connect to storage".
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/xrd/upload/limits:
+    get:
+      operationId: getTransferLimits
+      tags: [upload]
+      summary: Get configured upload and download limits
+      description: >-
+        Returns configuration values verbatim. Does NOT check `xrd.upload.enabled`:
+        it answers 200 even when uploads are disabled (then `upload.enabled` is false and
+        the other upload values are unvalidated config, possibly 0 or empty).
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Limits.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  message: {type: string, const: success}
+                  data: {$ref: '#/components/schemas/UploadTransferLimits'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+
+  /api/v1/xrd/upload/session:
+    post:
+      operationId: createUploadSession
+      tags: [upload]
+      summary: Create a batch upload session (one uploadId per accepted file)
+      description: >-
+        Validation runs in this order and stops at the first failure: upload enabled (503),
+        JSON binding (400 "Invalid request: ..."), destDir path check (400), files non-empty
+        (400), files count <= maxFilesPerBatch (400), then per file in request order:
+        relPath (400), reserved temp suffix (400), size > 0 (400, only reachable for negative
+        sizes; 0 fails binding), size <= maxFileSize (400), onConflict value (400),
+        overwrite allowed (403), running batch total <= maxBatchSize (400). Then one
+        per-user concurrency slot is acquired for the whole batch (429). Then for each file:
+        XRootD stat of destination (403/500), rename-candidate search (500), open temp file
+        (403/500). Any failure in that last phase rolls back every session created so far
+        in the batch. A destination conflict with onConflict `fail` (or omitted) does NOT
+        produce an error: the file is returned with status `skipped`, HTTP 200.
+        Missing parent directories are created by XRootD (open uses MkPath).
+      security: [{sessionCookie: []}]
+      requestBody:
+        required: true
+        description: >-
+          Parsed with gin ShouldBindJSON: Content-Type is not checked, unknown fields are
+          ignored, trailing bytes after the JSON value are ignored.
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UploadCreateSessionRequest'}
+      responses:
+        '200':
+          description: >-
+            Session created. Returned also when every file was skipped (no uploadIds; no
+            concurrency slot retained).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  message: {type: string, const: success}
+                  data: {$ref: '#/components/schemas/UploadCreateSessionResponse'}
+        '400':
+          description: >-
+            Request validation failure. `error` is one of: "Invalid request: <bind error>"
+            (malformed JSON, wrong JSON types, missing/empty destDir, missing/null files,
+            empty relPath, size 0 or missing; validator messages may contain newlines),
+            "Invalid destDir: <reason>", "files must not be empty" (files: []),
+            "too many files: N (max M)", "files[i]: invalid relPath: <reason>",
+            "files[i]: relPath must not end with the reserved upload suffix \"<suffix>\"",
+            "files[i]: size must be > 0", "files[i] (<relPath>): size N exceeds max file size M",
+            "files[i]: unknown onConflict=\"<v>\"", "total batch size N exceeds max M".
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: >-
+            Either "Overwrite is disabled on this server (xrd.upload.allow_overwrite=false)"
+            (a file requested onConflict=overwrite; raised during validation, regardless of
+            whether the destination exists), or an XRootD authorization error while
+            stat-ing the destination ("...does not include read permission...") or opening
+            the temp file ("...does not include write permission...").
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '429':
+          description: >-
+            Per-user concurrent upload-session limit reached
+            ("upload: concurrent operation limit reached (N per user)"). No Retry-After header.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: >-
+            XRootD failure: "Failed to check destination: ...",
+            "Failed to compute renamed destination: ..." (stat error, or no free
+            "name (1..99).ext" candidate), "Failed to open destination for writing: ...".
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: 'Uploads disabled: "Upload is disabled on this server". Checked before the body is read.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+  /api/v1/xrd/upload/{uploadId}/chunk:
+    put:
+      operationId: uploadChunk
+      tags: [upload]
+      summary: Write one chunk of raw bytes at the given offset
+      description: >-
+        Checks in order: session exists (404), session owner (403), offset (400),
+        Content-Length > 0 (400), Content-Length <= configured chunkSize (413),
+        session state is uploading (409), offset == bytesReceived (409),
+        offset + Content-Length <= declared size (400), session not being finalized (409),
+        body read (400), XRootD write (500), state still uploading after write (409).
+        Read and write failures leave the session resumable (bytesReceived unchanged).
+        The 413 limit is the CURRENT config chunk_size, not the session's chunkSize.
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          description: >-
+            Server-issued id ("up_" + 32 lower-case hex chars). The format is not
+            validated; any string is looked up and an unknown one yields 404.
+          schema: {type: string}
+        - name: offset
+          in: query
+          required: true
+          description: >-
+            Byte offset of this chunk; must equal the session's current bytesReceived.
+            Parsed with strconv.ParseInt base 10 (a leading '+' and leading zeros are accepted).
+            Missing, non-integer or negative -> 400 "Invalid or missing offset".
+          schema: {type: integer, format: int64, minimum: 0}
+        - name: Content-Length
+          in: header
+          required: true
+          description: >-
+            Must be present and > 0 (chunked transfer encoding gives ContentLength -1 -> 400
+            "Content-Length is required and must be > 0"). Values above the configured
+            chunkSize -> 413.
+          schema: {type: integer, format: int64, minimum: 1}
+      requestBody:
+        required: true
+        description: >-
+          Raw chunk bytes (no multipart). The Content-Type header is not checked; the
+          frontend sends application/octet-stream.
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              contentMediaType: application/octet-stream
+      responses:
+        '200':
+          description: Chunk committed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  message: {type: string, const: success}
+                  data: {$ref: '#/components/schemas/UploadChunkResult'}
+        '400':
+          description: >-
+            "Invalid or missing offset", "Content-Length is required and must be > 0",
+            "chunk would exceed declared size: offset=N len=N size=N",
+            "failed to read chunk body: <err>" (body shorter than Content-Length / client
+            disconnect; session stays resumable).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: '"Upload session does not belong to this user".'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: >-
+            "Unknown uploadId". Also returned for every id whose session has completed,
+            failed, been aborted or reaped (terminal sessions are deleted from the store).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: >-
+            "offset mismatch: got N, expected M" (re-sync via status). Race-window only
+            (session terminating concurrently but not yet deleted from the store):
+            "Session is <state>; cannot accept more data", "Session is being finalized;
+            cannot accept more data", "Session is <state>" (state changed during the write;
+            the bytes were already written to the temp file but not counted).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '413':
+          description: '"chunk too large: N > M" where M is the configured chunk_size.'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: '"xrootd write failed: <err>". Session stays resumable (bytesReceived unchanged).'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+  /api/v1/xrd/upload/{uploadId}/complete:
+    post:
+      operationId: completeUpload
+      tags: [upload]
+      summary: Verify SHA-256 and publish the uploaded file
+      description: >-
+        Checks in order: session exists (404), owner (403), body binding (400), sha256
+        format (400), state uploading (409), all bytes received (400), digest match (400,
+        and the session is FAILED and deleted). Then closes the temp handle, for overwrite
+        moves the existing destination to a backup, renames temp onto destination, removes
+        the backup. Any failure in that phase (500) fails the session, removes the temp
+        file and deletes the session. After 200 the uploadId is gone (404 thereafter).
+        Errors before the digest comparison leave the session resumable.
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          description: >-
+            Server-issued id ("up_" + 32 lower-case hex chars). The format is not
+            validated; any string is looked up and an unknown one yields 404.
+          schema: {type: string}
+      requestBody:
+        required: true
+        description: >-
+          Parsed with gin ShouldBindJSON (Content-Type not checked, unknown fields ignored).
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UploadCompleteRequest'}
+      responses:
+        '200':
+          description: File published.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  message: {type: string, const: success}
+                  data: {$ref: '#/components/schemas/UploadCompleteResponse'}
+        '400':
+          description: >-
+            "sha256 is required in the complete request: <bind error>" (emitted for ANY
+            binding failure, including empty body "EOF", malformed JSON or a non-string
+            sha256, not only a missing field), "sha256 must be 64 hex chars",
+            "not all bytes received: N of M", "sha256 mismatch: got <hex> expected <hex>"
+            (this one terminates the session as `failed`, removes the temp file; the id
+            then returns 404).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: '"Upload session does not belong to this user".'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: '"Unknown uploadId" (never existed, or already completed/failed/aborted/reaped).'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: >-
+            "session is <state>: <failureMessage>". Race-window only: reachable while a
+            concurrent abort/fail/reap is tearing the session down (state already terminal,
+            store entry not yet deleted). For a concurrently completing session the text is
+            "session is completed: " (empty message after the colon).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: >-
+            "Failed to finalize upload: <err>" (handle close failed or exceeded 30 s),
+            "Failed to replace existing file: <err>" (overwrite: stat or move-aside failed),
+            "Failed to publish file: <err>" (rename failed; original restored from backup
+            when overwriting). In all cases the session is failed and deleted.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+  /api/v1/xrd/upload/{uploadId}:
+    delete:
+      operationId: abortUpload
+      tags: [upload]
+      summary: Abort an upload and remove its temp file
+      description: >-
+        Synchronous: waits for any in-flight chunk write (bounded by the 5 min write
+        timeout), then closes the handle (up to 15 s) and removes the temp file (up to
+        15 s) before responding. Removal failures are logged, never reported. The session
+        is then deleted, so a second abort returns 404.
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          description: >-
+            Server-issued id ("up_" + 32 lower-case hex chars). The format is not
+            validated; any string is looked up and an unknown one yields 404.
+          schema: {type: string}
+      responses:
+        '200':
+          description: >-
+            Always reports state `aborted`, even if the session had concurrently reached
+            another terminal state and the abort was a no-op.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  message: {type: string, const: success}
+                  data: {$ref: '#/components/schemas/UploadAbortResult'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: '"Upload session does not belong to this user".'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: '"Unknown uploadId" (never existed, or already completed/failed/aborted/reaped).'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+  /api/v1/xrd/upload/{uploadId}/status:
+    get:
+      operationId: getUploadStatus
+      tags: [upload]
+      summary: Get the server-side progress of one file upload
+      security: [{sessionCookie: []}]
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          description: >-
+            Server-issued id ("up_" + 32 lower-case hex chars). The format is not
+            validated; any string is looked up and an unknown one yields 404.
+          schema: {type: string}
+      responses:
+        '200':
+          description: Current session state.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data, message]
+                additionalProperties: false
+                properties:
+                  code: {type: integer, const: 200}
+                  message: {type: string, const: success}
+                  data: {$ref: '#/components/schemas/UploadStatusResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403':
+          description: '"Upload session does not belong to this user".'
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: >-
+            "Unknown uploadId". Returned for completed, failed, aborted and reaped sessions,
+            because terminal sessions are deleted from the in-memory store; also after a
+            backend restart.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: dataharbor-session
+      description: |
+        Gorilla `securecookie` session cookie (name hard-coded as `sessionName` in
+        app/controller/auth.go; not configurable). Signed with HMAC (from
+        `auth.oidc.session_secret`, or a random per-process secret if unset — then every restart
+        invalidates all cookies -> 401 "Invalid session"), but NOT encrypted. It holds only a
+        `token_id` (UUID) pointing at tokens kept in process memory, plus transient
+        `oidc_state` / `post_login_redirect` during login. Attributes: `Path=/`,
+        `Max-Age=604800` (7 days), `HttpOnly`, `SameSite=Lax`, `Secure` unless
+        `env: development` without `server.ssl.enabled` (on `/login` also Secure when the request
+        scheme is https, incl. `X-Forwarded-Proto`). No `Domain` (host-only).
+
+        Obtained via the OIDC authorization-code flow: GET /api/auth/login -> browser to
+        `auth_url` -> IdP -> GET /api/auth/callback (sets `token_id`) -> 307 to the frontend.
+        Server-side tokens are lost on backend restart (-> 401 "Not authenticated").
+
+        Enforced on every `/api/v1/*` route by `SessionAuthMiddleware` when `auth.enabled: true`.
+        A Bearer `Authorization` header is NOT an alternative: a request without a valid session
+        cookie gets 401 regardless of headers, and with a valid session the middleware overwrites
+        the request's `Authorization` header with the session's access token. When
+        `auth.enabled: false` the middleware is a no-op pass-through: no cookie is needed, and a
+        client-supplied `Authorization: Bearer <token>` header reaches the handlers unchanged
+        (they forward it to XRootD via `middleware.GetUserToken`).
+
+        `auth.skip_auth_paths` (default `["/health"]`) is a plain `strings.HasPrefix` test on the
+        URL path inside the middleware; since the middleware only runs for `/api/v1/*` routes,
+        the default entry never matches anything.
+
+        The middleware never sets cookies or response headers itself: a successful token refresh
+        only updates the in-memory store.
+
+  headers:
+    SessionCookieSet:
+      description: |
+        `dataharbor-session=<securecookie value>; Path=/; Expires=<now+7d>; Max-Age=604800; HttpOnly; [Secure; ]SameSite=Lax`.
+        In `env: development`, `/login` additionally sends `debug-cookie=test-value; Path=/; Max-Age=3600`.
+      schema:
+        type: string
+    SessionCookieClear:
+      required: true
+      description: '`dataharbor-session=<securecookie value of empty map>; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0; HttpOnly; [Secure; ]SameSite=Lax`.'
+      schema:
+        type: string
+    ReflectedOrigin:
+      description: Set to the request `Origin` header value verbatim; absent when the request had no `Origin`.
+      schema:
+        type: string
+    AllowCredentialsTrue:
+      required: true
+      schema:
+        type: string
+        const: 'true'
+
+  responses:
+    Unauthorized:
+      description: |
+        Emitted by `SessionAuthMiddleware` (auth enabled only) for any `/api/v1/*` route, before
+        the handler runs:
+        * "Invalid session" — a `dataharbor-session` cookie is present but fails decode/signature
+          (tampered, foreign, older than 30 days, or signed with a previous random secret).
+        * "Not authenticated" — no cookie, cookie without `token_id`, or `token_id` not in the
+          in-memory store (e.g. backend restarted, or logged out).
+        * "Session expired" — access token past `ExpiresAt` and the refresh failed (no refresh
+          token, IdP unreachable, IdP rejected). A refresh that fails while the token is still
+          (barely) valid is NOT an error: the request proceeds with the old token.
+        No Set-Cookie and no `WWW-Authenticate` header. Never emitted when `auth.enabled: false`.
+        A failing userinfo lookup in the middleware is logged and ignored.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnauthorizedError'
+          examples:
+            invalidSession:
+              value: {code: 401, error: Invalid session}
+            notAuthenticated:
+              value: {code: 401, error: Not authenticated}
+            sessionExpired:
+              value: {code: 401, error: Session expired}
+
+    ApiNotFound:
+      description: |
+        gin NoRoute handler for any unmatched path whose first four characters are `/api`
+        (so also `/apifoo`). Runs WITHOUT `SessionAuthMiddleware` (group middleware does not
+        apply to NoRoute), so it is returned to unauthenticated callers too. Because
+        `HandleMethodNotAllowed` is false, a wrong method on an existing path (e.g.
+        GET /api/auth/logout) also gets this 404, not 405. Exceptions: OPTIONS requests are
+        answered 200 with an empty body by the CORS middleware, and a path that differs from a
+        route only by a trailing slash is redirected by gin (301 for GET, 307 otherwise).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiNotFound'
+
+  schemas:
+    VirtualFsStat:
+      type: object
+      required: [nodesRW, freeSpaceMB, utilizationPercent, nodesStaging, freeSpaceStagingMB, utilizationStaging]
+      additionalProperties: false
+      properties:
+        nodesRW: {type: integer, description: Number of nodes that can provide read/write space.}
+        freeSpaceMB: {type: integer, description: "Largest contiguous read/write free area, in MB."}
+        utilizationPercent: {type: integer, description: Percent utilization of the partition behind freeSpaceMB.}
+        nodesStaging: {type: integer, description: Number of nodes that can provide staging space.}
+        freeSpaceStagingMB: {type: integer, description: "Largest contiguous staging free area, in MB."}
+        utilizationStaging: {type: integer, description: Percent utilization of the partition behind freeSpaceStagingMB.}
+    PingResult:
+      type: object
+      required: [latencyMs, connectMs, status, server]
+      additionalProperties: false
+      properties:
+        latencyMs: {type: number, description: Duration of the stat probe in milliseconds.}
+        connectMs: {type: number, description: Duration of the file system connect in milliseconds.}
+        status: {type: string, const: ok}
+        server: {type: string, description: Configured xrd.host.}
+
+    ErrorResponse:
+      type: object
+      description: |
+        Standard error envelope written by `response.Error(c, status, msg)` (also
+        `response.FailWithErr`). `code` equals the HTTP status on every production call site.
+        `data` and `message` are `omitempty` and are never set on error paths in current code
+        (`ValidationError` / `ValidateFail`, which would add `data`, have no production callers).
+        NOT used by `/api/auth/login` errors (`LoginError`), the NoRoute 404 (`ApiNotFound`), or
+        panics (Recovery middleware: 500 with empty body or `text/plain` "Server error: ...").
+      required: [code, error]
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          description: Mirrors the HTTP status code.
+        error:
+          type: string
+
+    UnauthorizedError:
+      description: Body of every 401 emitted by `SessionAuthMiddleware` and by `GET /api/auth/user`.
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - properties:
+            code:
+              const: 401
+            error:
+              enum:
+                - Invalid session
+                - Not authenticated
+                - Session expired
+
+    LoginResponse:
+      description: Bare object (no envelope). Which variant depends on configuration.
+      oneOf:
+        - title: authorizationUrl
+          description: Auth enabled and fully configured. Absolute IdP authorization URL.
+          type: object
+          required: [auth_url]
+          additionalProperties: false
+          properties:
+            auth_url:
+              type: string
+              format: uri
+              description: |
+                `<authorization_endpoint>?client_id=..&redirect_uri=<frontend.url>/api/auth/callback&response_type=code&state=<uuid>&scope=<space-joined scopes>`
+                (query values form-encoded with url.QueryEscape; `state` is unescaped). redirect_uri
+                falls back to `<request scheme>://<Host>/api/auth/callback` only if `frontend.url` is configured as empty.
+        - title: authDisabled
+          description: '`auth.enabled: false`, or enabled with an empty client secret.'
+          type: object
+          required: [auth_url, message]
+          additionalProperties: false
+          properties:
+            auth_url:
+              type: string
+              const: /auth/disabled
+            message:
+              type: string
+              enum:
+                - Authentication is disabled
+                - Authentication is disabled due to incomplete OIDC configuration
+
+    LoginError:
+      type: object
+      description: 'Error shape used only by `/api/auth/login`: `{error}` with no `code` (differs from `ErrorResponse`).'
+      required: [error]
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+          pattern: '^Failed to initialize (login flow|OIDC provider): '
+
+    LogoutResponse:
+      type: object
+      description: Bare object (no envelope).
+      required: [success, message]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          const: true
+        message:
+          type: string
+          const: Logout successful
+
+    CurrentUser:
+      type: object
+      description: |
+        Raw OIDC userinfo response from the IdP, passed through unchanged except that
+        `authenticated` is forced to `true` (overwriting any IdP claim of that name). The set of
+        other claims depends on the IdP and the requested scopes (`auth.oidc.scopes`, default
+        `openid profile email`); typical Keycloak claims are `sub`, `preferred_username`, `name`,
+        `given_name`, `family_name`, `email`, `email_verified`, plus custom ones such as
+        `posix_username`. None of them is checked by the backend.
+      required: [authenticated]
+      additionalProperties: true
+      properties:
+        authenticated:
+          type: boolean
+          const: true
+        sub:
+          type: string
+          description: Subject. Required by the OIDC spec, but not enforced by this backend.
+
+    ApiNotFound:
+      type: object
+      description: NoRoute 404 body. Only a `message` key — no `code`, no `error` (differs from `ErrorResponse`).
+      required: [message]
+      additionalProperties: false
+      properties:
+        message:
+          type: string
+          const: API endpoint not found
+
+    ListDirectoryResponse:
+      type: object
+      description: |
+        Bare object with no `{code, data, message}` envelope, built from a `gin.H`
+        (controller/xrd.go:411).
+      required: [directory, entries]
+      additionalProperties: false
+      properties:
+        directory:
+          type: string
+          description: The `dir` query value, echoed back unchanged.
+        entries:
+          type: array
+          description: Never null, because it is built with `make(..., 0)`. Order is as returned by XRootD.
+          items:
+            $ref: '#/components/schemas/DirectoryEntry'
+
+    DirectoryEntry:
+      type: object
+      required: [name, isDir, size, mtime]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Raw XRootD entry name. It is not sanitised and may contain `\n`, `/` and similar characters.
+        isDir:
+          type: boolean
+        size:
+          type: integer
+          format: int64
+          description: Raw XRootD size (int64). It is not normalised, so negative values pass through.
+        mtime:
+          type: integer
+          format: int64
+          description: Modification time in Unix seconds.
+
+    PagedDirectoryRequest:
+      type: object
+      description: |
+        `request.DirectoryItemsRequest`. The struct has no binding tags, so the
+        requirements below are enforced by manual checks in the handler. Unknown fields are ignored.
+      required: [path, page]
+      properties:
+        path:
+          type: string
+          minLength: 1
+          description: Directory to list. The only check is that it is non-empty; `validateFilePath` is NOT applied.
+        page:
+          type: integer
+          minimum: 1
+          maximum: 4294967295
+          description: |
+            1-based page number (uint32). A missing, null or 0 value gives a 400 "invalid page number".
+            Values that are negative or above the uint32 range fail decoding with a 400.
+        pageSize:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: |
+            Optional (uint32). A missing value counts as 0. For a non-empty directory the value
+            actually used is max(pageSize, 5), and there is no upper bound. The constant
+            `defaultPageSize = 500` is NOT applied. For an empty directory the value is echoed
+            as given.
+
+    PagedDirectoryResponse:
+      type: object
+      description: |
+        Flat object with no envelope, built from a `gin.H` (controller/xrd.go:538 for an empty
+        directory, :709 otherwise). It has no `data` or `message`.
+      required:
+        - code
+        - items
+        - totalItems
+        - pageSize
+        - totalPages
+        - totalFileCount
+        - totalFolderCount
+        - cumulativeFileSize
+        - queryTimeMs
+      additionalProperties: false
+      properties:
+        code:
+          type: integer
+          const: 200
+        items:
+          type: array
+          description: |
+            The current page. Never null: it is `[]` for an empty directory, and on the
+            non-empty path at least one item is appended whenever the page is in range.
+          items:
+            $ref: '#/components/schemas/PagedDirectoryItem'
+        totalItems:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: uint32. Number of entries left after filtering, across the whole directory.
+        pageSize:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: |
+            uint32. For a non-empty directory this is the size actually used, max(requested, 5).
+            For an empty directory it is the requested value unchanged, which may be 0 to 4.
+        totalPages:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: uint32. The value is 0 for an empty directory.
+        totalFileCount:
+          type: integer
+          minimum: 0
+          description: uint64. Counts the whole directory.
+        totalFolderCount:
+          type: integer
+          minimum: 0
+          description: uint64. Counts the whole directory.
+        cumulativeFileSize:
+          type: integer
+          minimum: 0
+          description: |
+            uint64. Sum of the sizes of the non-directory entries in the whole directory. It may
+            exceed 2^53, which JavaScript cannot represent exactly.
+        queryTimeMs:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Duration of the XRootD listing call, in milliseconds.
+
+    PagedDirectoryItem:
+      type: object
+      description: '`response.DirectoryItemResponse` (response/fs.go:3).'
+      required: [name, type, date_time, size]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: |
+            Sanitised name. Invalid UTF-8 is stripped, `/`, `\` and `..` become `_`, NUL is
+            removed, CR and LF become `_`, and the name is cut to 255 bytes. The cut can split a
+            multi-byte character, which encoding/json then emits as U+FFFD.
+        type:
+          type: string
+          enum: [dir, file]
+        date_time:
+          type: string
+          pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$'
+          description: |
+            Modification time in the Go layout `2006-01-02 15:04:05`, in the SERVER's local
+            time zone, with no zone indicator. This is not RFC 3339, so `format: date-time`
+            cannot be used.
+        size:
+          type: integer
+          minimum: 0
+          description: uint64. Negative sizes from XRootD are normalised to 0.
+
+    BatchDownloadRequest:
+      type: object
+      description: |
+        `request.BatchDownloadRequest`, with `binding:"required"` on both fields. Unknown fields
+        are ignored.
+      required: [basePath, files]
+      properties:
+        basePath:
+          type: string
+          minLength: 1
+          pattern: '^/[^\x00\r\n]*$'
+          description: |
+            Directory that contains the files. It must pass `validateFilePath`: absolute, no `..`,
+            no NUL, CR or LF. Each full path is `basePath + "/" + name`, so a trailing slash
+            gives `//` (accepted).
+        files:
+          type: array
+          description: |
+            Bare file names inside `basePath`, with no subdirectories. Must not be null. `[]`
+            passes binding but then returns 400 "No files specified for download". The upper
+            bound is the server setting `xrd.download.max_batch_files` (default 100; ≤ 0 means 100).
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BatchFileName'
+
+    BatchDownloadForm:
+      type: object
+      description: |
+        HTML form variant, read with `c.PostForm("basePath")` and `c.PostFormArray("files")`. It
+        exists for Safari, which cannot use streamed fetch downloads. When `basePath` is empty or
+        no `files` field is present, the request fails with 400 "Invalid request body".
+      required: [basePath, files]
+      properties:
+        basePath:
+          type: string
+          minLength: 1
+          pattern: '^/[^\x00\r\n]*$'
+        files:
+          type: array
+          minItems: 1
+          description: The `files` field repeated once per file name.
+          items:
+            $ref: '#/components/schemas/BatchFileName'
+
+    BatchFileName:
+      type: string
+      minLength: 1
+      pattern: '^[^/\\\x00\r\n]+$'
+      description: |
+        Checked by `validateBatchFileName`: non-empty, no `/` or `\`, no `..`, no NUL, CR or LF,
+        and valid UTF-8.
+
+    UploadConflictAction:
+      type: string
+      enum: ['', fail, skip, overwrite, rename]
+      description: >-
+        Empty string (or omitted) means `fail`. On an existing destination, `fail` and
+        `skip` both yield a 200 file entry with status `skipped` (only `reason` differs);
+        `fail` never produces an error response. `overwrite` requires
+        xrd.upload.allow_overwrite=true, else the whole request is 403 even when the
+        destination does not exist.
+
+    UploadFileRequest:
+      type: object
+      required: [relPath, size]
+      properties:
+        relPath:
+          type: string
+          minLength: 1
+          description: >-
+            Path relative to destDir. Rejected (400): empty (binding error), leading '/',
+            NUL/CR/LF, any empty, '.' or '..' segment (so also trailing '/' and '//'),
+            basename ending in the configured temp suffix (default ".dh-upload").
+            A '..' inside a segment (e.g. "a..b") is allowed.
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+          description: >-
+            Bytes. 0 or missing fails binding ("Invalid request: ...required..."); negative
+            values pass binding and get "files[i]: size must be > 0". Must be
+            <= limits.upload.maxFileSize; running total must be <= maxBatchSize.
+            Non-integer JSON numbers fail binding.
+        onConflict: {$ref: '#/components/schemas/UploadConflictAction'}
+
+    UploadCreateSessionRequest:
+      type: object
+      required: [destDir, files]
+      properties:
+        destDir:
+          type: string
+          minLength: 1
+          pattern: '^/'
+          description: >-
+            Absolute XRootD directory. Rejected (400) when empty/missing (binding), when it
+            contains ".." anywhere as a substring, does not start with '/', or contains
+            NUL/CR/LF.
+        files:
+          type: array
+          minItems: 1
+          description: >-
+            Missing or null -> 400 binding error; [] passes binding and gets
+            "files must not be empty". maxItems is the configured maxFilesPerBatch
+            (default 100), not static.
+          items: {$ref: '#/components/schemas/UploadFileRequest'}
+
+    UploadFileSession:
+      type: object
+      required: [relPath, destPath, status, conflict]
+      additionalProperties: false
+      properties:
+        relPath:
+          type: string
+          description: Echo of the requested relPath (not the renamed one).
+        uploadId:
+          type: string
+          pattern: '^up_[0-9a-f]{32}$'
+          description: Present only when status is `accepted` (omitempty).
+        destPath:
+          type: string
+          description: >-
+            Final absolute XRootD path (path.Clean(destDir/relPath)); for onConflict=rename
+            the chosen "stem (N).ext" path. For skipped files, the conflicting path.
+        status:
+          type: string
+          enum: [accepted, skipped]
+        conflict:
+          type: string
+          enum: [none, exists]
+          description: '`exists` also for accepted files with onConflict overwrite or rename.'
+        reason:
+          type: string
+          enum: ['destination exists; onConflict=fail', 'destination exists; onConflict=skip']
+          description: Present only when status is `skipped` (omitempty).
+
+    UploadCreateSessionResponse:
+      type: object
+      required: [sessionId, chunkSize, files]
+      additionalProperties: false
+      properties:
+        sessionId:
+          type: string
+          pattern: '^sess_[0-9a-f]{32}$'
+          description: >-
+            Informational only: generated and logged, but not stored and not accepted by
+            any other endpoint.
+        chunkSize:
+          type: integer
+          description: Configured xrd.upload.chunk_size (bytes); also the max accepted chunk.
+        files:
+          type: array
+          minItems: 1
+          description: >-
+            Exactly one entry per requested file, in request order. Never null (handler
+            guarantees non-empty input).
+          items: {$ref: '#/components/schemas/UploadFileSession'}
+
+    UploadChunkResult:
+      type: object
+      required: [bytesReceived]
+      additionalProperties: false
+      description: gin.H literal, not a named Go struct.
+      properties:
+        bytesReceived:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Total bytes committed for this file after this chunk.
+
+    UploadCompleteRequest:
+      type: object
+      required: [sha256]
+      properties:
+        sha256:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
+          description: >-
+            Hex SHA-256 of the whole file; case-insensitive (lower-cased before comparing).
+            Empty/missing/null -> binding 400; wrong length or non-hex -> 400
+            "sha256 must be 64 hex chars".
+
+    UploadCompleteResponse:
+      type: object
+      required: [uploadId, destPath, size, sha256, durationMs, bytesWritten]
+      additionalProperties: false
+      properties:
+        uploadId:
+          type: string
+          pattern: '^up_[0-9a-f]{32}$'
+        destPath:
+          type: string
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        sha256:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+          description: Server-computed digest, always lower-case hex.
+        durationMs:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            Duration of the finalize phase only (close + publish), not the whole upload.
+        bytesWritten:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Always equal to `size` (complete requires bytesReceived == size).
+
+    UploadAbortResult:
+      type: object
+      required: [uploadId, state]
+      additionalProperties: false
+      description: gin.H literal, not a named Go struct.
+      properties:
+        uploadId:
+          type: string
+          description: Echo of the path parameter.
+        state:
+          type: string
+          const: aborted
+
+    UploadStatusResponse:
+      type: object
+      required: [uploadId, size, bytesReceived, chunkSize, state]
+      additionalProperties: false
+      properties:
+        uploadId:
+          type: string
+          pattern: '^up_[0-9a-f]{32}$'
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        bytesReceived:
+          type: integer
+          format: int64
+          minimum: 0
+        chunkSize:
+          type: integer
+          description: chunk_size captured when the session was created.
+        state:
+          type: string
+          enum: [uploading, completed, failed, aborted]
+          description: >-
+            In practice almost always `uploading`: terminal sessions are deleted from the
+            store, so after completion/failure/abort/reap this endpoint returns 404. The
+            other values are observable only in the short window between the state change
+            and deletion (up to ~30 s for abort/fail teardown).
+        failureMessage:
+          type: string
+          description: >-
+            omitempty; non-empty only in the failed/aborted race window (e.g.
+            "aborted by client", "sha256 mismatch: ...", "session idle timeout (no chunk
+            activity)", "session expired (max lifetime reached)").
+
+    UploadTransferLimits:
+      type: object
+      required: [upload, download]
+      additionalProperties: false
+      properties:
+        upload: {$ref: '#/components/schemas/UploadLimits'}
+        download: {$ref: '#/components/schemas/UploadDownloadLimits'}
+
+    UploadLimits:
+      type: object
+      required: [enabled, maxFileSize, maxBatchSize, maxFilesPerBatch, maxConcurrentPerUser, chunkSize, allowOverwrite, checksumAlgo]
+      additionalProperties: false
+      description: >-
+        Values come straight from config. When enabled=true, config validation guarantees
+        maxFileSize, maxBatchSize, maxFilesPerBatch, chunkSize > 0 and checksumAlgo in
+        {"", "sha256"}; when enabled=false nothing is validated. session_ttl, idle_ttl and
+        temp_suffix are NOT exposed.
+      properties:
+        enabled: {type: boolean}
+        maxFileSize: {type: integer, format: int64, description: Bytes (default 53687091200 = 50 GiB).}
+        maxBatchSize: {type: integer, format: int64, description: Bytes (default 107374182400 = 100 GiB).}
+        maxFilesPerBatch: {type: integer, description: Default 100.}
+        maxConcurrentPerUser: {type: integer, description: 'Concurrent upload sessions per user (default 2); <= 0 disables the cap.'}
+        chunkSize: {type: integer, description: Bytes (default 8388608 = 8 MiB).}
+        allowOverwrite: {type: boolean}
+        checksumAlgo:
+          type: string
+          description: >-
+            Default "sha256". May be "" (accepted by config validation). The server always
+            uses SHA-256 regardless of this value.
+
+    UploadDownloadLimits:
+      type: object
+      required: [maxBatchFiles, maxBatchSizeMB, batchCompression]
+      additionalProperties: false
+      description: >-
+        Download limits bundled into the upload limits response. Does NOT include
+        xrd.download.max_concurrent_per_user.
+      properties:
+        maxBatchFiles: {type: integer, description: Default 100.}
+        maxBatchSizeMB: {type: integer, description: Megabytes (default 10240).}
+        batchCompression: {type: boolean}
