@@ -42,7 +42,7 @@ NC=\033[0m # No Color
 
 .PHONY: all build build-backend build-frontend \
         test test-verbose test-race test-coverage test-coverage-html test-integration test-benchmark \
-        api-lint api-probe \
+        api-lint api-probe log-redaction-probe \
         clean clean-all clean-backend clean-frontend \
         deps deps-backend deps-frontend deps-all \
         tidy tidy-backend \
@@ -94,6 +94,7 @@ help:
 	@echo "  $(YELLOW)API Contract:$(NC)"
 	@echo "    make api-lint            - Lint api/openapi.yaml (OpenAPI 3.1, Redocly)"
 	@echo "    make api-probe           - Validate a running backend against the spec (see api/README.md)"
+	@echo "    make log-redaction-probe - Check a running debug backend never logs credentials"
 	@echo ""
 	@echo "  $(YELLOW)Build:$(NC)"
 	@echo "    make build               - Build both backend and frontend"
@@ -282,6 +283,13 @@ api-lint:
 api-probe:
 	@cd $(APP_DIR) && $(GOCMD) build -o ../$(BIN_DIR)/api-probe ./cmd/api-probe
 	@cd $(APP_DIR) && ../$(BIN_DIR)/api-probe -spec ../api/openapi.yaml $(API_PROBE_FLAGS)
+
+## log-redaction-probe: Send sentinel credentials to a running backend and grep its log
+# Needs server.debug: true and debug-level logging. Reads LOG_PROBE_BASE_URL and
+# LOG_PROBE_LOG_FILE from the environment (see scripts/probe-log-redaction.sh).
+# Prints PASS, FAIL or INCONCLUSIVE; read-only.
+log-redaction-probe:
+	@./scripts/probe-log-redaction.sh
 
 # ============================================================================
 # Build

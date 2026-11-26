@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"math"
@@ -93,7 +92,7 @@ func DownloadFile(c *gin.Context) {
 	ctx := context.Background()
 	fs, cleanup, err := simpleClient.GetFileSystem(ctx, userToken)
 	if err != nil {
-		common.GetLogger().Error("Failed to get filesystem client", "error", err)
+		common.GetLogger().Errorw("Failed to get filesystem client", "error", err)
 
 		// Check if this is an authorization error
 		if common.IsAuthError(err) {
@@ -109,18 +108,18 @@ func DownloadFile(c *gin.Context) {
 	// Get file metadata first
 	fileInfo, err := fs.Stat(ctx, filePath)
 	if err != nil {
-		common.GetLogger().Error("Failed to get file info", "error", err, "path", filePath)
+		common.GetLogger().Errorw("Failed to get file info", "error", err, "path", filePath)
 		response.Error(c, http.StatusNotFound, "File not found or inaccessible")
 		return
 	}
 
 	// Log download attempt with unique ID for tracking
 	downloadID := fmt.Sprintf("dl_%d", time.Now().UnixNano())
-	common.GetLogger().Info("Starting file download",
+	common.GetLogger().Infow("Starting file download",
 		"downloadID", downloadID,
 		"path", filePath,
 		"size", fileInfo.Size(),
-		"user", maskToken(userToken))
+		"user", getUserKey(c))
 
 	// Track download start time for speed calculation
 	downloadStartTime := time.Now()
@@ -152,18 +151,18 @@ func DownloadFile(c *gin.Context) {
 	// regardless of success or failure.
 
 	if streamErr != nil {
-		common.GetLogger().Error("Failed to stream file", "downloadID", downloadID, "error", streamErr, "path", filePath)
+		common.GetLogger().Errorw("Failed to stream file", "downloadID", downloadID, "error", streamErr, "path", filePath)
 		// Cannot send error response here as headers are already sent
 		return
 	}
 
 	// Log successful completion
-	common.GetLogger().Info("Download completed successfully", "downloadID", downloadID, "path", filePath, "user", maskToken(userToken))
+	common.GetLogger().Infow("Download completed successfully", "downloadID", downloadID, "path", filePath, "user", getUserKey(c))
 }
 
 // streamFileSimple implements basic streaming without pooling or parallelism
 // This approach prioritizes reliability and debugging over performance optimization
-func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, userToken string, startTime time.Time, fileSize int64, downloadID string) error {
+func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, _ string, startTime time.Time, fileSize int64, downloadID string) error {
 	// Use request context with longer timeout for large file downloads
 	// Calculate timeout based on file size: minimum 5 minutes, plus 1 minute per GB
 	timeoutMinutes := max(
@@ -174,13 +173,13 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 	ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
 
-	common.GetLogger().Info("Opening file with simple approach", "downloadID", downloadID, "path", filePath)
+	common.GetLogger().Infow("Opening file with simple approach", "downloadID", downloadID, "path", filePath)
 
 	// Multiple open modes attempted because XRootD file permissions can vary by installation
 	// OpenModeOtherRead tried first as it matches go-hep library test examples
 	file, err := fs.Open(ctx, filePath, xrdfs.OpenModeOtherRead, xrdfs.OpenOptionsNone)
 	if err != nil {
-		common.GetLogger().Warn("Failed with OpenModeOtherRead, trying OpenModeOwnerRead", "error", err)
+		common.GetLogger().Warnw("Failed with OpenModeOtherRead, trying OpenModeOwnerRead", "error", err)
 		// Create a new context for the retry attempt
 		retryCtx, retryCancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 		defer retryCancel()
@@ -188,16 +187,16 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 		// Fallback needed because some XRootD setups require owner-level permissions
 		file, err = fs.Open(retryCtx, filePath, xrdfs.OpenModeOwnerRead, xrdfs.OpenOptionsNone)
 		if err != nil {
-			common.GetLogger().Error("Failed to open file with any mode", "error", err, "path", filePath)
+			common.GetLogger().Errorw("Failed to open file with any mode", "error", err, "path", filePath)
 			return fmt.Errorf("failed to open file: %w", err)
 		}
 	}
 
-	common.GetLogger().Info("File opened successfully", "downloadID", downloadID, "path", filePath)
+	common.GetLogger().Infow("File opened successfully", "downloadID", downloadID, "path", filePath)
 
 	defer func() {
 		if closeErr := file.Close(ctx); closeErr != nil {
-			common.GetLogger().Error("Failed to close file", "error", closeErr, "path", filePath)
+			common.GetLogger().Errorw("Failed to close file", "error", closeErr, "path", filePath)
 		}
 	}()
 
@@ -212,7 +211,7 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 	totalRead := int64(0)
 	lastFlushTime := time.Now()
 
-	common.GetLogger().Info("Starting file streaming",
+	common.GetLogger().Infow("Starting file streaming",
 		"downloadID", downloadID,
 		"path", filePath,
 		"bufferSize", bufferSize,
@@ -240,7 +239,7 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 	}
 
 	if err != nil && err != io.EOF {
-		common.GetLogger().Error("Initial read error", "error", err, "path", filePath)
+		common.GetLogger().Errorw("Initial read error", "error", err, "path", filePath)
 		return fmt.Errorf("failed to read initial chunk from file: %w", err)
 	}
 
@@ -282,7 +281,7 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 
 			// Log progress for large files
 			if totalRead >= nextProgressLog {
-				common.GetLogger().Info("Download progress",
+				common.GetLogger().Infow("Download progress",
 					"path", filePath,
 					"bytesTransferred", totalRead,
 					"MB", totalRead/(1024*1024))
@@ -295,19 +294,19 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 			if err == io.EOF {
 				// Check if we've read all expected data
 				if totalRead == fileSize {
-					common.GetLogger().Info("File streaming completed successfully", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
+					common.GetLogger().Infow("File streaming completed successfully", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
 				} else {
-					common.GetLogger().Info("File streaming completed (partial)", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
+					common.GetLogger().Infow("File streaming completed (partial)", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
 				}
 				break
 			}
-			common.GetLogger().Error("Read error", "error", err, "path", filePath, "offset", offset)
+			common.GetLogger().Errorw("Read error", "error", err, "path", filePath, "offset", offset)
 			return fmt.Errorf("failed to read from file: %w", err)
 		}
 
 		// XRootD may return n=0 without error when reaching EOF
 		if n == 0 {
-			common.GetLogger().Info("File streaming completed (EOF detected)", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
+			common.GetLogger().Infow("File streaming completed (EOF detected)", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
 			break
 		}
 
@@ -316,7 +315,7 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 		if totalRead < fileSize {
 			select {
 			case <-c.Request.Context().Done():
-				common.GetLogger().Warn("Client disconnected during download", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
+				common.GetLogger().Warnw("Client disconnected during download", "path", filePath, "totalRead", totalRead, "fileSize", fileSize)
 				return fmt.Errorf("client disconnected during download")
 			default:
 				// Continue streaming
@@ -341,10 +340,10 @@ func streamFileSimple(c *gin.Context, fs xrdfs.FileSystem, filePath string, user
 		completionStatus = "PARTIAL"
 	}
 
-	common.GetLogger().Info("File download finished",
+	common.GetLogger().Infow("File download finished",
 		"downloadID", downloadID,
 		"path", filePath,
-		"user", maskToken(userToken),
+		"user", getUserKey(c),
 		"status", completionStatus,
 		"totalBytes", totalRead,
 		"expectedBytes", fileSize,
@@ -384,7 +383,7 @@ func ListDirectory(c *gin.Context) {
 
 	entries, err := simpleClient.ListDirectory(ctx, query, authToken)
 	if err != nil {
-		common.GetLogger().Error("Failed to list directory", "error", err, "path", query)
+		common.GetLogger().Errorw("Failed to list directory", "error", err, "path", query)
 
 		// Check if this is an authorization error
 		if common.IsAuthError(err) {
@@ -519,7 +518,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 	entries, err := simpleClient.ListDirectory(ctx, dirPath, authToken)
 	queryTimeMs := time.Since(queryStart).Milliseconds()
 	if err != nil {
-		common.GetLogger().Error("Failed to list directory", "error", err, "path", dirPath)
+		common.GetLogger().Errorw("Failed to list directory", "error", err, "path", dirPath)
 
 		// Check if this is an authorization error
 		if common.IsAuthError(err) {
@@ -530,11 +529,11 @@ func FetchDirItemsByPage(c *gin.Context) {
 		response.FailWithErr(c, *response.SystemErr(err))
 		return
 	}
-	common.GetLogger().Debug("Successfully retrieved directory entries", "count", len(entries), "path", dirPath)
+	common.GetLogger().Debugw("Successfully retrieved directory entries", "count", len(entries), "path", dirPath)
 
 	// Handle empty directory case explicitly
 	if len(entries) == 0 {
-		common.GetLogger().Info("Directory is empty, returning empty response", "path", dirPath)
+		common.GetLogger().Infow("Directory is empty, returning empty response", "path", dirPath)
 		emptyResponse := gin.H{
 			"code":               200,
 			"items":              []any{}, // Empty array
@@ -551,12 +550,12 @@ func FetchDirItemsByPage(c *gin.Context) {
 	}
 
 	// Convert to internal format for pagination
-	common.GetLogger().Debug("Converting directory entries to internal format", "count", len(entries))
+	common.GetLogger().Debugw("Converting directory entries to internal format", "count", len(entries))
 	files := make([]xrdDirEntry, 0, len(entries))
 	for i, entry := range entries {
 		// Add detailed logging for problematic entries
 		if i < 5 || i >= len(entries)-5 { // Log first and last 5 entries
-			common.GetLogger().Debug("Processing entry",
+			common.GetLogger().Debugw("Processing entry",
 				"index", i,
 				"name", entry.Name(),
 				"size", entry.Size(),
@@ -569,7 +568,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 
 		// CRITICAL: Check for file names that can break XRootD protocol parsing
 		if strings.Contains(entryName, "\n") {
-			common.GetLogger().Error("Found file with newline in name - this breaks XRootD protocol parsing",
+			common.GetLogger().Errorw("Found file with newline in name - this breaks XRootD protocol parsing",
 				"index", i,
 				"filename", entryName,
 				"path", dirPath,
@@ -579,33 +578,33 @@ func FetchDirItemsByPage(c *gin.Context) {
 		}
 
 		if strings.Contains(entryName, "\r") {
-			common.GetLogger().Warn("Found file with carriage return in name - potential parsing issue",
+			common.GetLogger().Warnw("Found file with carriage return in name - potential parsing issue",
 				"index", i,
 				"filename", entryName,
 				"path", dirPath)
 		}
 
 		if !utf8.ValidString(entryName) {
-			common.GetLogger().Warn("Invalid UTF-8 sequence in entry name", "index", i, "name", entryName)
+			common.GetLogger().Warnw("Invalid UTF-8 sequence in entry name", "index", i, "name", entryName)
 			entryName = strings.ToValidUTF8(entryName, "")
 		}
 
 		if len(entryName) == 0 {
-			common.GetLogger().Warn("Found entry with empty name", "index", i)
+			common.GetLogger().Warnw("Found entry with empty name", "index", i)
 			continue // Skip entries with empty names
 		}
 
 		// Validate size value
 		entrySize := entry.Size()
 		if entrySize < 0 {
-			common.GetLogger().Warn("Found entry with negative size", "name", entryName, "size", entrySize)
+			common.GetLogger().Warnw("Found entry with negative size", "name", entryName, "size", entrySize)
 			entrySize = 0 // Normalize negative sizes
 		}
 
 		// Validate modification time
 		modTime := entry.ModTime()
 		if modTime.IsZero() {
-			common.GetLogger().Warn("Found entry with zero modification time", "name", entryName)
+			common.GetLogger().Warnw("Found entry with zero modification time", "name", entryName)
 			modTime = time.Now() // Use current time as fallback
 		}
 
@@ -616,9 +615,9 @@ func FetchDirItemsByPage(c *gin.Context) {
 			isDir: entry.IsDir(),
 		})
 	}
-	common.GetLogger().Debug("Completed conversion to internal format", "finalCount", len(files))
+	common.GetLogger().Debugw("Completed conversion to internal format", "finalCount", len(files))
 
-	common.GetLogger().Debug("Fetched items from directory", "count", len(files), "path", dirPath)
+	common.GetLogger().Debugw("Fetched items from directory", "count", len(files), "path", dirPath)
 
 	// Enforce minimum page size to prevent performance issues
 	pageSize := max(req.PageSize, minPageSize)
@@ -630,7 +629,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 	totalItems := uint32(len(files))                     //#nosec G115 -- overflow guarded by the check above
 	totalPages := (totalItems + pageSize - 1) / pageSize // Ceiling division ensures partial pages are counted
 
-	common.GetLogger().Debug("Pagination info", "page", req.Page, "pageSize", pageSize, "totalItems", totalItems, "totalPages", totalPages)
+	common.GetLogger().Debugw("Pagination info", "page", req.Page, "pageSize", pageSize, "totalItems", totalItems, "totalPages", totalPages)
 
 	if req.Page > uint32(totalPages) {
 		response.FailWithErr(c, *response.SystemErr(fmt.Errorf("page number out of range")))
@@ -645,7 +644,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 	var totalFileCount, totalFolderCount, cumulativeFileSize uint64
 
 	// Calculate totals for ALL items first (efficient single pass)
-	common.GetLogger().Debug("Calculating statistics for all items", "totalItems", len(files))
+	common.GetLogger().Debugw("Calculating statistics for all items", "totalItems", len(files))
 	for _, d := range files {
 		if d.isDir {
 			totalFolderCount++
@@ -654,13 +653,13 @@ func FetchDirItemsByPage(c *gin.Context) {
 			cumulativeFileSize += d.size
 		}
 	}
-	common.GetLogger().Debug("Statistics calculated",
+	common.GetLogger().Debugw("Statistics calculated",
 		"totalFileCount", totalFileCount,
 		"totalFolderCount", totalFolderCount,
 		"cumulativeFileSize", cumulativeFileSize)
 
 	// Process only visible items for the current page
-	common.GetLogger().Debug("Processing visible items for page",
+	common.GetLogger().Debugw("Processing visible items for page",
 		"startIndex", startIndex,
 		"endIndex", endIndex,
 		"itemsToProcess", endIndex-startIndex)
@@ -690,17 +689,17 @@ func FetchDirItemsByPage(c *gin.Context) {
 
 		// Log first few items for debugging
 		if i < 3 {
-			common.GetLogger().Debug("Processed page item",
+			common.GetLogger().Debugw("Processed page item",
 				"index", i,
 				"name", item.Name,
 				"type", item.Type,
 				"size", item.Size)
 		}
 	}
-	common.GetLogger().Debug("Completed processing visible items", "processedCount", len(items))
+	common.GetLogger().Debugw("Completed processing visible items", "processedCount", len(items))
 
 	// Return paginated response
-	common.GetLogger().Debug("Preparing JSON response",
+	common.GetLogger().Debugw("Preparing JSON response",
 		"totalItems", totalItems,
 		"pageSize", pageSize,
 		"totalPages", totalPages,
@@ -718,7 +717,7 @@ func FetchDirItemsByPage(c *gin.Context) {
 		"queryTimeMs":        queryTimeMs,
 	}
 
-	common.GetLogger().Debug("Sending JSON response", "responseKeys", len(response))
+	common.GetLogger().Debugw("Sending JSON response", "responseKeys", len(response))
 	c.JSON(http.StatusOK, response)
 }
 
@@ -735,7 +734,7 @@ func GetInitialDirectory(c *gin.Context) {
 	if claims != nil {
 		// User-specific directories could enhance security and user experience
 		if sub, ok := claims["sub"].(string); ok {
-			common.GetLogger().Info("User accessing initial directory", "subject", sub)
+			common.GetLogger().Infow("User accessing initial directory", "subject", sub)
 			// Future enhancement: custom per-user directories
 			// initialDir = "/users/" + username
 		}
@@ -783,7 +782,7 @@ func FetchVirtualFSStat(c *gin.Context) {
 
 	stat, err := simpleClient.VirtualStat(ctx, path, authToken)
 	if err != nil {
-		common.GetLogger().Error("Failed to get virtual filesystem stats", "error", err, "path", path)
+		common.GetLogger().Errorw("Failed to get virtual filesystem stats", "error", err, "path", path)
 
 		if common.IsAuthError(err) {
 			response.Error(c, http.StatusForbidden, "You are not authorized to access filesystem statistics.")
@@ -829,7 +828,7 @@ func PingXRD(c *gin.Context) {
 	connStart := time.Now()
 	fs, cleanup, err := simpleClient.GetFileSystem(ctx, authToken)
 	if err != nil {
-		common.GetLogger().Error("Ping failed: could not connect to XRD", "error", err)
+		common.GetLogger().Errorw("Ping failed: could not connect to XRD", "error", err)
 		if common.IsAuthError(err) {
 			response.Error(c, http.StatusForbidden, "Not authorized to access storage")
 			return
@@ -845,7 +844,7 @@ func PingXRD(c *gin.Context) {
 	latencyMs := float64(time.Since(statStart).Microseconds()) / 1000.0
 
 	if err != nil {
-		common.GetLogger().Warn("Ping stat failed", "error", err, "latencyMs", latencyMs, "path", probePath)
+		common.GetLogger().Warnw("Ping stat failed", "error", err, "latencyMs", latencyMs, "path", probePath)
 		response.Error(c, http.StatusServiceUnavailable, "XRD server not responding")
 		return
 	}
@@ -891,24 +890,15 @@ func getUserKey(c *gin.Context) string {
 		}
 	}
 
-	// Fallback to using token hash if no sub claim available
-	if userToken, ok := middleware.GetUserToken(c); ok {
-		hash := sha256.Sum256([]byte(userToken))
-		return fmt.Sprintf("user_%x", hash[:8])
+	// Fallback when no sub claim is available: a keyed fingerprint of the
+	// token. The key is logged, so it must not be an unkeyed hash of the
+	// bearer token. Fingerprint is stable only within this process, which is
+	// enough: download slots and upload sessions are in-memory only.
+	if userToken, ok := middleware.GetUserToken(c); ok && userToken != "" {
+		return "user_" + common.Fingerprint(userToken)
 	}
 
 	return "anonymous"
-}
-
-// maskToken protects sensitive data in logs while maintaining debugging capability
-func maskToken(token string) string {
-	if token == "" {
-		return "anonymous"
-	}
-	if len(token) <= 8 {
-		return "***"
-	}
-	return token[:4] + "..." + token[len(token)-4:]
 }
 
 // sanitizeFilename removes or replaces dangerous characters in filenames
@@ -1051,7 +1041,7 @@ func DownloadMultipleFiles(c *gin.Context) {
 	simpleClient := common.GetXRDClient()
 	fs, cleanup, err := simpleClient.GetFileSystem(ctx, userToken)
 	if err != nil {
-		common.GetLogger().Error("Batch download: failed to get filesystem", "error", err)
+		common.GetLogger().Errorw("Batch download: failed to get filesystem", "error", err)
 		if common.IsAuthError(err) {
 			response.Error(c, http.StatusForbidden, "You are not authorized to access the storage system. Please check your credentials.")
 			return
@@ -1074,7 +1064,7 @@ func DownloadMultipleFiles(c *gin.Context) {
 	for i, fp := range fullPaths {
 		info, statErr := fs.Stat(ctx, fp)
 		if statErr != nil {
-			common.GetLogger().Error("Batch download: failed to stat file", "path", fp, "error", statErr)
+			common.GetLogger().Errorw("Batch download: failed to stat file", "path", fp, "error", statErr)
 			response.Error(c, http.StatusNotFound, fmt.Sprintf("File not found or inaccessible: %s", req.Files[i]))
 			return
 		}
@@ -1119,12 +1109,12 @@ func DownloadMultipleFiles(c *gin.Context) {
 		contentType = "application/x-tar"
 	}
 
-	common.GetLogger().Info("Starting batch download",
+	common.GetLogger().Infow("Starting batch download",
 		"downloadID", downloadID,
 		"fileCount", len(files),
 		"totalRawSize", totalRawSize,
 		"compression", useCompression,
-		"user", maskToken(userToken))
+		"user", getUserKey(c))
 
 	// Set response headers
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", archiveFilename))
@@ -1168,7 +1158,7 @@ func DownloadMultipleFiles(c *gin.Context) {
 		// Check for client disconnect between files
 		select {
 		case <-c.Request.Context().Done():
-			common.GetLogger().Warn("Batch download: client disconnected",
+			common.GetLogger().Warnw("Batch download: client disconnected",
 				"downloadID", downloadID,
 				"filesCompleted", len(files)-len(failedFiles),
 				"totalWritten", totalWritten)
@@ -1179,7 +1169,7 @@ func DownloadMultipleFiles(c *gin.Context) {
 		written, streamErr := streamFileToTar(c, fs, tarWriter, fi.path, fi.name, fi.size, fi.modTime, bufferSize, flushInterval, downloadID)
 		totalWritten += written
 		if streamErr != nil {
-			common.GetLogger().Error("Batch download: failed to stream file",
+			common.GetLogger().Errorw("Batch download: failed to stream file",
 				"downloadID", downloadID,
 				"file", fi.name,
 				"error", streamErr)
@@ -1207,13 +1197,13 @@ func DownloadMultipleFiles(c *gin.Context) {
 
 	// Close tar writer (writes end-of-archive marker) before gzip
 	if err := tarWriter.Close(); err != nil {
-		common.GetLogger().Warn("Batch download: failed to close tar writer",
+		common.GetLogger().Warnw("Batch download: failed to close tar writer",
 			"downloadID", downloadID,
 			"error", err)
 	}
 	if gzWriter != nil {
 		if err := gzWriter.Close(); err != nil {
-			common.GetLogger().Warn("Batch download: failed to close gzip writer",
+			common.GetLogger().Warnw("Batch download: failed to close gzip writer",
 				"downloadID", downloadID,
 				"error", err)
 		}
@@ -1228,7 +1218,7 @@ func DownloadMultipleFiles(c *gin.Context) {
 	duration := time.Since(startTime)
 	speedMBps := float64(totalWritten) / duration.Seconds() / (1024 * 1024)
 
-	common.GetLogger().Info("Batch download finished",
+	common.GetLogger().Infow("Batch download finished",
 		"downloadID", downloadID,
 		"fileCount", len(files),
 		"failedFiles", len(failedFiles),
@@ -1236,7 +1226,7 @@ func DownloadMultipleFiles(c *gin.Context) {
 		"duration", duration.String(),
 		"speedMBps", fmt.Sprintf("%.2f", speedMBps),
 		"compression", useCompression,
-		"user", maskToken(userToken))
+		"user", getUserKey(c))
 }
 
 // streamFileToTarTimeout returns a file-size-based context timeout for streaming a single

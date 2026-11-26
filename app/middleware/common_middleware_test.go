@@ -1,12 +1,18 @@
 package middleware
 
 import (
+	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/AnarManafov/dataharbor/app/common"
 	"github.com/AnarManafov/dataharbor/app/config"
@@ -135,4 +141,46 @@ func TestTraceRequest_UniqueTraceIds(t *testing.T) {
 		assert.False(t, tidMap[tid], "Trace IDs should be unique")
 		tidMap[tid] = true
 	}
+}
+
+func TestRecovery_DoesNotLeakCredentials(t *testing.T) {
+	const sentinel = "SENTINEL-SECRET-9f3a"
+
+	prevMode := gin.Mode()
+	gin.SetMode(gin.DebugMode)
+	defer gin.SetMode(prevMode)
+
+	prevWriter := gin.DefaultErrorWriter
+	errBuf := &bytes.Buffer{}
+	gin.DefaultErrorWriter = errBuf
+	defer func() { gin.DefaultErrorWriter = prevWriter }()
+
+	prevLogger := common.Logger
+	core, logs := observer.New(zapcore.DebugLevel)
+	common.Logger = zap.New(core).Sugar()
+	defer func() { common.Logger = prevLogger }()
+
+	router := gin.New()
+	router.Use(Recovery())
+	router.GET("/panic", func(c *gin.Context) {
+		panic("boom")
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/panic?access_token="+sentinel, nil)
+	req.Header.Set("Cookie", "sid="+sentinel)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.NotContains(t, errBuf.String(), sentinel)
+
+	var zapOut strings.Builder
+	for _, e := range logs.All() {
+		zapOut.WriteString(e.Message)
+		for _, f := range e.Context {
+			fmt.Fprint(&zapOut, f.String, f.Interface)
+		}
+	}
+	assert.NotContains(t, zapOut.String(), sentinel)
+	assert.Contains(t, zapOut.String(), "Panic recovered")
 }

@@ -68,7 +68,7 @@ func initialize() {
 		if cfg.Auth.OIDC.ClientSecret != "" {
 			clientSecretStatus = "set"
 		}
-		common.Logger.Info("OIDC ClientSecret:", clientSecretStatus)
+		common.Logger.Info("OIDC client secret is ", clientSecretStatus)
 	}
 
 	// 6. Log full configuration if debug is enabled

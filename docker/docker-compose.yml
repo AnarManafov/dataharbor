@@ -56,6 +56,9 @@ services:
       # Logging - stdout only (Docker handles rotation)
       DATAHARBOR_LOGGING_LEVEL: debug
       DATAHARBOR_LOGGING_CONSOLE_ENABLED: "true"
+      # The console core has its own level (info in application.yaml); without
+      # this the debug lines never reach `docker logs`.
+      DATAHARBOR_LOGGING_CONSOLE_LEVEL: debug
       DATAHARBOR_LOGGING_CONSOLE_FORMAT: text
       DATAHARBOR_LOGGING_FORMAT: text
       DATAHARBOR_LOGGING_FILE_ENABLED: "false"

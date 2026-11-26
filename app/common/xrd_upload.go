@@ -138,7 +138,7 @@ func (xc *XRDClient) StatPath(ctx context.Context, authToken, path string) (xrdf
 	}
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
-			xc.logger.Warn("Error closing client", "error", closeErr)
+			xc.logger.Warnw("Error closing client", "error", closeErr)
 		}
 	}()
 
@@ -166,7 +166,7 @@ func (xc *XRDClient) RenameFile(ctx context.Context, authToken, oldpath, newpath
 	}
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
-			xc.logger.Warn("Error closing client", "error", closeErr)
+			xc.logger.Warnw("Error closing client", "error", closeErr)
 		}
 	}()
 
@@ -188,7 +188,7 @@ func (xc *XRDClient) RemoveFile(ctx context.Context, authToken, path string) err
 	}
 	defer func() {
 		if closeErr := client.Close(); closeErr != nil {
-			xc.logger.Warn("Error closing client", "error", closeErr)
+			xc.logger.Warnw("Error closing client", "error", closeErr)
 		}
 	}()
 
