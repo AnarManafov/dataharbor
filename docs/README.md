@@ -44,6 +44,7 @@ Core architectural concepts and security implementation.
 | ------------------------------------------------ | --------------------------------------------------------- |
 | **[System Architecture](./ARCHITECTURE.md)**     | Component architecture, BFF pattern, and design decisions |
 | **[Authentication System](./AUTHENTICATION.md)** | OIDC integration, security model, and session management  |
+| **[CLI (planned)](./cli/README.md)**             | Design and plan for the command-line client               |
 
 ## Component Development
 

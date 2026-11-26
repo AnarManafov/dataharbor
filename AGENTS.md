@@ -163,6 +163,36 @@ Upload writes require SciToken scopes presented to XRootD server. See `docs/UPLO
 
 ---
 
+## Git Conventions
+
+**Commit messages** follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```text
+type(scope): description
+
+[optional body]
+
+[optional footer]
+```
+
+- Types in use: `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, `chore`.
+- Scope is the area touched, for example `auth`, `upload`, `config`, `docker`, `cli`.
+- Description is imperative, lower case, with no trailing period.
+- Reference the issue in the footer as `Refs: GH-<number>`, for example `Refs: GH-85`.
+- **One commit per ticket.** Squash work in progress before it reaches `master`. Use
+  several commits for one ticket only when they change genuinely different domains.
+
+**Branches and merging**
+
+- Never commit to `master` directly. Work on a branch named `type/issue-short-slug`,
+  for example `feat/85-openapi-spec`.
+- Implement each ticket in its own git worktree, so parallel work does not share a
+  working directory.
+- No pull requests and no merge commits. Rebase the branch onto `master`, then
+  fast-forward `master` to it. History stays linear.
+
+---
+
 ## Key Quirks & Gotchas
 
 1. **XROOTD fork**: `app/go.mod` uses `replace go-hep.org/x/hep => github.com/AnarManafov/hep`. This is a custom fork with TLS/ZTN support. Import path in code is still `go-hep.org/x/hep` — don't change it. Any XHD protocol changes require updating the fork.
