@@ -7,10 +7,12 @@ require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/sessions v1.4.0
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	go-hep.org/x/hep v0.40.0
 	go.uber.org/zap v1.28.0
+	golang.org/x/text v0.44.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -60,7 +62,6 @@ require (
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/net v0.63.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
-	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
 

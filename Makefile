@@ -31,6 +31,9 @@ GOLANGCI_LINT=golangci-lint
 GOSEC=gosec
 GOVULNCHECK=govulncheck
 
+# API contract tooling
+REDOCLY_VERSION ?= 2.83.0
+
 # Colors for output
 GREEN=\033[0;32m
 YELLOW=\033[0;33m
@@ -39,6 +42,7 @@ NC=\033[0m # No Color
 
 .PHONY: all build build-backend build-frontend \
         test test-verbose test-race test-coverage test-coverage-html test-integration test-benchmark \
+        api-lint api-probe \
         clean clean-all clean-backend clean-frontend \
         deps deps-backend deps-frontend deps-all \
         tidy tidy-backend \
@@ -86,6 +90,10 @@ help:
 	@echo "    make test-coverage-html  - Generate HTML coverage report"
 	@echo "    make test-integration    - Run integration tests"
 	@echo "    make test-benchmark      - Run benchmark tests"
+	@echo ""
+	@echo "  $(YELLOW)API Contract:$(NC)"
+	@echo "    make api-lint            - Lint api/openapi.yaml (OpenAPI 3.1, Redocly)"
+	@echo "    make api-probe           - Validate a running backend against the spec (see api/README.md)"
 	@echo ""
 	@echo "  $(YELLOW)Build:$(NC)"
 	@echo "    make build               - Build both backend and frontend"
@@ -254,6 +262,26 @@ test-integration:
 test-benchmark:
 	@echo "$(GREEN)Running benchmark tests...$(NC)"
 	@cd $(APP_DIR)/test && $(GOTEST) -bench=. -benchmem -benchtime=200ms -timeout=2m
+
+# ============================================================================
+# API contract
+# ============================================================================
+
+## api-lint: Lint api/openapi.yaml (OpenAPI 3.1)
+api-lint:
+	@echo "$(GREEN)Linting api/openapi.yaml...$(NC)"
+	@npx --yes @redocly/cli@$(REDOCLY_VERSION) lint --config api/redocly.yaml api/openapi.yaml
+
+## api-probe: Validate a running backend against api/openapi.yaml (see api/README.md)
+# The probe reads API_PROBE_BASE_URL, API_PROBE_COOKIE and API_PROBE_INSECURE from
+# the inherited environment. This recipe must never reference $(API_PROBE_COOKIE)
+# or echo it: make would expand and print the session cookie. API_PROBE_FLAGS is
+# optional, e.g. API_PROBE_FLAGS="-upload -scratch-dir /some/remote/dir".
+# The target fails (non-zero) when any check fails. make reports its own exit
+# status; run bin/api-probe directly to tell a mismatch (1) from a usage error (2).
+api-probe:
+	@cd $(APP_DIR) && $(GOCMD) build -o ../$(BIN_DIR)/api-probe ./cmd/api-probe
+	@cd $(APP_DIR) && ../$(BIN_DIR)/api-probe -spec ../api/openapi.yaml $(API_PROBE_FLAGS)
 
 # ============================================================================
 # Build

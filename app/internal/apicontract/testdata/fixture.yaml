@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: apicontract fixture
+  version: 0.0.0
+servers:
+  - url: /
+paths:
+  x-paths-extension: ignored
+  /health:
+    get:
+      operationId: health
+      responses:
+        x-responses-extension: {ignored: true}
+        200:   # deliberately unquoted: yaml.v3 decodes it as an int key
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StringEnvelope'
+  /items/{itemId}/status:
+    get:
+      operationId: itemStatus
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: inline schema under a templated path
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, tags]
+                properties:
+                  id: {type: string}
+                  tags:
+                    type: [array, 'null']        # 3.1 type array (3.0 used nullable)
+                    items: {type: string}
+                  code:
+                    const: 200                    # 3.1 const, integer
+                  point:
+                    type: array
+                    prefixItems:                  # 2020-12 prefixItems
+                      - {type: number}
+                      - {type: string}
+                    items: false
+                  label:
+                    $ref: '#/components/schemas/Label'
+                    maxLength: 5                  # $ref with a sibling keyword (ignored in 3.0)
+        '404':
+          $ref: '#/components/responses/NotFound'
+        4XX:
+          $ref: '#/components/responses/Error'
+  /items/limits:
+    get:
+      operationId: itemLimits
+      responses:
+        '200':
+          description: literal sibling of /items/{itemId}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StringEnvelope'}
+  /items/{itemId}:
+    get:
+      operationId: getItem
+      responses:
+        '200':
+          description: item
+          content:
+            application/json:
+              schema: {type: object, required: [item], properties: {item: {type: string}}}
+    delete:
+      operationId: deleteItem
+      responses:
+        '204':
+          description: no content
+  /download:
+    get:
+      operationId: download
+      responses:
+        '200':
+          description: binary
+          content:
+            application/octet-stream: {}
+        default:
+          $ref: '#/components/responses/Error'
+  /archive:
+    post:
+      operationId: archive
+      responses:
+        '200':
+          description: either archive flavour
+          content:
+            application/gzip: {}
+            application/x-tar: {}
+  /any:
+    get:
+      operationId: anyText
+      responses:
+        '200':
+          description: wildcard media types
+          content:
+            text/*: {}
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/StringEnvelope'}
+components:
+  schemas:
+    StringEnvelope:
+      type: object
+      required: [code, data]
+      properties:
+        code: {type: integer, enum: [200]}
+        data: {type: string}
+        message: {type: string}
+    Label:
+      type: string
+      pattern: '^[a-z]+$'
+    Error:
+      type: object
+      required: [code, error]
+      additionalProperties: false
+      properties:
+        code: {type: integer}
+        error: {type: string}
+  responses:
+    NotFound:
+      description: not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Error:
+      description: error
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}

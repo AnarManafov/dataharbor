@@ -8,6 +8,7 @@ on:
     paths:
       - "app/**" # Only run when backend code changes
       - "packaging/**" # Run when packaging changes affect backend
+      - "api/**" # Run when the OpenAPI specification changes (spec-only changes still need lint and the route test)
     tags-ignore:
       - "**" # Skip all tags - tags trigger other workflows (publish-release, docker-publish)
 
@@ -17,6 +18,7 @@ concurrency:
   cancel-in-progress: true # Cancel in-progress runs on new pushes
 
 env:
+  NODE_VERSION: "26" # Matches the devcontainer / docker Node.js major
   GO_VERSION_FILE: "./app/go.mod"
   GO_SUM_FILE: "./app/go.sum"
 
@@ -98,6 +100,7 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Also runs the routes-vs-specification test (app/route/openapi_test.go).
       - name: Test and Coverage
         id: test_coverage
         run: |
@@ -168,6 +171,23 @@ jobs:
           working-directory: "./app/"
           args: --timeout=5m # Add timeout to avoid linting getting stuck
 
+  # Job to lint the OpenAPI specification (runs at the repo root, not in ./app)
+  api-spec:
+    name: OpenAPI specification lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # Prevent hung workflows
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Lint OpenAPI specification
+        run: make api-lint
+
   # Job to run integration tests and benchmarks
   integration-tests:
     runs-on: ubuntu-latest
@@ -222,7 +242,7 @@ jobs:
   # Re-enable by removing 'if: false' when RPM-based deployments are needed.
   build-rpm:
     if: false
-    needs: [build, test-and-coverage, lint, integration-tests] # Only build RPM if other jobs succeed
+    needs: [build, test-and-coverage, lint, api-spec, integration-tests] # Only build RPM if other jobs succeed
     strategy:
       matrix:
         goarch: [amd64, arm64]

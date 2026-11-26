@@ -1,0 +1,321 @@
+openapi: 3.1.0
+info:
+  title: api-probe test fixture (shaped like the DataHarbor API)
+  version: 0.0.0
+servers:
+  - url: /
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200': {$ref: '#/components/responses/StringOK'}
+  /api/health:
+    get:
+      operationId: apiHealth
+      responses:
+        '200': {$ref: '#/components/responses/StringOK'}
+  /api/auth/login:
+    get:
+      operationId: login
+      responses:
+        '200':
+          description: authorization URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [auth_url]
+                properties:
+                  auth_url: {type: string}
+                  message: {type: string}
+  /api/auth/callback:
+    get:
+      operationId: callback
+      responses:
+        '307': {description: redirect}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/auth/logout:
+    post:
+      operationId: logout
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {type: object}
+  /api/auth/user:
+    get:
+      operationId: currentUser
+      responses:
+        '200':
+          description: user claims
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sub]
+                properties:
+                  sub: {type: string}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/initialDir:
+    get:
+      operationId: initialDir
+      responses:
+        '200': {$ref: '#/components/responses/StringOK'}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/hostname:
+    get:
+      operationId: hostname
+      responses:
+        '200': {$ref: '#/components/responses/StringOK'}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/ping:
+    get:
+      operationId: ping
+      responses:
+        '200':
+          description: ping
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, data]
+                properties:
+                  code: {const: 200}
+                  data:
+                    type: object
+                    required: [latencyMs, status]
+                    properties:
+                      latencyMs: {type: number}
+                      status: {type: string}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/vstat:
+    get:
+      operationId: vstat
+      responses:
+        '200':
+          description: stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [freeSpaceMB]
+                    properties:
+                      freeSpaceMB: {type: integer}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/ls:
+    get:
+      operationId: listDirectory
+      responses:
+        '200':
+          description: listing
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [directory, entries]
+                properties:
+                  directory: {type: string}
+                  entries:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, isDir, size, mtime]
+                      properties:
+                        name: {type: string}
+                        isDir: {type: boolean}
+                        size: {type: integer}
+                        mtime: {type: integer}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/ls/paged:
+    post:
+      operationId: listDirectoryPaged
+      responses:
+        '200':
+          description: page
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, totalItems]
+                properties:
+                  items:
+                    type: [array, 'null']
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        type: {enum: [file, dir]}
+                  totalItems: {type: integer}
+        '401': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/download:
+    get:
+      operationId: download
+      responses:
+        '200':
+          description: file bytes
+          content:
+            application/octet-stream: {}
+        '404': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/download/batch:
+    post:
+      operationId: downloadBatch
+      responses:
+        '200':
+          description: archive
+          content:
+            application/gzip: {}
+            application/x-tar: {}
+        '400': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/upload/limits:
+    get:
+      operationId: transferLimits
+      responses:
+        '200':
+          description: limits
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [upload, download]
+                    properties:
+                      upload:
+                        type: object
+                        required: [enabled, chunkSize]
+                        properties:
+                          enabled: {type: boolean}
+                          chunkSize: {type: integer}
+                      download: {type: object}
+  /api/v1/xrd/upload/session:
+    post:
+      operationId: createUploadSession
+      responses:
+        '200':
+          description: session
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [sessionId, chunkSize, files]
+                    properties:
+                      sessionId: {type: string}
+                      chunkSize: {type: integer}
+                      files:
+                        type: array
+                        items:
+                          type: object
+                          required: [relPath, status]
+                          properties:
+                            relPath: {type: string}
+                            uploadId: {type: string}
+                            status: {enum: [accepted, skipped]}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/upload/{uploadId}/chunk:
+    put:
+      operationId: uploadChunk
+      responses:
+        '200':
+          description: chunk stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [bytesReceived]
+                    properties:
+                      bytesReceived: {type: integer}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/upload/{uploadId}/complete:
+    post:
+      operationId: completeUpload
+      responses:
+        '200':
+          description: published
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [sha256, destPath]
+                    properties:
+                      sha256: {type: string, pattern: '^[0-9a-f]{64}$'}
+                      destPath: {type: string}
+        '400': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/upload/{uploadId}:
+    delete:
+      operationId: abortUpload
+      responses:
+        '200':
+          description: aborted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      state: {const: aborted}
+        '404': {$ref: '#/components/responses/Error'}
+  /api/v1/xrd/upload/{uploadId}/status:
+    get:
+      operationId: uploadStatus
+      responses:
+        '200':
+          description: status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    required: [bytesReceived, state]
+                    properties:
+                      bytesReceived: {type: integer}
+                      state: {type: string}
+        '404': {$ref: '#/components/responses/Error'}
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code, error]
+      properties:
+        code: {type: integer}
+        error: {type: string}
+  responses:
+    StringOK:
+      description: success envelope with a string payload
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, data, message]
+            properties:
+              code: {const: 200}
+              data: {type: string}
+              message: {type: string}
+    Error:
+      description: error envelope
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}

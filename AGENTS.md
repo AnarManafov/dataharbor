@@ -38,6 +38,8 @@ make test-integration  # Tests in app/test/ only
 make test-benchmark    # Benchmarks in app/test/
 
 make lint vet fmt      # Code quality (golangci-lint, go vet, go fmt)
+make api-lint          # Lint api/openapi.yaml (OpenAPI 3.1)
+make api-probe         # Validate a running backend against the spec; see api/README.md
 make clean-all         # Remove node_modules, build artifacts, coverage files
 ```
 
@@ -154,6 +156,7 @@ Upload writes require SciToken scopes presented to XRootD server. See `docs/UPLO
 2. Register in `route/routes.go` under appropriate group (`auth` = public, `v1` = protected)
 3. Use `response.Success()` / `response.Error()` for all responses
 4. Add co-located `*_test.go` tests — mandatory, not optional
+5. Describe the endpoint in `api/openapi.yaml` (the route test fails otherwise)
 
 ### Adding Middleware
 

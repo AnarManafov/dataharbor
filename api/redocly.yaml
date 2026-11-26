@@ -1,0 +1,13 @@
+# Lint configuration for api/openapi.yaml (run with `make api-lint`).
+extends:
+  - recommended
+
+rules:
+  # The specification describes the API as it is. Some operations have no 4xx
+  # response (health, login, logout) and the OIDC callback answers 307 on
+  # success, so these two style rules do not apply.
+  operation-4xx-response: off
+  operation-2xx-response: off
+  # components.responses.ApiNotFound documents the 404 returned for any unknown
+  # /api path. It belongs to no single operation, so nothing references it.
+  no-unused-components: off
