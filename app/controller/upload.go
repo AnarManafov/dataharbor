@@ -241,10 +241,15 @@ type uploadSessionStore struct {
 }
 
 var (
-	uploadStore       = &uploadSessionStore{sessions: make(map[string]*uploadSession)}
-	uploadSlotsOnce   sync.Once
-	uploadSlots       *common.SlotManager
-	uploadJanitorOnce sync.Once
+	uploadStore      = &uploadSessionStore{sessions: make(map[string]*uploadSession)}
+	uploadSlotsOnce  sync.Once
+	uploadSlots      *common.SlotManager
+	uploadJanitorMu  sync.Mutex
+	uploadJanitorRun *uploadJanitor // nil while no janitor is running
+
+	// uploadJanitorInterval is how often the janitor reaps. Variable so tests
+	// can shorten it.
+	uploadJanitorInterval = 1 * time.Minute
 
 	// teardownCloseTimeout bounds the handle close during session teardown. A
 	// dead connection wedges the close; after this long it is abandoned so the
@@ -263,24 +268,69 @@ func getUploadSlots() *common.SlotManager {
 	return uploadSlots
 }
 
-// startUploadJanitor spins up (once) a goroutine that reaps expired sessions.
-// Called from route setup.
+// uploadJanitor is the handle of the running reaper goroutine: closing stop
+// asks it to exit, done is closed once it has.
+type uploadJanitor struct {
+	stop chan struct{}
+	done chan struct{}
+}
+
+// startUploadJanitor spins up a goroutine that reaps expired sessions, unless
+// one is already running. Called from route setup. It can be started again
+// after StopUploadJanitor.
 func startUploadJanitor() {
-	uploadJanitorOnce.Do(func() {
-		go func() {
-			cfg := config.GetConfig()
-			idleTTL := parseDurationOrDefault(cfg.XRD.Upload.IdleTTL, 10*time.Minute)
-			ticker := time.NewTicker(1 * time.Minute)
-			defer ticker.Stop()
-			for range ticker.C {
+	uploadJanitorMu.Lock()
+	defer uploadJanitorMu.Unlock()
+	if uploadJanitorRun != nil {
+		return
+	}
+	j := &uploadJanitor{stop: make(chan struct{}), done: make(chan struct{})}
+	uploadJanitorRun = j
+
+	cfg := config.GetConfig()
+	idleTTL := parseDurationOrDefault(cfg.XRD.Upload.IdleTTL, 10*time.Minute)
+	interval := uploadJanitorInterval
+	go func() {
+		defer close(j.done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-j.stop:
+				return
+			case <-ticker.C:
 				uploadStore.reapExpired(idleTTL)
 			}
-		}()
-	})
+		}
+	}()
 }
 
 // StartUploadJanitor is the exported entry point used by the router package.
 func StartUploadJanitor() { startUploadJanitor() }
+
+// StopUploadJanitor asks the janitor goroutine to exit and waits for it, for at
+// most as long as ctx allows: a reap pass that is closing a wedged storage
+// handle must not hold up a shutdown. It reports whether the goroutine has
+// exited. Calling it with no janitor running is a no-op that returns true.
+//
+// Upload sessions themselves are left alone; they live in memory and end with
+// the process.
+func StopUploadJanitor(ctx context.Context) bool {
+	uploadJanitorMu.Lock()
+	j := uploadJanitorRun
+	uploadJanitorRun = nil
+	uploadJanitorMu.Unlock()
+	if j == nil {
+		return true
+	}
+	close(j.stop)
+	select {
+	case <-j.done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
 
 func (s *uploadSessionStore) add(sess *uploadSession) {
 	s.mu.Lock()

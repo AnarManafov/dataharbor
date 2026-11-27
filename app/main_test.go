@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"sync"
 	"testing"
@@ -43,20 +44,20 @@ func TestStartServer_DebugMode(t *testing.T) {
 	// Mock gin router
 	gin.SetMode(gin.TestMode)
 
-	// Create a stop channel
-	stop := make(chan struct{})
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Call the startServer function
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		_ = startServer(stop)
+		_ = startServer(ctx)
 	})
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.TestMode, gin.Mode())
 
 	// Send stop signal and wait for the goroutine to finish
-	close(stop)
+	cancel()
 	wg.Wait()
 }
 
@@ -73,20 +74,20 @@ func TestStartServer_ReleaseMode(t *testing.T) {
 	// Mock gin router
 	gin.SetMode(gin.ReleaseMode)
 
-	// Create a stop channel
-	stop := make(chan struct{})
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Call the startServer function
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		_ = startServer(stop)
+		_ = startServer(ctx)
 	})
 
 	// Add assertions to verify server start
 	assert.Equal(t, gin.ReleaseMode, gin.Mode())
 
 	// Send stop signal and wait for the goroutine to finish
-	close(stop)
+	cancel()
 	wg.Wait()
 }
 
@@ -107,8 +108,8 @@ func TestStartServer_SSLEnabled(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	// Create a stop channel
-	stop := make(chan struct{})
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// This will fail to start due to missing cert files, but it exercises the SSL path
 	var wg sync.WaitGroup
@@ -117,11 +118,11 @@ func TestStartServer_SSLEnabled(t *testing.T) {
 			// Recover from any panic
 			_ = recover()
 		}()
-		_ = startServer(stop)
+		_ = startServer(ctx)
 	})
 
 	// Signal stop and wait for the goroutine to finish
-	close(stop)
+	cancel()
 	wg.Wait()
 }
 
@@ -137,17 +138,17 @@ func TestStartServer_DefaultAddress(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 
-	// Create a stop channel
-	stop := make(chan struct{})
+	// Create a cancellable context
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Start server in goroutine
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		_ = startServer(stop)
+		_ = startServer(ctx)
 	})
 
 	// Signal stop and wait for the goroutine to finish
-	close(stop)
+	cancel()
 	wg.Wait()
 }
 

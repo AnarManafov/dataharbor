@@ -24,7 +24,12 @@ services:
     image: dataharbor-backend:dev
     container_name: dataharbor-backend-dev
     restart: unless-stopped
-    command: go run . -config /app/config/application.yaml
+    # Must exceed server.shutdown_timeout (30s default), or Docker SIGKILLs mid-drain
+    stop_grace_period: 40s
+    # Build, then exec the binary so it is PID 1 and receives SIGTERM from
+    # "docker stop". Under "go run" the signal never reaches the backend and
+    # graceful shutdown cannot work.
+    command: sh -c "go build -o /tmp/dataharbor-backend . && exec /tmp/dataharbor-backend -config /app/config/application.yaml"
 
     environment:
       DATAHARBOR_ENV: development
