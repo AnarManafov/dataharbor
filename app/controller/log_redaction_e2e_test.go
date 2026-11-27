@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,22 @@ const (
 	sentIdPBody     = "SENTINELidpErrBody6Gc2Kz9Vh3Ts"
 	sentAuthCode    = "SENTINELauthCode4Pm7Nd1Rb5Yx8"
 	sentClientSec   = "SENTINELclientSecret9Fw3Hq6Lt2"
+
+	// Sentinels in bodies larger than the debug body limit (GH-83): one
+	// straddles the limit, the other lies wholly past it.
+	sentStraddleStrong = "SENTINELstraddleStrong3Hq8Wd1Kv6"
+	sentStraddleURL    = "SENTINELstraddleUrlPw7Tm2Xc5Lz9"
+	sentStraddleForm   = "SENTINELstraddleForm4Rb9Jn2Gs7"
+	sentPastLimit      = "SENTINELpastLimit8Vf3Qk6Mp1Yw"
+
+	// Sentinels in JSON bodies whose Content-Type does not say JSON (fetch()
+	// sends text/plain), and in a text/plain body that only starts like JSON.
+	sentSniffedJSON  = "SENTINELsniffedJson5Kw2Pd8Xm4"
+	sentSniffedStrad = "SENTINELsniffedStraddle7Lq3Vn6"
+	sentNotJSON      = "SENTINELnotJson2Hc9Ry4Tb7Gz"
+
+	// e2eBodyLimit is server.debug_body_log_limit in these tests.
+	e2eBodyLimit = 512
 
 	// Non-secret values that MUST survive, proving that logging is live and
 	// that redaction is not simply dropping everything.
@@ -264,7 +281,7 @@ func setupRedactionE2E(t *testing.T, idp *redactionIdP, mode captureMode) (*gin.
 	prevCfg := config.GetConfig()
 	config.SetConfig(&config.Config{
 		Env:    "production",
-		Server: config.ServerConfig{Address: ":8080", Debug: true},
+		Server: config.ServerConfig{Address: ":8080", Debug: true, DebugBodyLogLimit: e2eBodyLimit},
 		Auth: config.AuthConfig{
 			Enabled:       true,
 			SkipAuthPaths: []string{"/health"},
@@ -294,7 +311,7 @@ func setupRedactionE2E(t *testing.T, idp *redactionIdP, mode captureMode) (*gin.
 
 	r := gin.New()
 	r.Use(middleware.Recovery())
-	r.Use(middleware.DebugRequestBody())
+	r.Use(middleware.DebugRequestBody(config.GetConfig().Server.DebugBodyLogLimit, nil))
 	r.Use(middleware.TraceRequest())
 
 	auth := r.Group("/api/auth")
@@ -315,6 +332,16 @@ func setupRedactionE2E(t *testing.T, idp *redactionIdP, mode captureMode) (*gin.
 			"auth_url":     "https://idp.example/authorize?client_id=e2e&state=" + sentRespURL,
 			"note":         visibleResponseMarker,
 		})
+	})
+	v1.POST("/echo-raw", func(c *gin.Context) {
+		// Echoes the request body, so a body that straddles the debug body
+		// limit does so in both directions.
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		c.Data(http.StatusOK, c.ContentType(), body)
 	})
 	v1.GET("/panic", func(c *gin.Context) {
 		panic("handler exploded")
@@ -611,4 +638,185 @@ func runPanicInHandler(t *testing.T, mode captureMode) {
 		"session cookie value": sessionCookie.Value,
 		"stored access token":  sentStoreAccess,
 	}))
+}
+
+// straddlingBody returns head + pad + mid + secret + tail, with the pad sized
+// so that secret starts half its length before limit: the limit cuts it in
+// two.
+func straddlingBody(t *testing.T, limit int, head, mid, secret, tail string) string {
+	t.Helper()
+	padLen := limit - len(secret)/2 - len(head) - len(mid)
+	require.Positive(t, padLen)
+	body := head + strings.Repeat("p", padLen) + mid + secret + tail
+	start := strings.Index(body, secret)
+	require.Less(t, start, limit)
+	require.Greater(t, start+len(secret), limit)
+	return body
+}
+
+// assertNoSecretFragments fails if any 8-byte window of a secret is logged,
+// so neither a prefix nor a suffix of a cut secret can slip through.
+func (lc *logCapture) assertNoSecretFragments(t *testing.T, secrets map[string]string) {
+	t.Helper()
+	text := lc.text()
+	for name, secret := range secrets {
+		for i := 0; i+8 <= len(secret); i++ {
+			if strings.Contains(text, secret[i:i+8]) {
+				t.Errorf("fragment %q of %s leaked into the log", secret[i:i+8], name)
+			}
+		}
+	}
+}
+
+func TestLogRedactionE2E_BodiesLargerThanTheLimit(t *testing.T) {
+	forEachCaptureMode(t, runBodiesLargerThanTheLimit)
+}
+
+func runBodiesLargerThanTheLimit(t *testing.T, mode captureMode) {
+	jsonHead := `{"note":"` + visibleRequestMarker + `","pad":"`
+	past := `","later":{"client_secret":"` + sentPastLimit + `","n":1},"more":"` + strings.Repeat("q", 2*e2eBodyLimit) + `"}`
+	variants := []struct {
+		name, ctype, body string
+		chunked           bool // no Content-Length (-1)
+		secrets           map[string]string
+	}{
+		{
+			// fetch() with a JSON string body and no explicit header.
+			name:  "JSON sent as text/plain straddles the limit",
+			ctype: "text/plain;charset=UTF-8",
+			body:  straddlingBody(t, e2eBodyLimit, jsonHead, `","client_secret":"`, sentSniffedStrad, past),
+			secrets: map[string]string{
+				"straddling client_secret": sentSniffedStrad,
+				"client_secret past limit": sentPastLimit,
+			},
+		},
+		{
+			name:    "JSON with no Content-Type and no Content-Length straddles the limit",
+			ctype:   "",
+			chunked: true,
+			body:    straddlingBody(t, e2eBodyLimit, jsonHead, `","refresh_token":"`, sentSniffedStrad, past),
+			secrets: map[string]string{
+				"straddling refresh_token": sentSniffedStrad,
+				"client_secret past limit": sentPastLimit,
+			},
+		},
+		{
+			name:  "strong key straddles the limit",
+			ctype: "application/json",
+			body:  straddlingBody(t, e2eBodyLimit, jsonHead, `","refresh_token":"`, sentStraddleStrong, past),
+			secrets: map[string]string{
+				"straddling refresh_token": sentStraddleStrong,
+				"client_secret past limit": sentPastLimit,
+			},
+		},
+		{
+			// A neutral key: only the shape (URL userinfo) marks the secret,
+			// and a cut URL no longer has that shape.
+			name:  "URL password straddles the limit",
+			ctype: "application/json",
+			body:  straddlingBody(t, e2eBodyLimit, jsonHead, `","link":"https://alice:`, sentStraddleURL, `@example.org/x`+past),
+			secrets: map[string]string{
+				"straddling URL password":  sentStraddleURL,
+				"client_secret past limit": sentPastLimit,
+			},
+		},
+		{
+			name:  "form field straddles the limit",
+			ctype: "application/x-www-form-urlencoded",
+			body: straddlingBody(t, e2eBodyLimit, "note="+visibleRequestMarker+"&pad=", "&access_token=", sentStraddleForm,
+				"&client_secret="+sentPastLimit+"&more="+strings.Repeat("q", 2*e2eBodyLimit)),
+			secrets: map[string]string{
+				"straddling form access_token": sentStraddleForm,
+				"client_secret past limit":     sentPastLimit,
+			},
+		},
+	}
+
+	for _, v := range variants {
+		t.Run(v.name, func(t *testing.T) {
+			idp := newRedactionIdP(t)
+			router, lc := setupRedactionE2E(t, idp, mode)
+			tokenID := storeTokens(sentStoreAccess, sentStoreRefr, sentStoreID, time.Now().Add(time.Hour).Unix())
+			sessionCookie := mintSessionCookie(t, tokenID)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/echo-raw", strings.NewReader(v.body))
+			if v.chunked {
+				req.ContentLength = -1
+			}
+			if v.ctype != "" {
+				req.Header.Set("Content-Type", v.ctype)
+			}
+			req.AddCookie(sessionCookie)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, v.body, w.Body.String(), "the handler or client did not get the whole body")
+
+			text := lc.text()
+			assert.Equal(t, 2, strings.Count(text, visibleRequestMarker), "request and response bodies must both be logged:\n%s", text)
+			assert.Equal(t, 2, strings.Count(text, "(truncated)"), "request and response bodies must both be marked truncated:\n%s", text)
+			lc.assertNoSecretFragments(t, merge(v.secrets, map[string]string{
+				"session cookie value": sessionCookie.Value,
+				"stored access token":  sentStoreAccess,
+			}))
+		})
+	}
+}
+
+func TestLogRedactionE2E_JSONBodiesWithoutJSONType(t *testing.T) {
+	forEachCaptureMode(t, runJSONBodiesWithoutJSONType)
+}
+
+// runJSONBodiesWithoutJSONType sends whole (not truncated) bodies that are
+// JSON without saying so, which debug mode logs redacted, and a text/plain
+// body that only starts like JSON, which it must not log at all.
+func runJSONBodiesWithoutJSONType(t *testing.T, mode captureMode) {
+	jsonBody := `{"note":"` + visibleRequestMarker + `","client_secret":"` + sentSniffedJSON +
+		`","nested":{"password":"` + sentSniffedJSON + `"}}`
+	variants := []struct {
+		name, ctype, body string
+		chunked, logged   bool
+	}{
+		{name: "text/plain from fetch", ctype: "text/plain;charset=UTF-8", body: jsonBody, logged: true},
+		{name: "no Content-Type", body: jsonBody, logged: true},
+		{name: "no Content-Type, no Content-Length", body: jsonBody, chunked: true, logged: true},
+		{name: "text/plain that is not JSON", ctype: "text/plain",
+			body: `{note: "` + visibleRequestMarker + `", password: "` + sentNotJSON + `"}`},
+	}
+	for _, v := range variants {
+		t.Run(v.name, func(t *testing.T) {
+			idp := newRedactionIdP(t)
+			router, lc := setupRedactionE2E(t, idp, mode)
+			tokenID := storeTokens(sentStoreAccess, sentStoreRefr, sentStoreID, time.Now().Add(time.Hour).Unix())
+			sessionCookie := mintSessionCookie(t, tokenID)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/echo-raw", strings.NewReader(v.body))
+			if v.chunked {
+				req.ContentLength = -1
+			}
+			if v.ctype != "" {
+				req.Header.Set("Content-Type", v.ctype)
+			}
+			req.AddCookie(sessionCookie)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, v.body, w.Body.String())
+
+			text := lc.text()
+			if v.logged {
+				assert.Equal(t, 2, strings.Count(text, visibleRequestMarker), "request and response bodies must both be logged:\n%s", text)
+				// Two secrets in each of two bodies, plus the session cookie.
+				assert.GreaterOrEqual(t, strings.Count(text, "[REDACTED]"), 2*2+1, "both secrets redacted in both bodies:\n%s", text)
+			} else {
+				assert.NotContains(t, text, visibleRequestMarker, "a body that is not JSON was logged")
+			}
+			lc.assertNoSecretFragments(t, map[string]string{
+				"sniffed JSON secret":  sentSniffedJSON,
+				"not-JSON secret":      sentNotJSON,
+				"session cookie value": sessionCookie.Value,
+				"stored access token":  sentStoreAccess,
+			})
+		})
+	}
 }

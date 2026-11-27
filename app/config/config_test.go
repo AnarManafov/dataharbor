@@ -264,6 +264,7 @@ func TestSetDefaults(t *testing.T) {
 	assert.Equal(t, ":8080", v.GetString("server.address"))
 	assert.False(t, v.GetBool("server.debug"))
 	assert.Equal(t, "30s", v.GetString("server.shutdown_timeout"))
+	assert.Equal(t, DefaultDebugBodyLogLimit, v.GetInt("server.debug_body_log_limit"))
 	assert.False(t, v.GetBool("server.cors.allow_credentials"))
 	assert.False(t, v.GetBool("server.ssl.enabled"))
 
@@ -458,6 +459,80 @@ auth:
 
 	// Environment variable should override file value
 	assert.Equal(t, ":9999", cfg.Server.Address)
+}
+
+// TestLoadConfig_DebugBodyLogLimit checks the default and the env override of
+// server.debug_body_log_limit.
+func TestLoadConfig_DebugBodyLogLimit(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := `
+server:
+  address: :8080
+logging:
+  level: info
+xrd:
+  host: localhost
+  port: 1094
+`
+	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0o644))
+
+	cfg, err := LoadConfig(configFile)
+	require.NoError(t, err)
+	assert.Equal(t, DefaultDebugBodyLogLimit, cfg.Server.DebugBodyLogLimit)
+
+	t.Setenv("DATAHARBOR_SERVER_DEBUG_BODY_LOG_LIMIT", "512")
+	cfg, err = LoadConfig(configFile)
+	require.NoError(t, err)
+	assert.Equal(t, 512, cfg.Server.DebugBodyLogLimit)
+
+	// Out-of-range values from the environment are normalised at load.
+	for env, want := range map[string]int{
+		"0":                   DefaultDebugBodyLogLimit,
+		"-5":                  DefaultDebugBodyLogLimit,
+		"1048576":             MaxDebugBodyLogLimit,
+		"104857600":           MaxDebugBodyLogLimit,
+		"9223372036854775807": MaxDebugBodyLogLimit,
+	} {
+		t.Setenv("DATAHARBOR_SERVER_DEBUG_BODY_LOG_LIMIT", env)
+		cfg, err = LoadConfig(configFile)
+		require.NoError(t, err)
+		assert.Equal(t, want, cfg.Server.DebugBodyLogLimit, "env %s", env)
+	}
+}
+
+// TestLoadConfig_DebugBodyLogLimitClampedFromFile checks the clamp for a
+// value set in the YAML file.
+func TestLoadConfig_DebugBodyLogLimitClampedFromFile(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := `
+server:
+  address: :8080
+  debug_body_log_limit: 104857600
+logging:
+  level: info
+xrd:
+  host: localhost
+  port: 1094
+`
+	require.NoError(t, os.WriteFile(configFile, []byte(configContent), 0o644))
+	cfg, err := LoadConfig(configFile)
+	require.NoError(t, err)
+	assert.Equal(t, MaxDebugBodyLogLimit, cfg.Server.DebugBodyLogLimit)
+}
+
+func TestEffectiveDebugBodyLogLimit(t *testing.T) {
+	assert.Equal(t, 1<<20, MaxDebugBodyLogLimit)
+	for in, want := range map[int]int{
+		-1:                       DefaultDebugBodyLogLimit,
+		0:                        DefaultDebugBodyLogLimit,
+		1:                        1,
+		4096:                     4096,
+		MaxDebugBodyLogLimit:     MaxDebugBodyLogLimit,
+		MaxDebugBodyLogLimit + 1: MaxDebugBodyLogLimit,
+		int(^uint(0) >> 1):       MaxDebugBodyLogLimit,
+	} {
+		assert.Equal(t, want, EffectiveDebugBodyLogLimit(in), "in %d", in)
+	}
 }
 
 // TestLoadConfig_CreatesDirIfNotExists tests directory creation

@@ -91,6 +91,7 @@ flowchart TD
 | ------------------------- | ------ | --------- | --------------------------------------- |
 | `server.address`          | string | `":8080"` | Server bind address and port            |
 | `server.debug`            | bool   | `false`   | Enable debug mode: logs request and response headers and bodies at debug level, with credentials redacted (see [Log redaction](#log-redaction)) |
+| `server.debug_body_log_limit` | int | `4096` | Debug mode only: the most bytes of each request and response body that are kept and logged. A longer body is still passed through whole; its log line is cut at this size and ends with `... (truncated)`. Zero or negative means `4096`; the maximum is `1048576` (1 MiB), and a larger value is silently clamped to it (see [Debug body logging](#debug-body-logging)) |
 | `server.shutdown_timeout` | string | `"30s"`   | How long to wait for in-flight requests after SIGINT or SIGTERM, as a Go duration (`45s`, `2m`). An empty, malformed or non-positive value falls back to `30s` with a warning (see [Graceful shutdown](#graceful-shutdown)) |
 
 #### CORS Settings (`server.cors`)
@@ -148,9 +149,12 @@ configurable.
   keeps the cookie name and its attributes (`Path`, `Domain`, ...), never the value. Any
   other header with a sensitive name is replaced entirely.
 - **Bodies** (debug mode only). JSON and form bodies are logged with the values of
-  sensitive fields replaced by `[REDACTED]`, at any nesting depth. Any other body (HTML,
-  plain text, binary, unparseable JSON) is not logged; only its size and media type are.
-  File downloads and upload chunks are streamed: their bodies are never read or logged.
+  sensitive fields replaced by `[REDACTED]`, at any nesting depth. A body is JSON when its
+  `Content-Type` says so or when it starts with `{` or `[` (for example a `fetch()` body
+  sent as `text/plain`). Any other body (HTML, plain text, binary, unparseable JSON) is not
+  logged; only its size and media type are.
+  File downloads and upload chunks are streamed: their bodies are never read or logged
+  (see [Debug body logging](#debug-body-logging)).
 - **Sensitive names.** Anything containing `token`, `secret`, `password`, `cookie`,
   `session`, `credential`, `authorization`, `signature` or `api key`, plus `code`,
   `state`, `nonce`, `key`, `auth` and similar. In JSON, `code` and `state` are redacted
@@ -175,6 +179,40 @@ token, cookie, query parameter and JSON field, then searches the log file and pr
 `PASS`, `FAIL` or `INCONCLUSIVE`. It needs `server.debug: true` and debug-level logging;
 set `LOG_PROBE_BASE_URL` and `LOG_PROBE_LOG_FILE` if the defaults
 (`https://localhost:22000`, `app/log/dataharbor_app.log`) do not match.
+
+#### Debug body logging
+
+With `server.debug: true` the backend logs each request's method, path, headers, status
+and duration, plus the start of its request and response bodies. Memory per request
+stays bounded by `server.debug_body_log_limit`, however large the body:
+
+- **Transfer routes are never captured.** `GET /api/v1/xrd/download`,
+  `POST /api/v1/xrd/download/batch` and `PUT /api/v1/xrd/upload/{uploadId}/chunk` keep
+  their request line, headers and status in the log, but their bodies are neither read
+  nor buffered. The routes are matched by their registered route, not by a path prefix,
+  and are marked where they are registered (`handleStreaming` in `app/route/routes.go`).
+- **Only JSON and form bodies are captured.** A body counts as JSON when its
+  `Content-Type` mentions `json`, or, whatever its type (or with none), when its first
+  non-whitespace byte is `{` or `[`. `fetch()` sends a JSON string body as
+  `text/plain;charset=UTF-8`, so such a body is logged, redacted the same way. For any
+  other request body the logger reads only enough to see that first byte (512 bytes at a
+  time) and hands those bytes on to the handler; the log shows only the declared size and
+  media type (nothing when the size is unknown). Responses of other types are not kept.
+  A body that starts like JSON but does not parse is never logged raw: whole, it becomes a
+  size line; cut by the limit, only its complete, redacted JSON tokens are shown.
+- **Bodies are capped.** At most `server.debug_body_log_limit` bytes of each body are kept
+  (at most 1 MiB, whatever the setting). Capture buffers grow with the body, so a small
+  body does not reserve the whole limit.
+  The request body is handed to the handler whole. A body longer than the limit is
+  logged up to the last complete JSON value or form field before the cut and is marked
+  `... (truncated)`. A value cut by the limit is dropped, never shown in part, so no prefix
+  of a credential reaches the log. If nothing complete fits, the log line is
+  `[more than N bytes of <type>, truncated, not logged]`.
+
+To check a running development backend, run `make debug-body-probe` (see
+`scripts/probe-debug-body.sh`). It sends an upload chunk and an oversized JSON body,
+unauthenticated, and checks that the chunk produced no body log line and that the JSON
+body was logged truncated with no fragment of a sentinel placed past the limit.
 
 #### Graceful shutdown
 
@@ -294,6 +332,7 @@ All configuration values can be overridden using environment variables with the 
 # Server Configuration
 export DATAHARBOR_SERVER_ADDRESS=":8081"
 export DATAHARBOR_SERVER_DEBUG="true"
+export DATAHARBOR_SERVER_DEBUG_BODY_LOG_LIMIT="4096"
 
 # Logging Configuration
 export DATAHARBOR_LOGGING_LEVEL="debug"

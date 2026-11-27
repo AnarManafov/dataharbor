@@ -3,6 +3,7 @@ env: production
 server:
   address: ":8080"
   debug: false
+  debug_body_log_limit: 4096 # bytes of each request/response body logged in debug mode
   shutdown_timeout: 30s
   cors:
     allow_credentials: true
