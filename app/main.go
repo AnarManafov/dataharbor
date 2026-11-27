@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/AnarManafov/dataharbor/app/common"
@@ -27,10 +31,60 @@ func main() {
 
 	// Initialize everything in the proper order
 	initialize()
-	stop := make(chan struct{})
-	if err := startServer(stop); err != nil {
-		common.Logger.Fatal("Server error:", err)
+
+	ctx, stop := shutdownSignalContext()
+	err := startServer(ctx)
+	stop()
+	if err != nil {
+		// Fatal exits with status 1; a clean shutdown falls through and exits 0.
+		common.Logger.Fatal("Server error: ", err)
 	}
+}
+
+// defaultShutdownTimeout applies when server.shutdown_timeout is unset or invalid.
+const defaultShutdownTimeout = 30 * time.Second
+
+// shutdownSignalContext returns a context that is cancelled by the first
+// SIGINT or SIGTERM. After that first signal the default handling is restored,
+// so a second signal ends the process at once instead of waiting for the drain.
+func shutdownSignalContext() (context.Context, context.CancelFunc) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	return ctx, stop
+}
+
+// parseShutdownTimeout turns server.shutdown_timeout into a duration. The
+// second result is false when the value is empty, malformed or not positive and
+// the default was used instead.
+func parseShutdownTimeout(value string) (time.Duration, bool) {
+	d, err := time.ParseDuration(value)
+	if err != nil || d <= 0 {
+		return defaultShutdownTimeout, false
+	}
+	return d, true
+}
+
+// inFlightTracker counts the requests currently inside the handler, so a
+// shutdown can report how many it drained and how many it had to cut.
+type inFlightTracker struct {
+	next   http.Handler
+	active atomic.Int64
+}
+
+func (t *inFlightTracker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	t.active.Add(1)
+	defer t.active.Add(-1)
+	t.next.ServeHTTP(w, r)
+}
+
+// serverOptions is what serve needs beyond the listener and the handler.
+type serverOptions struct {
+	certFile        string // with keyFile: serve TLS
+	keyFile         string
+	shutdownTimeout time.Duration
 }
 
 func initialize() {
@@ -90,7 +144,10 @@ func initialize() {
 	}
 }
 
-func startServer(stop chan struct{}) error {
+// startServer builds the router, binds the configured address and serves until
+// ctx is cancelled, then shuts down gracefully. It returns nil after a clean
+// shutdown.
+func startServer(ctx context.Context) error {
 	cfg := config.GetConfig()
 
 	if !cfg.Server.Debug {
@@ -106,9 +163,47 @@ func startServer(stop chan struct{}) error {
 		address = ":8080" // Default fallback
 	}
 
+	timeout, ok := parseShutdownTimeout(cfg.Server.ShutdownTimeout)
+	if !ok {
+		common.GetLogger().Warnw("Invalid server.shutdown_timeout, using the default",
+			"value", cfg.Server.ShutdownTimeout, "default", defaultShutdownTimeout.String())
+	}
+	opts := serverOptions{shutdownTimeout: timeout}
+
+	scheme := "HTTP"
+	if cfg.Server.SSL.Enabled {
+		scheme = "HTTPS"
+		common.GetLogger().Infof("SSL enabled - cert: %s, key: %s", cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile)
+
+		// Validate certificate files exist
+		if cfg.Server.SSL.CertFile == "" || cfg.Server.SSL.KeyFile == "" {
+			return errors.New("SSL enabled but certificate or key file not specified")
+		}
+		opts.certFile = cfg.Server.SSL.CertFile
+		opts.keyFile = cfg.Server.SSL.KeyFile
+	}
+
+	ln, err := net.Listen("tcp", address)
+	if err != nil {
+		return fmt.Errorf("%s server failed to listen on %s: %w", scheme, address, err)
+	}
+	fmt.Printf("Starting %s server on address: %s\n", scheme, address)
+
+	return serve(ctx, ln, r, opts)
+}
+
+// serve runs handler on ln until ctx is cancelled or the listener fails. On
+// cancellation it stops accepting connections, waits up to
+// opts.shutdownTimeout for the requests in flight and for their responses to
+// reach the clients, and then stops the upload janitor. A drain that does not
+// finish in time is cut and reported as an error.
+func serve(ctx context.Context, ln net.Listener, handler http.Handler, opts serverOptions) error {
+	logger := common.GetLogger()
+	tracker := &inFlightTracker{next: handler}
+	dl := &drainListener{Listener: ln}
+
 	srv := &http.Server{
-		Addr:           address,
-		Handler:        r,
+		Handler:        tracker,
 		ReadTimeout:    0,                 // No read timeout for streaming downloads
 		WriteTimeout:   0,                 // No write timeout for streaming downloads
 		IdleTimeout:    120 * time.Second, // Keep connections alive
@@ -119,42 +214,59 @@ func startServer(stop chan struct{}) error {
 	// than by calling Logger.Fatal (os.Exit) from inside the goroutine: an exit
 	// there takes down the whole process, which in tests means the test binary.
 	serveErr := make(chan error, 1)
-
-	// Start server with SSL/TLS support if enabled
-	if cfg.Server.SSL.Enabled {
-		fmt.Printf("Starting HTTPS server on address: %s\n", address)
-		common.Logger.Infof("SSL enabled - cert: %s, key: %s", cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile)
-
-		// Validate certificate files exist
-		if cfg.Server.SSL.CertFile == "" || cfg.Server.SSL.KeyFile == "" {
-			return errors.New("SSL enabled but certificate or key file not specified")
+	go func() {
+		var err error
+		if opts.certFile != "" || opts.keyFile != "" {
+			err = srv.ServeTLS(dl, opts.certFile, opts.keyFile)
+		} else {
+			err = srv.Serve(dl)
 		}
-
-		go func() {
-			if err := srv.ListenAndServeTLS(cfg.Server.SSL.CertFile, cfg.Server.SSL.KeyFile); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				serveErr <- fmt.Errorf("HTTPS server failed: %w", err)
-			}
-		}()
-	} else {
-		fmt.Printf("Starting HTTP server on address: %s\n", address)
-		go func() {
-			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				serveErr <- fmt.Errorf("HTTP server failed: %w", err)
-			}
-		}()
-	}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- fmt.Errorf("server failed: %w", err)
+		}
+	}()
 
 	// Whichever comes first: the listener failing, or a shutdown request.
 	select {
 	case err := <-serveErr:
+		_ = ln.Close() // ServeTLS leaves it open when the certificate does not load
 		return err
-	case <-stop:
+	case <-ctx.Done():
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	started := time.Now()
+	logger.Infow("Shutdown started: no new connections are accepted",
+		"timeout", opts.shutdownTimeout.String(), "inFlight", tracker.active.Load())
+
+	drainCtx, cancel := context.WithTimeout(context.Background(), opts.shutdownTimeout)
 	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		return fmt.Errorf("server forced to shutdown: %w", err)
+	// From here on a connection is closed only once its response has reached the
+	// client, or at the deadline: see drainListener.
+	deadline, _ := drainCtx.Deadline()
+	dl.startDrain(deadline)
+
+	shutdownErr := srv.Shutdown(drainCtx)
+	remaining := tracker.active.Load()
+	if shutdownErr != nil {
+		_ = srv.Close() // cut what is left
 	}
+	// Connections closed before or during the shutdown may still be delivering
+	// the tail of a response; they give up at the deadline.
+	dl.waitClosed()
+	undelivered := dl.unsent.Load()
+	janitorStopped := controller.StopUploadJanitor(drainCtx)
+
+	if shutdownErr != nil || undelivered > 0 {
+		logger.Errorw("Shutdown deadline reached: remaining requests were cut",
+			"timeout", opts.shutdownTimeout.String(), "inFlight", remaining, "undelivered", undelivered)
+		return fmt.Errorf("shutdown timed out after %s: %d request(s) still in flight, %d response(s) not fully delivered",
+			opts.shutdownTimeout, remaining, undelivered)
+	}
+
+	if !janitorStopped {
+		logger.Warnw("Upload janitor did not stop before the shutdown deadline")
+	}
+	logger.Infow("Shutdown complete: all requests drained",
+		"duration", time.Since(started).Round(time.Millisecond).String())
 	return nil
 }

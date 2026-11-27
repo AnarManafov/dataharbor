@@ -216,7 +216,7 @@ type(scope): description
 
 8. **Always install from root**: `npm install` or `make deps` must run from repo root. Workspaces lock file at root — running only in `web/` causes inconsistencies.
 
-9. **Upload janitor**: `StartUploadJanitor()` fires a periodic goroutine. It's called during `SetupRouter()`, so starting the router initiates the cleanup loop.
+9. **Upload janitor**: `StartUploadJanitor()` fires a periodic goroutine. It's called during `SetupRouter()`, so starting the router initiates the cleanup loop. `StopUploadJanitor(ctx)` ends it; the graceful shutdown in `main.go` calls it after the HTTP drain. It can be started again afterwards.
 
 10. **Backend version vs frontend version**: Different sources. Backend version comes from git tags injected via ldflags at build. Frontend versions come from Vite's `getVersion()` helper which parses `git describe` output for `v*`, `web/v*`, and `app/v*` tag patterns separately. If no tags exist, falls back to respective `package.json` versions.
 

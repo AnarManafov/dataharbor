@@ -856,3 +856,56 @@ var (
 	_ = context.Background
 	_ = common.GetXRDClient
 )
+
+// The janitor must stop on request, report that it has, tolerate a second
+// stop, and start again afterwards: the router starts it on every setup.
+func TestUploadJanitor_StopAndRestart(t *testing.T) {
+	setupTestXRDConfig()
+	prev := uploadJanitorInterval
+	uploadJanitorInterval = 5 * time.Millisecond
+	t.Cleanup(func() {
+		StopUploadJanitor(context.Background())
+		uploadJanitorInterval = prev
+	})
+	StopUploadJanitor(context.Background()) // whatever an earlier test left running
+
+	StartUploadJanitor()
+	StartUploadJanitor() // second start is a no-op, not a second goroutine
+	uploadJanitorMu.Lock()
+	first := uploadJanitorRun
+	uploadJanitorMu.Unlock()
+	require.NotNil(t, first)
+
+	time.Sleep(20 * time.Millisecond) // let it tick at least once
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	assert.True(t, StopUploadJanitor(ctx), "janitor must stop within the deadline")
+	select {
+	case <-first.done:
+	default:
+		t.Fatal("StopUploadJanitor returned true before the goroutine exited")
+	}
+	assert.True(t, StopUploadJanitor(ctx), "stopping a stopped janitor is a no-op")
+
+	StartUploadJanitor()
+	uploadJanitorMu.Lock()
+	second := uploadJanitorRun
+	uploadJanitorMu.Unlock()
+	require.NotNil(t, second, "janitor must be startable again after a stop")
+	assert.NotSame(t, first, second)
+}
+
+// A janitor stuck in a reap pass must not hold a shutdown past its deadline.
+func TestUploadJanitor_StopHonoursContext(t *testing.T) {
+	StopUploadJanitor(context.Background())
+	stuck := &uploadJanitor{stop: make(chan struct{}), done: make(chan struct{})}
+	uploadJanitorMu.Lock()
+	uploadJanitorRun = stuck
+	uploadJanitorMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	assert.False(t, StopUploadJanitor(ctx), "an expired context must end the wait")
+	close(stuck.done)
+}

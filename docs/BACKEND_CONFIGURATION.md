@@ -91,7 +91,7 @@ flowchart TD
 | ------------------------- | ------ | --------- | --------------------------------------- |
 | `server.address`          | string | `":8080"` | Server bind address and port            |
 | `server.debug`            | bool   | `false`   | Enable debug mode: logs request and response headers and bodies at debug level, with credentials redacted (see [Log redaction](#log-redaction)) |
-| `server.shutdown_timeout` | string | `"30s"`   | Graceful shutdown timeout duration      |
+| `server.shutdown_timeout` | string | `"30s"`   | How long to wait for in-flight requests after SIGINT or SIGTERM, as a Go duration (`45s`, `2m`). An empty, malformed or non-positive value falls back to `30s` with a warning (see [Graceful shutdown](#graceful-shutdown)) |
 
 #### CORS Settings (`server.cors`)
 
@@ -175,6 +175,46 @@ token, cookie, query parameter and JSON field, then searches the log file and pr
 `PASS`, `FAIL` or `INCONCLUSIVE`. It needs `server.debug: true` and debug-level logging;
 set `LOG_PROBE_BASE_URL` and `LOG_PROBE_LOG_FILE` if the defaults
 (`https://localhost:22000`, `app/log/dataharbor_app.log`) do not match.
+
+#### Graceful shutdown
+
+On the first SIGINT or SIGTERM the backend stops accepting new connections and waits for
+in-flight requests, including downloads and upload chunks, for up to
+`server.shutdown_timeout`. A request counts as finished only when its response has
+reached the client: on Linux the backend also waits until the data it has written to
+each connection has been acknowledged. Without that wait, the last megabytes of a
+download to a slow client would be lost when a container is removed with the process.
+
+- **Drained in time.** The upload janitor is stopped, `Shutdown complete: all requests
+  drained` is logged and the process exits with status 0.
+- **Deadline reached.** The remaining connections are closed, `Shutdown deadline reached:
+  remaining requests were cut` is logged with the number of requests still in flight
+  and of responses not fully delivered, and the process exits with status 1. Cut
+  connections are reset, so a proxy in front reports the failure to its client at once
+  and does not wait for its read timeout.
+- **Second signal.** A second SIGINT or SIGTERM during the drain kills the process
+  immediately.
+
+The start is logged as `Shutdown started: no new connections are accepted`, with the
+timeout and the number of in-flight requests.
+
+The supervisor must wait longer than `server.shutdown_timeout` before it sends SIGKILL:
+
+- Docker stops a container after 10 seconds by default. Set `stop_grace_period` (the
+  compose files use `40s`) or pass `docker stop -t`.
+- systemd waits 90 seconds by default (`TimeoutStopSec`), which covers the default
+  timeout. Set `TimeoutStopSec` in the unit if you raise `server.shutdown_timeout`
+  beyond that.
+
+A transfer that needs longer than the timeout is still cut, and a download cut at the
+deadline has to be retried. Upload sessions are held in memory and are lost on every
+restart, drained or not. If you restart during long transfers, raise both
+`server.shutdown_timeout` and the supervisor's kill delay.
+
+To check a running backend, run `make shutdown-probe`. It starts a slow download, stops
+the backend and checks that the download finishes and that new connections are refused.
+It stops the backend, so it only runs with `SHUTDOWN_PROBE_FLAGS=--stop-backend`; see
+the header of `scripts/probe-graceful-shutdown.sh` for the environment variables.
 
 ### XRootD Configuration (`xrd`)
 

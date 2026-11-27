@@ -645,7 +645,7 @@ docker compose down
 #### Backend Changes
 
 ```bash
-# Backend uses 'go run' which compiles on startup
+# Backend compiles the mounted source on startup (go build, then runs the binary)
 # Edit files in app/ directory
 nano ../app/controller/file_controller.go
 

@@ -11,6 +11,8 @@ services:
     image: dataharbor-backend:latest
     container_name: dataharbor-backend
     restart: unless-stopped
+    # Must exceed server.shutdown_timeout (30s default), or Docker SIGKILLs mid-drain
+    stop_grace_period: 40s
 
     environment:
       DATAHARBOR_ENV: production

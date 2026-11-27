@@ -69,7 +69,7 @@ auth:
 
 ### Hot Reload
 
-Development mode uses `go run` for automatic recompilation:
+Development mode compiles the mounted source when the container starts (`go build`, then the binary is run directly so that it receives SIGTERM on `docker stop`):
 
 ```bash
 # Edit source code

@@ -42,7 +42,7 @@ NC=\033[0m # No Color
 
 .PHONY: all build build-backend build-frontend \
         test test-verbose test-race test-coverage test-coverage-html test-integration test-benchmark \
-        api-lint api-probe log-redaction-probe \
+        api-lint api-probe log-redaction-probe shutdown-probe \
         clean clean-all clean-backend clean-frontend \
         deps deps-backend deps-frontend deps-all \
         tidy tidy-backend \
@@ -95,6 +95,7 @@ help:
 	@echo "    make api-lint            - Lint api/openapi.yaml (OpenAPI 3.1, Redocly)"
 	@echo "    make api-probe           - Validate a running backend against the spec (see api/README.md)"
 	@echo "    make log-redaction-probe - Check a running debug backend never logs credentials"
+	@echo "    make shutdown-probe      - Check a running backend drains a download on SIGTERM (stops it; needs SHUTDOWN_PROBE_FLAGS=--stop-backend)"
 	@echo ""
 	@echo "  $(YELLOW)Build:$(NC)"
 	@echo "    make build               - Build both backend and frontend"
@@ -290,6 +291,14 @@ api-probe:
 # Prints PASS, FAIL or INCONCLUSIVE; read-only.
 log-redaction-probe:
 	@./scripts/probe-log-redaction.sh
+
+## shutdown-probe: Stop a running backend during a slow download and check it drains
+# NOT read-only: it runs SHUTDOWN_PROBE_STOP_CMD. It refuses unless
+# SHUTDOWN_PROBE_FLAGS=--stop-backend is given. Reads SHUTDOWN_PROBE_* from the
+# inherited environment; never reference $(SHUTDOWN_PROBE_COOKIE) here, make would
+# expand and print the session cookie (see scripts/probe-graceful-shutdown.sh).
+shutdown-probe:
+	@./scripts/probe-graceful-shutdown.sh $(SHUTDOWN_PROBE_FLAGS)
 
 # ============================================================================
 # Build
