@@ -42,7 +42,7 @@ NC=\033[0m # No Color
 
 .PHONY: all build build-backend build-frontend \
         test test-verbose test-race test-coverage test-coverage-html test-integration test-benchmark \
-        api-lint api-probe log-redaction-probe shutdown-probe \
+        api-lint api-probe log-redaction-probe debug-body-probe shutdown-probe \
         clean clean-all clean-backend clean-frontend \
         deps deps-backend deps-frontend deps-all \
         tidy tidy-backend \
@@ -95,6 +95,7 @@ help:
 	@echo "    make api-lint            - Lint api/openapi.yaml (OpenAPI 3.1, Redocly)"
 	@echo "    make api-probe           - Validate a running backend against the spec (see api/README.md)"
 	@echo "    make log-redaction-probe - Check a running debug backend never logs credentials"
+	@echo "    make debug-body-probe    - Check a running debug backend never logs transfer bodies and caps the rest"
 	@echo "    make shutdown-probe      - Check a running backend drains a download on SIGTERM (stops it; needs SHUTDOWN_PROBE_FLAGS=--stop-backend)"
 	@echo ""
 	@echo "  $(YELLOW)Build:$(NC)"
@@ -291,6 +292,13 @@ api-probe:
 # Prints PASS, FAIL or INCONCLUSIVE; read-only.
 log-redaction-probe:
 	@./scripts/probe-log-redaction.sh
+
+## debug-body-probe: Check a running debug backend skips transfer bodies and caps the others
+# Needs server.debug: true and debug-level logging. Reads DEBUG_BODY_PROBE_BASE_URL,
+# DEBUG_BODY_PROBE_LOG_FILE and DEBUG_BODY_PROBE_LIMIT from the environment (see
+# scripts/probe-debug-body.sh). Prints PASS, FAIL or INCONCLUSIVE; read-only.
+debug-body-probe:
+	@./scripts/probe-debug-body.sh
 
 ## shutdown-probe: Stop a running backend during a slow download and check it drains
 # NOT read-only: it runs SHUTDOWN_PROBE_STOP_CMD. It refuses unless

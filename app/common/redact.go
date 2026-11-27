@@ -283,14 +283,274 @@ func RedactBody(contentType string, body []byte) string {
 	if mt == "application/x-www-form-urlencoded" {
 		return RedactText(redactPairs(string(body)))
 	}
-	trimmed := bytes.TrimSpace(body)
-	looksJSON := len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[')
-	if strings.Contains(strings.ToLower(contentType), "json") || looksJSON {
+	if isJSONType(contentType) || looksLikeJSON(body) == sniffJSON {
 		if out, ok := redactJSONDocument(body, false); ok {
 			return out
 		}
 	}
 	return describeBody(mt, len(body))
+}
+
+// isFormType reports whether contentType is application/x-www-form-urlencoded.
+func isFormType(contentType string) bool {
+	mt, _, err := mime.ParseMediaType(contentType)
+	return err == nil && mt == "application/x-www-form-urlencoded"
+}
+
+// isJSONType reports whether RedactBody treats contentType as JSON whatever
+// the body: any Content-Type that mentions "json" (application/json, any
+// "+json" type, and also unparseable values).
+func isJSONType(contentType string) bool {
+	return strings.Contains(strings.ToLower(contentType), "json")
+}
+
+// sniffResult is what looksLikeJSON decided from the first bytes of a body.
+type sniffResult int
+
+const (
+	sniffUndecided sniffResult = iota // empty or only whitespace so far
+	sniffJSON                         // first non-space byte is '{' or '['
+	sniffNotJSON                      // first non-space byte is anything else
+)
+
+// looksLikeJSON classifies a body by its first non-whitespace byte, the rule
+// RedactBody uses for a body whose Content-Type does not say JSON (fetch()
+// sends a string body as text/plain, and a client may send no type at all).
+func looksLikeJSON(start []byte) sniffResult {
+	trimmed := bytes.TrimLeft(start, " \t\r\n\v\f")
+	switch {
+	case len(trimmed) == 0:
+		return sniffUndecided
+	case trimmed[0] == '{' || trimmed[0] == '[':
+		return sniffJSON
+	default:
+		return sniffNotJSON
+	}
+}
+
+// BodyDecision is IsRedactableBody's answer for a body.
+type BodyDecision int
+
+const (
+	// BodyUndecided: the start seen so far is empty or whitespace; the caller
+	// needs more of the body to decide.
+	BodyUndecided BodyDecision = iota
+	// BodyRedactable: RedactBody may render the body with values visible.
+	BodyRedactable
+	// BodyNotRedactable: RedactBody turns the body into a size line whatever
+	// follows, so a caller that only logs it need not keep any of it.
+	BodyNotRedactable
+)
+
+// IsRedactableBody reports whether RedactBody (and RedactTruncatedBody) can
+// render a body of this content type, starting with start, with its values
+// visible. The rule is RedactBody's own: application/x-www-form-urlencoded, a
+// Content-Type that mentions "json", or, whatever the type, a body whose
+// first non-whitespace byte is '{' or '['. A redactable body is still only
+// rendered if it parses (whole) or token by token (truncated); anything else
+// becomes a size line.
+//
+// A start that is empty or whitespace only yields BodyUndecided unless the
+// type alone decides; start may be any prefix of the body, and the answer
+// for a longer prefix never contradicts a decided one.
+func IsRedactableBody(contentType string, start []byte) BodyDecision {
+	if isFormType(contentType) || isJSONType(contentType) {
+		return BodyRedactable
+	}
+	switch looksLikeJSON(start) {
+	case sniffJSON:
+		return BodyRedactable
+	case sniffNotJSON:
+		return BodyNotRedactable
+	default:
+		return BodyUndecided
+	}
+}
+
+// DescribeBody returns the size line RedactBody uses for a body it does not
+// log, "[<n> bytes of <media type> not logged]", for a body that was never
+// read or kept (n is its declared or counted length).
+func DescribeBody(contentType string, n int64) string {
+	mt, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mt = ""
+	}
+	return describeBody(mt, int(n))
+}
+
+// TruncatedBodyMarker ends every rendering of a truncated body.
+const TruncatedBodyMarker = " ... (truncated)"
+
+// RedactTruncatedBody renders prefix, the first bytes of a body that was cut
+// at a capture limit (the rest was never read).
+//
+// A cut-off body cannot simply go through RedactBody or RedactText: JSON
+// would not parse, and a credential cut at the limit may no longer match the
+// pattern that recognises it ("eyJhbGciOi" without the dots of a JWT,
+// "https://user:pass" without the "@" of userinfo), so its prefix would be
+// logged. The invariant is therefore that only COMPLETE lexical units are
+// rendered, and the unit the limit cuts through is dropped unseen:
+//
+//   - JSON is walked token by token (redactJSONPrefix). Every string that is
+//     rendered is whole and goes through the same key and RedactText rules as
+//     in RedactBody; the value of a strong key is replaced as soon as the key
+//     is seen and skipped without being looked at; the token the limit cuts
+//     through, and a scalar that ends exactly at the limit (a number may go
+//     on past it), are dropped.
+//   - A form body is cut back to its last "&": every pair kept is complete
+//     and is redacted exactly as in a whole body.
+//
+// Which bodies are JSON follows RedactBody (see IsRedactableBody): a type
+// that mentions "json", or any type when the prefix starts with '{' or '['.
+// When no complete unit fits, or the body is neither JSON nor form, only a
+// size line is returned. A rendering of content ends with TruncatedBodyMarker.
+func RedactTruncatedBody(contentType string, prefix []byte) string {
+	mt, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		mt = ""
+	}
+	if isFormType(contentType) {
+		if i := bytes.LastIndexByte(prefix, '&'); i > 0 {
+			return RedactText(redactPairs(string(prefix[:i]))) + TruncatedBodyMarker
+		}
+	} else if IsRedactableBody(contentType, prefix) == BodyRedactable {
+		if out, ok := redactJSONPrefix(prefix); ok {
+			return out + TruncatedBodyMarker
+		}
+	}
+	if mt == "" || len(mt) > 64 || !safeMediaType(mt) {
+		mt = "unknown content type"
+	}
+	return fmt.Sprintf("[more than %d bytes of %s, truncated, not logged]", len(prefix), mt)
+}
+
+// jsonFrame is one open object or array in redactJSONPrefix.
+type jsonFrame struct {
+	object  bool
+	members int    // elements or members written so far
+	key     string // object: the key whose value comes next
+	haveKey bool
+}
+
+// redactJSONPrefix renders the complete tokens of a truncated JSON object or
+// array as compact JSON, redacted like redactJSONValue (strong keys are
+// redacted whatever their value, which over-redacts null and booleans). The
+// output is left unclosed. It fails when the input does not start with an
+// object or an array.
+func redactJSONPrefix(prefix []byte) (string, bool) {
+	dec := json.NewDecoder(bytes.NewReader(prefix))
+	dec.UseNumber()
+	var out strings.Builder
+	var stack []*jsonFrame
+
+	// member writes the separator and, in an object, the pending key.
+	member := func() {
+		if len(stack) == 0 {
+			return
+		}
+		f := stack[len(stack)-1]
+		if f.members > 0 {
+			out.WriteByte(',')
+		}
+		f.members++
+		if f.object {
+			k, _ := encodeJSON(RedactText(f.key))
+			out.WriteString(k)
+			out.WriteByte(':')
+			f.haveKey = false
+		}
+	}
+
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break // io.EOF, or the token the limit cut through
+		}
+
+		if d, ok := tok.(json.Delim); ok {
+			switch d {
+			case '{', '[':
+				member()
+				out.WriteByte(byte(d))
+				stack = append(stack, &jsonFrame{object: d == '{'})
+			default:
+				out.WriteByte(byte(d))
+				stack = stack[:len(stack)-1]
+			}
+			if len(stack) == 0 {
+				// The whole document fitted (the caller's body is longer, so
+				// anything after it is trailing data and is not rendered).
+				return out.String(), true
+			}
+			continue
+		}
+
+		if len(stack) == 0 {
+			return "", false // the top-level value is a scalar
+		}
+		f := stack[len(stack)-1]
+		if f.object && !f.haveKey {
+			f.key, f.haveKey = tok.(string), true
+			if isStrongKey(f.key) {
+				// Redact on sight: the value, scalar or subtree, is consumed
+				// unseen, so no part of it can be rendered.
+				member()
+				out.WriteString(`"` + RedactedPlaceholder + `"`)
+				if skipJSONValue(dec) != nil {
+					break
+				}
+			}
+			continue
+		}
+
+		// A scalar value. One that ends exactly at the limit may be the start
+		// of a longer one (a number), so it is dropped.
+		if dec.InputOffset() >= int64(len(prefix)) {
+			break
+		}
+		v := tok
+		if s, ok := tok.(string); ok {
+			switch {
+			case keepValue(s):
+			case f.object && isWeakKey(f.key):
+				v = RedactedPlaceholder
+			default:
+				v = RedactText(s)
+			}
+		}
+		enc, ok := encodeJSON(v)
+		if !ok {
+			break
+		}
+		member()
+		out.WriteString(enc)
+	}
+	if out.Len() == 0 {
+		return "", false
+	}
+	return out.String(), true
+}
+
+// skipJSONValue consumes the next value (a scalar or a whole subtree) from
+// dec without rendering it. It returns an error when the input ends first.
+func skipJSONValue(dec *json.Decoder) error {
+	depth := 0
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if d, ok := tok.(json.Delim); ok {
+			if d == '{' || d == '[' {
+				depth++
+			} else {
+				depth--
+			}
+		}
+		if depth == 0 {
+			return nil
+		}
+	}
 }
 
 func describeBody(mt string, n int) string {

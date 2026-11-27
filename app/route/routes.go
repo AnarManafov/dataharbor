@@ -3,6 +3,7 @@ package route
 import (
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,23 @@ const (
 	DefaultDistDir = "dist"
 )
 
+// streamingRoutes holds the routes whose request or response body is a file
+// transfer. SetupRouter fills it while registering them (handleStreaming), so
+// the set and the registrations cannot drift apart; the debug middleware never
+// reads or keeps the bodies of these routes.
+var streamingRoutes = middleware.NewRouteSet()
+
+// StreamingRoutes returns the routes registered as file transfers, as sorted
+// "METHOD /pattern" strings.
+func StreamingRoutes() []string { return streamingRoutes.List() }
+
+// handleStreaming registers a route that carries a file transfer body and
+// marks it as streaming.
+func handleStreaming(g *gin.RouterGroup, method, relativePath string, handler gin.HandlerFunc) {
+	g.Handle(method, relativePath, handler)
+	streamingRoutes.Add(method, path.Join(g.BasePath(), relativePath))
+}
+
 // SetupRouter configures the API and static file routes for the application
 // This function establishes the application's routing structure, middleware chain,
 // and serves the SPA frontend for non-API routes
@@ -34,7 +52,7 @@ func SetupRouter(r *gin.Engine) {
 	// Enable request/response logging in debug mode to aid development
 	cfg := config.GetConfig()
 	if cfg.Server.Debug {
-		r.Use(middleware.DebugRequestBody())
+		r.Use(middleware.DebugRequestBody(cfg.Server.DebugBodyLogLimit, streamingRoutes))
 	}
 
 	// Add request tracing for distributed system observability
@@ -66,14 +84,14 @@ func SetupRouter(r *gin.Engine) {
 	// XRootD file system exploration and download endpoints
 	v1.GET("/xrd/ls", controller.ListDirectory)
 	v1.GET("/xrd/initialDir", controller.FetchInitialDir)
-	v1.GET("/xrd/download", controller.DownloadFile)
+	handleStreaming(v1, http.MethodGet, "/xrd/download", controller.DownloadFile)
 	v1.GET("/xrd/hostname", controller.FetchHostName)
 	v1.GET("/xrd/vstat", controller.FetchVirtualFSStat)
 	v1.GET("/xrd/ping", controller.PingXRD)
 	v1.POST("/xrd/ls/paged", controller.FetchDirItemsByPage)
 
 	// Multi-file download endpoint: streams selected files as a tar (optionally gzipped) archive
-	v1.POST("/xrd/download/batch", controller.DownloadMultipleFiles)
+	handleStreaming(v1, http.MethodPost, "/xrd/download/batch", controller.DownloadMultipleFiles)
 
 	// Upload endpoints (see docs/UPLOAD.md). Chunked, resumable, with
 	// server-side SHA-256 verification. All endpoints require an authenticated
@@ -81,7 +99,7 @@ func SetupRouter(r *gin.Engine) {
 	// presented to the XRootD server.
 	v1.GET("/xrd/upload/limits", controller.GetTransferLimits)
 	v1.POST("/xrd/upload/session", controller.CreateUploadSession)
-	v1.PUT("/xrd/upload/:uploadId/chunk", controller.UploadChunk)
+	handleStreaming(v1, http.MethodPut, "/xrd/upload/:uploadId/chunk", controller.UploadChunk)
 	v1.POST("/xrd/upload/:uploadId/complete", controller.CompleteUpload)
 	v1.DELETE("/xrd/upload/:uploadId", controller.AbortUpload)
 	v1.GET("/xrd/upload/:uploadId/status", controller.GetUploadStatus)

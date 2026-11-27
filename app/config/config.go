@@ -39,13 +39,44 @@ type FrontendConfig struct {
 	DistDir    string   `mapstructure:"dist_dir" yaml:"dist_dir"`
 }
 
+// DefaultDebugBodyLogLimit is the default of server.debug_body_log_limit, and
+// the limit used when it is zero or negative.
+const DefaultDebugBodyLogLimit = 4096
+
+// MaxDebugBodyLogLimit is the largest server.debug_body_log_limit honoured
+// (1 MiB); a larger value is clamped to it. The debug middleware keeps up to
+// this many bytes of each body per request, so an unbounded value would let
+// one setting reserve arbitrary memory (or panic in make) on every request.
+const MaxDebugBodyLogLimit = 1 << 20
+
+// EffectiveDebugBodyLogLimit returns the limit the debug middleware uses for
+// a configured server.debug_body_log_limit: DefaultDebugBodyLogLimit when it
+// is zero or negative, MaxDebugBodyLogLimit when it is larger than that, and
+// the value itself otherwise. Both bounds are applied silently, here and in
+// the middleware; the documentation states them.
+func EffectiveDebugBodyLogLimit(limit int) int {
+	switch {
+	case limit <= 0:
+		return DefaultDebugBodyLogLimit
+	case limit > MaxDebugBodyLogLimit:
+		return MaxDebugBodyLogLimit
+	default:
+		return limit
+	}
+}
+
 // ServerConfig represents the server configuration
 type ServerConfig struct {
-	Address         string     `mapstructure:"address" yaml:"address"`
-	Debug           bool       `mapstructure:"debug" yaml:"debug"`
-	ShutdownTimeout string     `mapstructure:"shutdown_timeout" yaml:"shutdown_timeout"`
-	CORS            CORSConfig `mapstructure:"cors" yaml:"cors"`
-	SSL             SSLConfig  `mapstructure:"ssl" yaml:"ssl"`
+	Address string `mapstructure:"address" yaml:"address"`
+	Debug   bool   `mapstructure:"debug" yaml:"debug"`
+	// DebugBodyLogLimit caps, in bytes, how much of each request and response
+	// body the debug middleware keeps and logs (debug mode only). Zero or
+	// negative means DefaultDebugBodyLogLimit; a value above
+	// MaxDebugBodyLogLimit is clamped to it (EffectiveDebugBodyLogLimit).
+	DebugBodyLogLimit int        `mapstructure:"debug_body_log_limit" yaml:"debug_body_log_limit"`
+	ShutdownTimeout   string     `mapstructure:"shutdown_timeout" yaml:"shutdown_timeout"`
+	CORS              CORSConfig `mapstructure:"cors" yaml:"cors"`
+	SSL               SSLConfig  `mapstructure:"ssl" yaml:"ssl"`
 }
 
 // CORSConfig represents the CORS configuration
@@ -400,6 +431,7 @@ func LoadConfig(configFile string) (*Config, error) {
 	}
 
 	applyExplicitlyEmptyScopes(&cfg)
+	cfg.Server.DebugBodyLogLimit = EffectiveDebugBodyLogLimit(cfg.Server.DebugBodyLogLimit)
 
 	// Validate configuration
 	if err := ValidateConfig(&cfg); err != nil {
@@ -524,6 +556,7 @@ func setDefaults(v *viper.Viper) {
 	// Server defaults
 	v.SetDefault("server.address", ":8080")
 	v.SetDefault("server.debug", false)
+	v.SetDefault("server.debug_body_log_limit", DefaultDebugBodyLogLimit)
 	v.SetDefault("server.shutdown_timeout", "30s")
 	v.SetDefault("server.cors.allow_credentials", false)
 	v.SetDefault("server.ssl.enabled", false)
@@ -587,9 +620,10 @@ func createDefaultConfig(configFile string) error {
 	defaultConfig := &Config{
 		Env: "development",
 		Server: ServerConfig{
-			Address:         ":8080",
-			Debug:           false,
-			ShutdownTimeout: "30s",
+			Address:           ":8080",
+			Debug:             false,
+			DebugBodyLogLimit: DefaultDebugBodyLogLimit,
+			ShutdownTimeout:   "30s",
 			CORS: CORSConfig{
 				AllowCredentials: false,
 				AllowOrigins:     []string{},
